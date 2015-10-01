@@ -179,7 +179,7 @@ class res_company(models.Model):
             uid = sock_common.login(openerp.tools.config.get('passwd_dbname'),openerp.tools.config.get('passwd_user'),openerp.tools.config.get('passwd_passwd'))
             sock = xmlrpclib.ServerProxy('%s/xmlrpc/object' % openerp.tools.config.get('passwd_server'))
             company_id = sock.execute(openerp.tools.config.get('passwd_dbname'), uid,openerp.tools.config.get('passwd_passwd'), 'res.company', 'search', [('domain','=',self.domain)])
-            if user_id:
+            if company_id:
                 sock.execute(openerp.tools.config.get('passwd_dbname'), uid,openerp.tools.config.get('passwd_passwd'), 'res.users', 'write',company_id, { 
                                                                                                                                                 'name': self.name,
                                                                                                                                                 'domain': self.domain,
