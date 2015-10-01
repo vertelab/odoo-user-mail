@@ -1,6 +1,18 @@
 <?xml version="1.0"?>
 <openerp>
     <data>
+      <!--
+      <record id="mail_config_view" model="ir.ui.view">
+        <field name="name">mail.user.config</field>
+              <field name="model">res.users</field>
+              <field name="inherit_id" ref="base.view_users_form"/>
+              <field name="arch" type="xml">
+
+
+
+            </field>
+      </record>
+    -->
 
 <!--
          <record id="view_res_partner" model="ir.ui.view">
@@ -95,6 +107,10 @@
             <field name="model">res.users</field>
             <field name="inherit_id" ref="base.view_users_form"/>
             <field name="arch" type="xml">
+                <field name="active" position="after">
+                  <button name="sync_settings" string="Sync settings" class="oe_highlight" type="object"/>                
+                </field>
+
                 <data>
                     <page string="Preferences" position="after">
                     <page string="E-mail settings">
