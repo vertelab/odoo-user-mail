@@ -30,63 +30,11 @@ _logger = logging.getLogger(__name__)
 class res_users(models.Model):
     _inherit = 'res.users'
 
-    passwd_server = openerp.tools.config.get('passwd_server',False)
-    _logger.warning('Passwd_server %s' % passwd_server)
-
-    @api.one
-    def sync_settings(self):
-
-		url = 'http://odooutv.vertel.se'
-		db = 'xmlrpc_mail_config'
-		username = 'admin'
-		password = 'admin'
-
-		config = {
-			"name" : self.name,
-			"login" : self.login,
-			"postfix_active" : self.postfix_active,
-			"vacation_active" : self.vacation_active,
-			"forward_active" : self.forward_active,
-			"forward_address" : self.forward_address,
-			"forward_cp" : self.forward_cp,
-			"virus_active" : self.virus_active,
-			"spam_active" : self.spam_active,
-			"spam_tag" : self.spam_tag,
-			"spam_tag2" : self.spam_tag2,
-			"spam_killevel" : self.spam_killevel,
-			"maildir" : self.maildir,
-			"transport" : self.transport,
-			"quota" : self.quota,
-			"domain" : self.domain,
-			"password" : self.passwd_mail,
-			"mail_alias" : [(0,0,{'mail':m.mail,'active':m.active}) for m in self.mail_alias]
-		}
-
-
-		common = xmlrpclib.ServerProxy('{}/xmlrpc/2/common'.format(url))
-		uid = common.authenticate(db, username, password, {})
-		models = xmlrpclib.ServerProxy('{}/xmlrpc/2/object'.format(url))
-
-		user = models.execute_kw(db, uid, password,
-			'res.users', 'search',
-			[[['login', '=', config["login"]]]])
-
-		_logger.warn("User: %s" % user)
-
-		if(user):
-			models.execute_kw(db, uid, password,
-			'res.users', 'write', [[user[0]], config])		
-		else:
-			models.execute_kw(db, uid, password,
-			'res.users', 'create', [config])			
-		
-		return
 
 
     @api.one
     def _maildir_get(self):
         self.maildir = "%s/%s/" % (self.company_id.domain,self.user_email)
-
 
     postfix_active = fields.Boolean('Active',default=False)
     #      'full_email': fields.function(_full_email,string='Full Email',type="char",size=64,store=True,select=1),
@@ -116,82 +64,66 @@ class res_users(models.Model):
     mail_alias = fields.One2many('postfix.alias', 'user_id', string='Alias', copy=True)
     passwd_mail = fields.Char('Password')
     
-    #~ @api.v7
-    #~ def create(self,cr,uid,values,context=None):
-        #~ _logger.warning('create %s' % (values))
-        #~ if values.get('new_password'):
-            #~ values['passwd_mail'] = values['new_password']
-        #~ return super(res_users, self).create(cr,uid,values,context=context)
+    # Default forward till företagets catchall-adress
+    # Kontrollera att mailalias bara är knuten till rätt domän
+    
 
     @api.one
-    def mail_sync(self):
-        import xmlrpclib
-        #~ common = xmlrpclib.ServerProxy('{}/xmlrpc/2/common'.format(url))
-        #~ common.version()
-        #~ uid = common.authenticate(db, username, password, {})
-        #~ models = xmlrpclib.ServerProxy('{}/xmlrpc/2/object'.format(url))
-        #~ models.execute_kw(db, uid, password,'res.partner', 'check_access_rights',['read'], {'raise_exception': False})
-        if openerp.tools.config.get('passwd_server',False):
-            sock_common = xmlrpclib.ServerProxy ('%s/xmlrpc/common' % openerp.tools.config.get('passwd_server'))
-            uid = sock_common.login(openerp.tools.config.get('passwd_dbname'),openerp.tools.config.get('passwd_user'),openerp.tools.config.get('passwd_passwd'))
-            sock = xmlrpclib.ServerProxy('%s/xmlrpc/object' % openerp.tools.config.get('passwd_server'))
+    def sync_settings(self):        
+        passwd_server = openerp.tools.config.get('passwd_server',False)
+        passwd_dbname = openerp.tools.config.get('passwd_dbname',False)
+        passwd_user   = openerp.tools.config.get('passwd_user',False)
+        passwd_passwd = openerp.tools.config.get('passwd_passwd',False)
+# Felhantering: felruta om någon av parametrarna saknas.  (rais.exception)
+#http://stackoverflow.com/questions/29072343/how-to-display-openerp-error-message
             
-            user_id = sock.execute(openerp.tools.config.get('passwd_dbname'), uid,openerp.tools.config.get('passwd_passwd'), 'res.users', 'search', [('email','=',self.email)])
-            if user_id:
-                sock.execute(openerp.tools.config.get('passwd_dbname'), uid,openerp.tools.config.get('passwd_passwd'), 'postfix.alias', 'unlink',[a.id for a in self.mail_alias])
-                sock.execute(openerp.tools.config.get('passwd_dbname'), uid,openerp.tools.config.get('passwd_passwd'), 'res.users', 'write',user_id, {  'postfix_active': self.postfix_active,
-                                                                                                                                                'vacation_subject': self.vacation_subject,
-                                                                                                                                                'vacation_active': self.vacation_active,
-                                                                                                                                                'vacation_from': self.vacation_from,
-                                                                                                                                                'vacation_to': self.vacation_to,
-                                                                                                                                                'vacation_forward': self.vacation_forward,
-                                                                                                                                                'vacation_text': self.vacation_text,
-                                                                                                                                                'forward_active': self.forward_active,
-                                                                                                                                                'forward_address': self.forward_address,
-                                                                                                                                                'forward_cp': self.forward_cp,
-                                                                                                                                                'virus_active': self.virus_active,
-                                                                                                                                                'spam_active': self.spam_active,
-                                                                                                                                                'spam_killevel': self.spam_killevel,
-                                                                                                                                                'spam_tag2': self.spam_tag2,
-                                                                                                                                                'spam_tag': self.spam_tag,
-                                                                                                                                                'mail_alias': [(0,0,{'mail':m.mail,'active':m.active}) for m in self.mail_alias ]
-                                                                                                                                                })
-            else:
-                sock.execute(openerp.tools.config.get('passwd_dbname'), uid,openerp.tools.config.get('passwd_passwd'), 'res.users', 'create', {  'postfix_active': self.postfix_active,
-                                                                                                                                                'vacation_subject': self.vacation_subject,
-                                                                                                                                                'vacation_active': self.vacation_active,
-                                                                                                                                                'vacation_from': self.vacation_from,
-                                                                                                                                                'vacation_to': self.vacation_to,
-                                                                                                                                                'vacation_forward': self.vacation_forward,
-                                                                                                                                                'vacation_text': self.vacation_text,
-                                                                                                                                                'forward_active': self.forward_active,
-                                                                                                                                                'forward_address': self.forward_address,
-                                                                                                                                                'forward_cp': self.forward_cp,
-                                                                                                                                                'virus_active': self.virus_active,
-                                                                                                                                                'spam_active': self.spam_active,
-                                                                                                                                                'spam_killevel': self.spam_killevel,
-                                                                                                                                                'spam_tag2': self.spam_tag2,
-                                                                                                                                                'spam_tag': self.spam_tag,
-                                                                                                                                                'mail_alias': [(0,0,{'mail':m.mail,'active':m.active}) for m in self.mail_alias ]
-                                                                                                                                                })
-                                                                                                                                                
-                                                                                                                                                
-     
-    @api.one
-    def _quota_get(self):
-        return self.company_id.default_quota
-    quota = fields.Integer('Quota',default=_quota_get)
-    domain  = fields.Char(related="company_id.domain",string='Domain', size=64,store=True, readonly=True)
-                
+        FIELDS = ['postfix_active',
+                  'vacation_subject','vacation_active','vacation_from',
+                  'vacation_to','vacation_forward','vacation_text',
+                  'forward_active','forward_address','forward_cp',
+                  'virus_active',
+                  'spam_active','spam_killevel','spam_tag2','spam_tag',
+                  'transport','quota']
+
+        record = {}
+        for f in FIELDS:
+            record[f] = eval('self.%s' % f))
+        record['new_password'] = self.passwd_mail
+        record['mail_alias'] = [(0,0,{'mail':m.mail,'active':m.active}) for m in self.mail_alias ]
+
+# Felhantering
+        sock_common = xmlrpclib.ServerProxy ('%s/xmlrpc/common' % passwd_server)
+        uid = sock_common.login(passwd_dbname,passwd_user,passwd_passwd)
+        sock = xmlrpclib.ServerProxy('%s/xmlrpc/object' % passwd_server)
         
-        
-        
+        user_id = sock.execute(passwd_dbname, uid,passwd_passwd,'res.users', 'search', [('login','=',self.login)])
+        if user_id:
+            sock.execute(passwd_dbname,uid,passwd_passwd,'postfix.alias', 'unlink',[a.id for a in self.mail_alias])
+            sock.execute(passwd_dbname, uid,passwd_passwd, 'res.users', 'write',user_id, record)
+        else:
+            sock.execute(passwd_dbname,uid,passwd_passwd,'res.users', 'create',record)
+    
     @api.one
     def write(self,values):
         _logger.warning('write %s' % (values))
         if values.get('password'):
             values['passwd_mail'] = values['password']
         return super(res_users, self).write(values)
+# Användarfall
+# 1) Skapa en ny användare med ett lösenord backoffice, synka kontrollera att rätt lösenord är synkat (logga in på odooutv) och titta på passwd_mail (löseordet i klartext)
+# 2) Aktivera självregistrering, kontrollera det synkade lösenordet
+# 3) Administratören byter lösenord på en användare 
+# 4) Användaren byter själv
+
+
+
+
+    #~ @api.v7
+    #~ def create(self,cr,uid,values,context=None):
+        #~ _logger.warning('create %s' % (values))
+        #~ if values.get('new_password'):
+            #~ values['passwd_mail'] = values['new_password']
+        #~ return super(res_users, self).create(cr,uid,values,context=context)
 
     
 class res_company(models.Model):
