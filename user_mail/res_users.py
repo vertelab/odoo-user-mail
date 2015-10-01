@@ -22,6 +22,7 @@
 from openerp import models, fields, api, _
 import openerp.tools
 import xmlrpclib
+from openerp.exceptions import Warning
 
 import logging
 _logger = logging.getLogger(__name__)
@@ -29,8 +30,6 @@ _logger = logging.getLogger(__name__)
 
 class res_users(models.Model):
     _inherit = 'res.users'
-
-
 
     @api.one
     def _maildir_get(self):
@@ -74,10 +73,18 @@ class res_users(models.Model):
         passwd_dbname = openerp.tools.config.get('passwd_dbname',False)
         passwd_user   = openerp.tools.config.get('passwd_user',False)
         passwd_passwd = openerp.tools.config.get('passwd_passwd',False)
-# Felhantering: felruta om någon av parametrarna saknas.  (rais.exception)
-#http://stackoverflow.com/questions/29072343/how-to-display-openerp-error-message
-            
-        FIELDS = ['postfix_active',
+
+        if not passwd_passwd:
+            raise Warning(_("Password is missing! (passwd_passwd in openerp-server.conf)"))
+        if not passwd_server:
+            raise Warning(_("Server uri is missing! (passwd_server in openerp-server.conf)"))
+        if not passwd_dbname:
+            raise Warning(_("Database name is missing! (passwd_dbname in openerp-server.conf)"))
+        if not passwd_user:
+            raise Warning(_("Username is missing! (passwd_user in openerp-server.conf)"))
+
+        FIELDS = ['name', 'login',
+                  'postfix_active',
                   'vacation_subject','vacation_active','vacation_from',
                   'vacation_to','vacation_forward','vacation_text',
                   'forward_active','forward_address','forward_cp',
@@ -87,21 +94,27 @@ class res_users(models.Model):
 
         record = {}
         for f in FIELDS:
-            record[f] = eval('self.%s' % f))
+            record[f] = eval('self.%s' % f)
         record['new_password'] = self.passwd_mail
         record['mail_alias'] = [(0,0,{'mail':m.mail,'active':m.active}) for m in self.mail_alias ]
 
-# Felhantering
-        sock_common = xmlrpclib.ServerProxy ('%s/xmlrpc/common' % passwd_server)
-        uid = sock_common.login(passwd_dbname,passwd_user,passwd_passwd)
-        sock = xmlrpclib.ServerProxy('%s/xmlrpc/object' % passwd_server)
         
+        try:
+            sock_common = xmlrpclib.ServerProxy('%s/xmlrpc/common' % passwd_server)              
+            uid = sock_common.login(passwd_dbname, passwd_user, passwd_passwd)
+            sock = xmlrpclib.ServerProxy('%s/xmlrpc/object' % passwd_server)
+        except xmlrpclib.Error as err:
+            raise Warning(_("%s" % err))
+
         user_id = sock.execute(passwd_dbname, uid,passwd_passwd,'res.users', 'search', [('login','=',self.login)])
+
         if user_id:
             sock.execute(passwd_dbname,uid,passwd_passwd,'postfix.alias', 'unlink',[a.id for a in self.mail_alias])
             sock.execute(passwd_dbname, uid,passwd_passwd, 'res.users', 'write',user_id, record)
         else:
             sock.execute(passwd_dbname,uid,passwd_passwd,'res.users', 'create',record)
+
+
     
     @api.one
     def write(self,values):
