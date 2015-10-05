@@ -144,7 +144,9 @@ class res_users(models.Model):
     @api.one
     def write(self,values):
         if values.get('password'):
-            values['passwd_mail'] = values['password']
+            pass
+            # skapa (om det behövs) res.users.password, knyt med user_id 
+#            values['passwd_mail'] = values['password']
         return super(res_users, self).write(values)
 # Användarfall
 # 1) Skapa en ny användare med ett lösenord backoffice, synka kontrollera att rätt lösenord är synkat (logga in på odooutv) och titta på passwd_mail (löseordet i klartext) - fungerar som smort, men det går inte att se lösenordet som vanlig användare
@@ -162,7 +164,13 @@ class res_users(models.Model):
             #~ values['passwd_mail'] = values['new_password']
         #~ return super(res_users, self).create(cr,uid,values,context=context)
 
+class users_password(models.TransientModel):
+    _name = "res.users.password"
     
+    user_id = fields.One2many('res.users')
+    passwd_mail = fields.Char('Password')
+
+ 
 class res_company(models.Model):
     _inherit = 'res.company'
     
