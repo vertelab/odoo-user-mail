@@ -3,7 +3,7 @@
 #
 #    Copyright (C) 2015- Vertel AB (<http://www.vertel.se>).
 #
-#    This program is free software: you can redistribute it and/or modify
+#    This progrupdateam is free software: you can redistribute it and/or modify
 #    it under the terms of the GNU Affero General Public License as
 #    published by the Free Software Foundation, either version 3 of the
 #    License, or (at your option) any later version.
@@ -23,13 +23,27 @@ from openerp import models, fields, api, _
 import openerp.tools
 import xmlrpclib
 from openerp.exceptions import Warning
+import random
 
 import logging
 _logger = logging.getLogger(__name__)
 
+class sync_settings_wizard(models.TransientModel):
+    _name = "user.mail.sync.wizard"
+
+    def default_user_ids(self):
+        return self.env['res.users'].browse(self._context.get('active_ids'))
+
+    user_ids = fields.Many2many(string="users", comodel_name="res.users", default=default_user_ids)
+    generate_password = fields.Boolean(string="generate_password")
+
+    @api.multi
+    def sync_settings(self):
+        self.user_ids.sync_settings(self.generate_password)
+        return {}
 
 class res_users(models.Model):
-    _inherit = 'res.users'
+    _inherit = 'res.users'    
 
     @api.one
     def _maildir_get(self):
@@ -65,10 +79,18 @@ class res_users(models.Model):
     
     # Default forward till företagets catchall-adress
     # Kontrollera att mailalias bara är knuten till rätt domän
-    
+    def generate_password(self, pw_length=15):
+        alphabet = "abcdefghijklmnopqrstuvwxyz0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ!\"#$%&'()*+,-./0:;<=>?@[\]^_`{|}~"
+        password = ""
+        for i in range(pw_length):
+            next_index = random.randrange(len(alphabet))
+            password = password + alphabet[next_index]
+        return password
 
     @api.one
-    def sync_settings(self):        
+    def sync_settings(self, generate_password=False):     
+
+        _logger.warn("In sync NOW! ;D")   
         passwd_server = openerp.tools.config.get('passwd_server',False)
         passwd_dbname = openerp.tools.config.get('passwd_dbname',False)
         passwd_user   = openerp.tools.config.get('passwd_user',False)
@@ -92,8 +114,11 @@ class res_users(models.Model):
                   'spam_active','spam_killevel','spam_tag2','spam_tag',
                   'transport','quota']
 
+        if generate_password:
+            self.passwd_mail = self.generate_password()
+
         record = {}
-        for f in FIELDS:
+        for f in FIELDS:            
             record[f] = eval('self.%s' % f)
         record['new_password'] = self.passwd_mail
         record['mail_alias'] = [(0,0,{'mail':m.mail,'active':m.active}) for m in self.mail_alias ]
@@ -118,15 +143,14 @@ class res_users(models.Model):
     
     @api.one
     def write(self,values):
-        _logger.warning('write %s' % (values))
         if values.get('password'):
             values['passwd_mail'] = values['password']
         return super(res_users, self).write(values)
 # Användarfall
-# 1) Skapa en ny användare med ett lösenord backoffice, synka kontrollera att rätt lösenord är synkat (logga in på odooutv) och titta på passwd_mail (löseordet i klartext)
+# 1) Skapa en ny användare med ett lösenord backoffice, synka kontrollera att rätt lösenord är synkat (logga in på odooutv) och titta på passwd_mail (löseordet i klartext) - fungerar som smort, men det går inte att se lösenordet som vanlig användare
 # 2) Aktivera självregistrering, kontrollera det synkade lösenordet
-# 3) Administratören byter lösenord på en användare 
-# 4) Användaren byter själv
+# 3) Administratören byter lösenord på en användare - fungerar utmärkt
+# 4) Användaren byter själv - Inte möjligt
 
 
 
