@@ -24,6 +24,7 @@ import openerp.tools
 import xmlrpclib
 from openerp.exceptions import Warning
 import random
+import string
 
 import logging
 _logger = logging.getLogger(__name__)
@@ -34,12 +35,14 @@ class sync_settings_wizard(models.TransientModel):
     def default_user_ids(self):
         return self.env['res.users'].browse(self._context.get('active_ids'))
 
-    user_ids = fields.Many2many(string="users", comodel_name="res.users", default=default_user_ids)
+    #user_ids = fields.Many2many(string="users", comodel_name="res.users", default=default_user_ids)
     generate_password = fields.Boolean(string="generate_password")
 
     @api.multi
     def sync_settings(self):
-        self.user_ids.sync_settings(self.generate_password)
+        for user in self:
+            user.sync_settings(self.generate_password)
+        # self.user_ids.sync_settings(self.generate_password) Fungerar detta?
         return {}
 
 class res_users(models.Model):
@@ -77,15 +80,31 @@ class res_users(models.Model):
     mail_alias = fields.One2many('postfix.alias', 'user_id', string='Alias', copy=True)
     passwd_mail = fields.Char('Password')
     
+
+    @api.one
+    def _sa_deduction(self):
+        if self.employee_id.age <= 26:
+            self.sa_deduction = self._get_param('sa.26',25.46)
+        if self.employee_id.age > 26 and self.employee_id.age <= 65:
+            self.sa_deduction = self._get_param('sa.26-65',31.42)
+        if self.employee_id.age > 65 and self.employee_id.age <= 77:
+            self.sa_deduction = self._get_param('sa.66-77',10.21)
+        if self.employee_id.age > 77:
+            self.sa_deduction = self._get_param('sa.78',0)             
+    sa_deduction = fields.Float(compute=_sa_deduction)
+    
+
+    def _get_param(self,param,value):
+        if not self.env['ir.config_parameter'].get_param(param):
+            self.env['ir.config_parameter'].set_param(param,value)
+        return self.env['ir.config_parameter'].get_param(param)
+    
     # Default forward till företagets catchall-adress
     # Kontrollera att mailalias bara är knuten till rätt domän
-    def generate_password(self, pw_length=15):
-        alphabet = "abcdefghijklmnopqrstuvwxyz0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ!\"#$%&'()*+,-./0:;<=>?@[\]^_`{|}~"
-        password = ""
-        for i in range(pw_length):
-            next_index = random.randrange(len(alphabet))
-            password = password + alphabet[next_index]
-        return password
+    def generate_password(self):
+        alphabet = string.digits + string.letters + string.punctuation.replace("'",'').replace('`','').replace('~','')
+        return ''.join([alphabet[random.randrange(len(alphabet))] for i in range(self._get_param('pw_length',15))])
+
 
     @api.one
     def sync_settings(self, generate_password=False):     
@@ -174,7 +193,11 @@ class users_password(models.TransientModel):
 class res_company(models.Model):
     _inherit = 'res.company'
     
-    domain = fields.Char('Domain',help="the internet domain for mail")
+    def _domain(self):
+        return '' # Hämta systemets default-domän
+    domain = fields.Char('Domain',help="the internet domain for mail",default=_domain)
+    catchall = fields.Char('Domain',help="catchall mail address",default='catchall')
+    
     
     @api.one
     def _total_quota(self):
@@ -187,6 +210,7 @@ class res_company(models.Model):
     @api.v7
     def create(self,cr,uid,values,context=None):
         _logger.warning('create %s' % (values))
+        # Skapa catchall@domain-address, uppdatera/skapa ingående/utgående server använd catchall-adressen som id 
         id = super(res_company, self).create(cr,uid,values,context=context)
         if id:
             self.mail_sync(self,cr,uid,context=context)
