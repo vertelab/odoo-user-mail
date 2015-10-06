@@ -6,9 +6,11 @@
             <field name="model">user.mail.sync.wizard</field>
             <field name="arch" type="xml">
                 <form string="Synchronize Settings">
+<!--
                     <field name="user_ids"/>
-                    <label for="generate_password" string="Generate Password"/>
-                    <field name="generate_password"/>
+-->
+                    <label for="gen_pw" string="Generate Password"/>
+                    <field name="gen_pw"/>
                     <footer>
                         <button type="object" name="sync_settings" string="Synchronize Settings" class="oe_highlight"/>
                         <button special="cancel" string="Cancel"/>

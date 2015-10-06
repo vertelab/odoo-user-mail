@@ -23,8 +23,7 @@ from openerp import models, fields, api, _
 import openerp.tools
 import xmlrpclib
 from openerp.exceptions import Warning
-import random
-import string
+import os, string
 
 import logging
 _logger = logging.getLogger(__name__)
@@ -36,12 +35,14 @@ class sync_settings_wizard(models.TransientModel):
         return self.env['res.users'].browse(self._context.get('active_ids'))
 
     #user_ids = fields.Many2many(string="users", comodel_name="res.users", default=default_user_ids)
-    generate_password = fields.Boolean(string="generate_password")
+    gen_pw = fields.Boolean(string="generate_password")
 
-    @api.multi
+    @api.one
     def sync_settings(self):
-        for user in self:
-            user.sync_settings(self.generate_password)
+        for user in self.env['res.users'].browse(self._context.get('active_ids', [])):
+            user.sync_settings(self.gen_pw)
+            _logger.warning('user %r' % (user.generate_password()))
+        #self.sync_settings(self.generate_password())
         # self.user_ids.sync_settings(self.generate_password) Fungerar detta?
         return {}
 
@@ -78,7 +79,10 @@ class res_users(models.Model):
     #        'mail': fields.char('Mail', size=64,),
     #        'mail_active': fields.boolean('Active'),
     mail_alias = fields.One2many('postfix.alias', 'user_id', string='Alias', copy=True)
-  #  passwd_mail = fields.Char('Password')
+    def _passwd_mail(self):
+        pw = self.env['res.users.password'].search(['user_id','=',self.id])
+        self.passwd_mail = pw and pw.passwd_mail or _('None')
+    passwd_mail = fields.Char(compute=_passwd_mail,string='Password')
     
     def _get_param(self,param,value):
         if not self.env['ir.config_parameter'].get_param(param):
@@ -88,8 +92,8 @@ class res_users(models.Model):
     # Default forward till företagets catchall-adress
     # Kontrollera att mailalias bara är knuten till rätt domän
     def generate_password(self):
-        alphabet = string.digits + string.letters + string.punctuation.replace('`','').replace('~','') # Use only "good" characters
-        return ''.join([alphabet[random.randrange(len(alphabet))] for i in range(self._get_param('pw_length',15))])
+        alphabet = string.digits + string.letters + '+_-!@#$%&*()'
+        return ''.join(alphabet[ord(os.urandom(1)) % len(alphabet)] for i in range(int(self._get_param('pw_length',13))))
 
 
     @api.one
@@ -120,7 +124,7 @@ class res_users(models.Model):
                   'transport','quota']
 
         if generate_password:
-            self.passwd_mail = self.generate_password()
+            self.env['res.users.password'].update_pw(self.id,self.generate_password())
 
         record = {}
         for f in FIELDS:            
@@ -148,10 +152,9 @@ class res_users(models.Model):
     
     @api.one
     def write(self,values):
-        if values.get('password'):
-            pass
-            # skapa (om det behövs) res.users.password, knyt med user_id 
-#            values['passwd_mail'] = values['password']
+        _logger.warning('write %s' % (values))
+        if values.get('new_password',False):
+           self.env['res.users.password'].update_pw(self.id,values.get('new_password'))
         return super(res_users, self).write(values)
 # Användarfall
 # 1) Skapa en ny användare med ett lösenord backoffice, synka kontrollera att rätt lösenord är synkat (logga in på odooutv) och titta på passwd_mail (löseordet i klartext) - fungerar som smort, men det går inte att se lösenordet som vanlig användare
@@ -172,17 +175,32 @@ class res_users(models.Model):
 class users_password(models.TransientModel):
     _name = "res.users.password"
     
-    user_id = fields.One2many('res.users')
+    user_id = fields.Many2one(comodel_name='res.users',string="User")
     passwd_mail = fields.Char('Password')
 
- 
+    def update_pw(self,user_id,pw):
+        user = self.search(['user_id','=',user_id])
+        if user:
+            user.write('passwd_mail': pw)
+        else:
+            self.create({'user_id': user_id, 'passwd_mail': pw})
+            
 class res_company(models.Model):
     _inherit = 'res.company'
     
+    def _get_param(self,param,value):
+        if not self.env['ir.config_parameter'].get_param(param):
+            self.env['ir.config_parameter'].set_param(param,value)
+        return self.env['ir.config_parameter'].get_param(param)
+    
     def _domain(self):
-        return '' # Hämta systemets default-domän
-    domain = fields.Char('Domain',help="the internet domain for mail",default=_domain)
-    catchall = fields.Char('Domain',help="catchall mail address",default='catchall')
+        self.domain = self.env['ir.config_parameter'].get_param('mail.catchall.domain') or ''
+    domain = fields.Char(compute=_domain,string='Domain',help="the internet domain for mail",default=_domain)
+    def _catchall(self):
+        self.catchall = self.env['ir.config_parameter'].get_param('mail.catchall.alias') or 'catchall' + '@' + self.domain
+    catchall = fields.Char(compute=_catchall,string='Catchall',help="catchall mail address",)
+    
+    
     
     
     @api.one
@@ -202,11 +220,31 @@ class res_company(models.Model):
             self.mail_sync(self,cr,uid,context=context)
         return id
         
+    
     @api.one
     def write(self,values):
         _logger.warning('write %s' % (values))
+        
+        if values.get('domain',False) and self.id == self.ref('base.main_company'):
+            self.env['ir.config_parameter'].set_param('mail.catchall.domain',values.get('domain'))
+            smtp_server = openerp.tools.config.get('smtp_server',False) or raise Warning(_("SMTP-server missing! (smtp_server in openerp-server.conf)"))
+            smtp_port = openerp.tools.config.get('smtp_port',False) or raise Warning(_("SMTP-port missing! (smtp_port in openerp-server.conf)"))
+            smtp_encryption = openerp.tools.config.get('smtp_encryption',False) or raise Warning(_("SMTP-encryption missing! (smtp_encryption in openerp-server.conf, [none,starttls,ssl])"))
+            
+            alphabet = string.digits + string.letters + '+_-!@#$%&*()'
+            smtp_pass = ''.join(alphabet[ord(os.urandom(1)) % len(alphabet)] for i in range(int(self._get_param('pw_length',13))))
+
+            smtp = self.env['ir.mail_server'].ref('base.ir_mail_server_localhost0') or self.env['ir.mail_server'].create({'name': 'smtp','smtp_host': smtp_server,'smtp_port': smtp_port, 'smtp_encryption': smtp_encryption })
+            smtp.write({'name': 'smtp','smtp_host': smtp_server,'smtp_port': smtp_port, 'smtp_encryption': smtp_encryption,
+                        'smtp_user': self.catchall, 'smtp_pass': smtp_pass})
+                        
+            # lägg upp / ändra kontot catchall-användaren i remote res.users
+            
+            # skapa / ändra imap-server
+            
         if super(res_company, self).write(values):
-            self.mail_sync()
+            return True
+            #self.mail_sync()
         return True
     
     @api.one
