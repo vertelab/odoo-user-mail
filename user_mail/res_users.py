@@ -243,6 +243,22 @@ class res_company(models.Model):
             smtp_server = openerp.tools.config.get('smtp_server',False)
             smtp_port = openerp.tools.config.get('smtp_port',False)
             smtp_encryption = openerp.tools.config.get('smtp_encryption',False)
+
+            """
+            imap_server_type = openerp.tools.config.get('imap_server_type',False)
+            imap_server_name = openerp.tools.config.get('imap_server_name',False)
+            imap_port = openerp.tools.config.get('imap_port',False)
+            imap_encryption = openerp.tools.config.get('imap_encryption', None)
+
+            if imap_encryption == None:
+                raise Warning(_("IMAP encryption missing! (imap_encryption [True, False] in openerp-server.conf)"))
+            if not imap_server_type:
+                raise Warning(_("IMAP server type missing! (imap_server_type [pop, imap, local] in openerp-server.conf)"))
+            if not imap_server_name:
+                raise Warning(_("IMAP name missing! (imap_server_name in openerp-server.conf)"))
+            if not imap_port:
+                raise Warning(_("IMAP port missing! (imap_port in openerp-server.conf)"))
+            """    
             
             if not smtp_server:
                 raise Warning(_("SMTP-server missing! (smtp_server in openerp-server.conf)"))
@@ -260,7 +276,7 @@ class res_company(models.Model):
             smtp.write({'name': 'smtp','smtp_host': smtp_server,'smtp_port': smtp_port, 'smtp_encryption': smtp_encryption,
                         'smtp_user': self.catchall, 'smtp_pass': smtp_pass})
 
-            self.sync_catchall()
+            #self.sync_catchall()
             # lägg upp / ändra kontot catchall-användaren i remote res.users
             
             # skapa / ändra imap-server
@@ -270,6 +286,7 @@ class res_company(models.Model):
             #self.mail_sync()
         return True
 
+    """
     @api.one
     def sync_catchall(self):
 
@@ -291,6 +308,7 @@ class res_company(models.Model):
                                                                                              "new_password" : self.env['res.users'].generate_password()})
 
         return
+        """
     
     @api.one
     def mail_sync(self):
