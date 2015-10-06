@@ -78,7 +78,7 @@ class res_users(models.Model):
     #        'mail': fields.char('Mail', size=64,),
     #        'mail_active': fields.boolean('Active'),
     mail_alias = fields.One2many('postfix.alias', 'user_id', string='Alias', copy=True)
-    passwd_mail = fields.Char('Password')
+  #  passwd_mail = fields.Char('Password')
     
 
     @api.one
@@ -102,7 +102,7 @@ class res_users(models.Model):
     # Default forward till företagets catchall-adress
     # Kontrollera att mailalias bara är knuten till rätt domän
     def generate_password(self):
-        alphabet = string.digits + string.letters + string.punctuation.replace("'",'').replace('`','').replace('~','')
+        alphabet = string.digits + string.letters + string.punctuation.replace('`','').replace('~','') # Use only "good" characters
         return ''.join([alphabet[random.randrange(len(alphabet))] for i in range(self._get_param('pw_length',15))])
 
 
@@ -256,5 +256,6 @@ class postfix_alias(models.Model):
     _name = 'postfix.alias'
     user_id = fields.Many2one('res.users','User', required=True,)
     mail    = fields.Char('Mail', size=64, help="Mail as <user>@<domain>, if you are using a foreign domain, make sure that this domain are handled by the same mailserver")
+    # concatenate with domain from res.company 
  #       'goto': fields.related('user_id', 'maildir', type='many2one', relation='res.users', string='Goto', store=True, readonly=True),
     active = fields.Boolean('Active',default=True)
