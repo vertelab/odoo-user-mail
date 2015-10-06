@@ -80,20 +80,6 @@ class res_users(models.Model):
     mail_alias = fields.One2many('postfix.alias', 'user_id', string='Alias', copy=True)
   #  passwd_mail = fields.Char('Password')
     
-
-    @api.one
-    def _sa_deduction(self):
-        if self.employee_id.age <= 26:
-            self.sa_deduction = self._get_param('sa.26',25.46)
-        if self.employee_id.age > 26 and self.employee_id.age <= 65:
-            self.sa_deduction = self._get_param('sa.26-65',31.42)
-        if self.employee_id.age > 65 and self.employee_id.age <= 77:
-            self.sa_deduction = self._get_param('sa.66-77',10.21)
-        if self.employee_id.age > 77:
-            self.sa_deduction = self._get_param('sa.78',0)             
-    sa_deduction = fields.Float(compute=_sa_deduction)
-    
-
     def _get_param(self,param,value):
         if not self.env['ir.config_parameter'].get_param(param):
             self.env['ir.config_parameter'].set_param(param,value)
