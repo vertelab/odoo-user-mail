@@ -34,16 +34,13 @@ class sync_settings_wizard(models.TransientModel):
     def default_user_ids(self):
         return self.env['res.users'].browse(self._context.get('active_ids'))
 
-    #user_ids = fields.Many2many(string="users", comodel_name="res.users", default=default_user_ids)
     gen_pw = fields.Boolean(string="generate_password")
 
     @api.one
     def sync_settings(self):
         for user in self.env['res.users'].browse(self._context.get('active_ids', [])):
             user.sync_settings(self.gen_pw)
-            _logger.warning('user %r' % (user.generate_password()))
-        #self.sync_settings(self.generate_password())
-        # self.user_ids.sync_settings(self.generate_password) Fungerar detta?
+
         return {}
 
 class res_users(models.Model):
@@ -71,6 +68,7 @@ class res_users(models.Model):
     spam_tag =      fields.Selection([('7.0','low (7)'),('3','medium (3)'),('1.5','high (1.5)'),('0','very high (0)')]    ,string='Spam Tag Level' , help="Tagged spam will be marked as spam in your mail client",default='3')
     maildir = fields.Char(compute="_maildir_get",string='Maildir',size=64,store=True,select=1)
     transport = fields.Char('Transport', size=64,default="virtual:")
+
     @api.one
     def _quota_get(self):
         return self.company_id.default_quota
@@ -79,9 +77,12 @@ class res_users(models.Model):
     #        'mail': fields.char('Mail', size=64,),
     #        'mail_active': fields.boolean('Active'),
     mail_alias = fields.One2many('postfix.alias', 'user_id', string='Alias', copy=True)
+
+    @api.one
     def _passwd_mail(self):
-        pw = self.env['res.users.password'].search(['user_id','=',self.id])
+        pw = self.env['res.users.password'].search([('user_id','=',self.id)])
         self.passwd_mail = pw and pw.passwd_mail or _('None')
+
     passwd_mail = fields.Char(compute=_passwd_mail,string='Password')
     
     def _get_param(self,param,value):
@@ -98,8 +99,7 @@ class res_users(models.Model):
 
     @api.one
     def sync_settings(self, generate_password=False):     
-
-        _logger.warn("In sync NOW! ;D")   
+  
         passwd_server = openerp.tools.config.get('passwd_server',False)
         passwd_dbname = openerp.tools.config.get('passwd_dbname',False)
         passwd_user   = openerp.tools.config.get('passwd_user',False)
@@ -179,14 +179,29 @@ class users_password(models.TransientModel):
     passwd_mail = fields.Char('Password')
 
     def update_pw(self,user_id,pw):
-        user = self.search(['user_id','=',user_id])
+        user = self.search([('user_id','=',user_id)])
+
         if user:
-            user.write('passwd_mail': pw)
+            user.write({'passwd_mail': pw})
         else:
             self.create({'user_id': user_id, 'passwd_mail': pw})
             
 class res_company(models.Model):
     _inherit = 'res.company'
+
+    passwd_server = openerp.tools.config.get('passwd_server',False)
+    passwd_dbname = openerp.tools.config.get('passwd_dbname',False)
+    passwd_user   = openerp.tools.config.get('passwd_user',False)
+    passwd_passwd = openerp.tools.config.get('passwd_passwd',False)
+
+    if not passwd_passwd:
+        raise Warning(_("Password is missing! (passwd_passwd in openerp-server.conf)"))
+    if not passwd_server:
+        raise Warning(_("Server uri is missing! (passwd_server in openerp-server.conf)"))
+    if not passwd_dbname:
+        raise Warning(_("Database name is missing! (passwd_dbname in openerp-server.conf)"))
+    if not passwd_user:
+        raise Warning(_("Username is missing! (passwd_user in openerp-server.conf)"))
     
     def _get_param(self,param,value):
         if not self.env['ir.config_parameter'].get_param(param):
@@ -196,20 +211,17 @@ class res_company(models.Model):
     def _domain(self):
         self.domain = self.env['ir.config_parameter'].get_param('mail.catchall.domain') or ''
     domain = fields.Char(compute=_domain,string='Domain',help="the internet domain for mail",default=_domain)
+
     def _catchall(self):
         self.catchall = self.env['ir.config_parameter'].get_param('mail.catchall.alias') or 'catchall' + '@' + self.domain
-    catchall = fields.Char(compute=_catchall,string='Catchall',help="catchall mail address",)
-    
-    
-    
+    catchall = fields.Char(compute=_catchall,string='Catchall',help="catchall mail address",)   
     
     @api.one
     def _total_quota(self):
         self.total_quota = sum([u.quota for u in self.env['res.users'].search([('company_id','=',self.id)])])
 
     default_quota = fields.Integer('Quota',)
-    total_quota  = fields.Integer(compute="_total_quota",string='Quota total',)
-    
+    total_quota  = fields.Integer(compute="_total_quota",string='Quota total')    
     
     @api.v7
     def create(self,cr,uid,values,context=None):
@@ -227,17 +239,28 @@ class res_company(models.Model):
         
         if values.get('domain',False) and self.id == self.ref('base.main_company'):
             self.env['ir.config_parameter'].set_param('mail.catchall.domain',values.get('domain'))
-            smtp_server = openerp.tools.config.get('smtp_server',False) or raise Warning(_("SMTP-server missing! (smtp_server in openerp-server.conf)"))
-            smtp_port = openerp.tools.config.get('smtp_port',False) or raise Warning(_("SMTP-port missing! (smtp_port in openerp-server.conf)"))
-            smtp_encryption = openerp.tools.config.get('smtp_encryption',False) or raise Warning(_("SMTP-encryption missing! (smtp_encryption in openerp-server.conf, [none,starttls,ssl])"))
+
+            smtp_server = openerp.tools.config.get('smtp_server',False)
+            smtp_port = openerp.tools.config.get('smtp_port',False)
+            smtp_encryption = openerp.tools.config.get('smtp_encryption',False)
             
+            if not smtp_server:
+                raise Warning(_("SMTP-server missing! (smtp_server in openerp-server.conf)"))
+            if not smtp_port:
+                raise Warning(_("SMTP-port missing! (smtp_port in openerp-server.conf)"))
+            if not smtp_encryption:
+                raise Warning(_("SMTP-encryption missing! (smtp_encryption in openerp-server.conf, [none,starttls,ssl])"))
+
             alphabet = string.digits + string.letters + '+_-!@#$%&*()'
             smtp_pass = ''.join(alphabet[ord(os.urandom(1)) % len(alphabet)] for i in range(int(self._get_param('pw_length',13))))
 
-            smtp = self.env['ir.mail_server'].ref('base.ir_mail_server_localhost0') or self.env['ir.mail_server'].create({'name': 'smtp','smtp_host': smtp_server,'smtp_port': smtp_port, 'smtp_encryption': smtp_encryption })
+            smtp = self.env['ir.mail_server'].ref('base.ir_mail_server_localhost0') or self.env['ir.mail_server'].create({
+                'name': 'smtp','smtp_host': smtp_server,'smtp_port': smtp_port, 'smtp_encryption': smtp_encryption})
+
             smtp.write({'name': 'smtp','smtp_host': smtp_server,'smtp_port': smtp_port, 'smtp_encryption': smtp_encryption,
                         'smtp_user': self.catchall, 'smtp_pass': smtp_pass})
-                        
+
+            self.sync_catchall()
             # lägg upp / ändra kontot catchall-användaren i remote res.users
             
             # skapa / ändra imap-server
@@ -246,30 +269,51 @@ class res_company(models.Model):
             return True
             #self.mail_sync()
         return True
+
+    @api.one
+    def sync_catchall(self):
+
+        sock_common = xmlrpclib.ServerProxy ('%s/xmlrpc/common' % self.passwd_server)
+        uid = sock_common.login(self.passwd_dbname, self.passwd_user, self.passwd_passwd)
+        sock = xmlrpclib.ServerProxy('%s/xmlrpc/object' % self.passwd_server)
+
+        catchall_user_id = sock.execute(self.passwd_dbname, uid, self.passwd_passwd,
+         'res.users', 'search', [('login', '=', self.catchall)])
+
+        _logger.warn("Got the catchall_id: %s" % catchall_user_id)
+
+        if catchall_user_id:
+            sock.execute(self.passwd_dbname, uid, self.passwd_passwd, 'res.users', 'write', catchall_user_id, self.catchall)
+        else:
+            sock.execute(self.passwd_dbname, uid, self.passwd_passwd,'res.users', 'create', {"name" : "catchall",
+                                                                                             "login" : self.catchall,
+                                                                                             "postfix_active" : 1,
+                                                                                             "new_password" : self.env['res.users'].generate_password()})
+
+        return
     
     @api.one
     def mail_sync(self):
-        import xmlrpclib
-        if openerp.tools.config.get('passwd_server',False):
-            sock_common = xmlrpclib.ServerProxy ('%s/xmlrpc/common' % openerp.tools.config.get('passwd_server'))
-            uid = sock_common.login(openerp.tools.config.get('passwd_dbname'),openerp.tools.config.get('passwd_user'),openerp.tools.config.get('passwd_passwd'))
-            sock = xmlrpclib.ServerProxy('%s/xmlrpc/object' % openerp.tools.config.get('passwd_server'))
-            company_id = sock.execute(openerp.tools.config.get('passwd_dbname'), uid,openerp.tools.config.get('passwd_passwd'), 'res.company', 'search', [('domain','=',self.domain)])
-            if company_id:
-                sock.execute(openerp.tools.config.get('passwd_dbname'), uid,openerp.tools.config.get('passwd_passwd'), 'res.users', 'write',company_id, { 
-                                                                                                                                                'name': self.name,
-                                                                                                                                                'domain': self.domain,
-                                                                                                                                                'default_quota': self.default_quota,
-                                                                                                                                                })
-            else:
-                sock.execute(openerp.tools.config.get('passwd_dbname'), uid,openerp.tools.config.get('passwd_passwd'), 'res.users', 'create', {  'name': self.name,
-                                                                                                                                                'domain': self.domain,
-                                                                                                                                                'default_quota': self.default_quota,
-                                                                                                                                                })
-                                                                                                                                                
+
+        sock_common = xmlrpclib.ServerProxy ('%s/xmlrpc/common' % passwd_server)
+        uid = sock_common.login(passwd_dbname, passwd_user, passwd_passwd)
+        sock = xmlrpclib.ServerProxy('%s/xmlrpc/object' % passwd_server)
+
+        company_id = sock.execute(passwd_dbname, uid, passwd_passwd, 'res.company', 'search', [('domain','=',self.domain)])
+
+        if company_id:
+            sock.execute(passwd_dbname, uid, passwd_passwd, 'res.users', 'write',company_id, { 
+                                                                                            'name': self.name,
+                                                                                            'domain': self.domain,
+                                                                                            'default_quota': self.default_quota,
+                                                                                            })
+        else:
+            sock.execute(passwd_dbname, uid, passwd_passwd, 'res.users', 'create', {'name': self.name,
+                                                                                    'domain': self.domain,
+                                                                                    'default_quota': self.default_quota,
+                                                                                    })                                                                                                                     
                                                                                                                                                 
     
-
 class postfix_vacation_notification(models.Model):
     _name = 'postfix.vacation_notification'
     user_id = fields.Many2one('res.users','User', required=True,)
