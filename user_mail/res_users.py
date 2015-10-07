@@ -18,13 +18,11 @@
 #
 ##############################################################################
 
-
 from openerp import models, fields, api, _
 import openerp.tools
 import xmlrpclib
 from openerp.exceptions import Warning
 import os, string
-
 import logging
 _logger = logging.getLogger(__name__)
 
@@ -147,30 +145,19 @@ class res_users(models.Model):
             sock.execute(passwd_dbname, uid,passwd_passwd, 'res.users', 'write',user_id, record)
         else:
             sock.execute(passwd_dbname,uid,passwd_passwd,'res.users', 'create',record)
-
-
     
     @api.one
     def write(self,values):
-        _logger.warning('write %s' % (values))
         if values.get('new_password',False):
            self.env['res.users.password'].update_pw(self.id,values.get('new_password'))
         return super(res_users, self).write(values)
-# Användarfall
-# 1) Skapa en ny användare med ett lösenord backoffice, synka kontrollera att rätt lösenord är synkat (logga in på odooutv) och titta på passwd_mail (löseordet i klartext) - fungerar som smort, men det går inte att se lösenordet som vanlig användare
-# 2) Aktivera självregistrering, kontrollera det synkade lösenordet
-# 3) Administratören byter lösenord på en användare - fungerar utmärkt
-# 4) Användaren byter själv - Inte möjligt
 
-
-
-
-    #~ @api.v7
-    #~ def create(self,cr,uid,values,context=None):
-        #~ _logger.warning('create %s' % (values))
-        #~ if values.get('new_password'):
-            #~ values['passwd_mail'] = values['new_password']
-        #~ return super(res_users, self).create(cr,uid,values,context=context)
+#~ @api.v7
+#~ def create(self,cr,uid,values,context=None):
+    #~ _logger.warning('create %s' % (values))
+    #~ if values.get('new_password'):
+        #~ values['passwd_mail'] = values['new_password']
+    #~ return super(res_users, self).create(cr,uid,values,context=context)
 
 class users_password(models.TransientModel):
     _name = "res.users.password"
@@ -180,7 +167,6 @@ class users_password(models.TransientModel):
 
     def update_pw(self,user_id,pw):
         user = self.search([('user_id','=',user_id)])
-
         if user:
             user.write({'passwd_mail': pw})
         else:
@@ -225,18 +211,13 @@ class res_company(models.Model):
     
     @api.v7
     def create(self,cr,uid,values,context=None):
-        _logger.warning('create %s' % (values))
-        # Skapa catchall@domain-address, uppdatera/skapa ingående/utgående server använd catchall-adressen som id 
         id = super(res_company, self).create(cr,uid,values,context=context)
         if id:
             self.mail_sync(self,cr,uid,context=context)
-        return id
-        
+        return id        
     
     @api.one
-    def write(self,values):
-        _logger.warning('write %s' % (values))
-        
+    def write(self,values):        
         if values.get('domain',False) and self.id == self.ref('base.main_company'):
             self.env['ir.config_parameter'].set_param('mail.catchall.domain',values.get('domain'))
 
@@ -279,7 +260,7 @@ class res_company(models.Model):
             #self.sync_catchall()
             # lägg upp / ändra kontot catchall-användaren i remote res.users
             
-            # skapa / ändra imap-server
+            # skapa / ändra imap-server där användare och lösenord är catchall-kontot
             
         if super(res_company, self).write(values):
             return True
@@ -305,8 +286,8 @@ class res_company(models.Model):
             sock.execute(self.passwd_dbname, uid, self.passwd_passwd,'res.users', 'create', {"name" : "catchall",
                                                                                              "login" : self.catchall,
                                                                                              "postfix_active" : 1,
-                                                                                             "new_password" : self.env['res.users'].generate_password()})
-
+                                                                                             "new_password" : self.env['res.users'].generate_password()
+                                                                                             "mail_alias" : "@"+self.domain})
         return
         """
     
