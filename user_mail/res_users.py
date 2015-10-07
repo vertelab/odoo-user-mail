@@ -47,6 +47,7 @@ class sync_settings_wizard(models.TransientModel):
 
 class Sync2server():
     def __init__(self,db):
+
         self.db = db
         self.passwd_server = openerp.tools.config.get('passwd_server',False)
         self.passwd_dbname = openerp.tools.config.get('passwd_dbname',False)
@@ -66,7 +67,7 @@ class Sync2server():
            return 
         
         try:
-            sock_common = xmlrpclib.ServerProxy('%s/xmlrpc/common' % passwd_server)              
+            sock_common = xmlrpclib.ServerProxy('%s/xmlrpc/common' % self.passwd_server)              
             self.uid = sock_common.login(self.passwd_dbname, self.passwd_user, self.passwd_passwd)
             self.sock = xmlrpclib.ServerProxy('%s/xmlrpc/object' % self.passwd_server)
         except xmlrpclib.Error as err:
@@ -80,13 +81,15 @@ class Sync2server():
             return self.sock.execute(self.passwd_dbname, self.uid,self.passwd_passwd, model, 'write',id, values)
     def create(self,model,values):     
         if not self.mainserver():
-            return self.sock.execute(self.passwd_dbname,self.uid,self.passwd_passwd,model,'create',values)
+            return self.sock.execute(self.passwd_dbname, self.uid,self.passwd_passwd,model,'create', values)
     def unlink(self,model,ids):
         if not self.mainserver():
-            return self.sock.execute(self.passwd_dbname,self.uid,self.passwd_passwd,model,'unlink',ids)
-    def mainserver(self):
+            return self.sock.execute(self.passwd_dbname, self.uid,self.passwd_passwd,model,'unlink',ids)
+    def mainserver(self):        
         import socket
-        return (socket.gethostbyname(self.passwd_server) == socket.gethostbyname(socket.gethostname()) and (self.db == self.passwd_dbname))
+
+        hostname = self.passwd_server.split("://")[1] #Do this to get rid of "http://" in the hostname from config file (which is needed for the XML-RPC-request)
+        return (socket.gethostbyname(hostname) == socket.gethostbyname(socket.gethostname()) and (self.db == self.passwd_dbname))
 
 class res_users(models.Model):
     _inherit = 'res.users'    
@@ -299,22 +302,30 @@ class res_company(models.Model):
         id = super(res_company, self).create(values)
         if id:
             self.sync_settings()
-            if values.get('domain',False) and self.id == self.ref('base.main_company'):  # Create mailservers when its a main company
+            if values.get('domain',False) and self.id == self.env.ref('base.main_company'):  # Create mailservers when its a main company
                 self.env['ir.config_parameter'].set_param('mail.catchall.domain',values.get('domain'))
                 password = self._synccatchall()
                 self._smtpserver(password)
                 self._imapserver(password)
         return id        
 
-    @api.model
+    @api.one
     def sync_settings(self):     
-        FIELDS = ['domain', 'catchall','name','default_quota']
+        FIELDS = ['name','domain','catchall','default_quota', 'rml_header2','rml_header3', 'rml_paper_format']
+        #FIELDS = ['name','domain','catchall','default_quota']
         record = {}
         for f in FIELDS:
             record[f] = eval('self.%s' % f)
 
-        server = Sync2server(self._cr.dbname)
+        record['rml_header'] = ""    
+        record['currency_id'] = 1
+        record['partner_id'] = 17
+
+        _logger.warn("record: %s" % record)
+
+        server = Sync2server(self.env.cr.dbname)
         remote_company_id = server.search(self._name,[('domain','=',self.domain)])
+
         if remote_company_id:
             server.write(self._name,remote_company_id,record)
         else:
