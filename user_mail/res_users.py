@@ -37,7 +37,7 @@ class sync_settings_wizard(models.TransientModel):
     @api.one
     def sync_settings(self):
         companies = set()
-        for user in self.env['res.users'].browse(self._context.get('active_ids', [])):
+        for user in self.default_user_ids():
             user.sync_settings(self.gen_pw)
             companies.add(user.company_id)
         for c in companies:
@@ -69,12 +69,12 @@ class Sync2server():
             if self.mainserver():
                return 
             
-            try:
-                sock_common = xmlrpclib.ServerProxy('%s/xmlrpc/common' % self.passwd_server, verbose=True)              
-                self.uid = sock_common.login(self.passwd_dbname, self.passwd_user, self.passwd_passwd)
-                self.sock = xmlrpclib.ServerProxy('%s/xmlrpc/object' % self.passwd_server, verbose=True)
-            except xmlrpclib.Error as err:
-                raise Warning(_("%s" % err))
+        try:
+            sock_common = xmlrpclib.ServerProxy('%s/xmlrpc/common' % self.passwd_server, verbose=True)              
+            self.uid = sock_common.login(self.passwd_dbname, self.passwd_user, self.passwd_passwd)
+            self.sock = xmlrpclib.ServerProxy('%s/xmlrpc/object' % self.passwd_server, verbose=True)
+        except xmlrpclib.Error as err:
+            raise Warning(_("%s" % err))
             
     def search(self,model,domain):     
         if self.isSender and not self.mainserver():
@@ -172,11 +172,15 @@ class res_users(models.Model):
 
         server = Sync2server()
         remote_user_id = server.search(self._name,[('login','=',self.login)])
+
+        _logger.warn("REMOTE USER ID FOR USER SYNC IS: %s" % remote_user_id)
+
         if remote_user_id:
             server.unlink('postfix.alias',server.search('postfix.alias',[('user_id','=',remote_user_id)]))
             server.write(self._name,remote_user_id,record)
         else:
-            server.create(self._name,record)
+            result = server.create(self._name,record)
+            _logger.warn("RESULT: %s" % result)
     
     @api.one
     def write(self,values):
@@ -315,25 +319,23 @@ class res_company(models.Model):
 
     @api.one
     def sync_settings(self):  
-
-        #FIELDS = ['name','domain','catchall','default_quota', 'rml_header2','rml_header3', 'rml_paper_format']
-        FIELDS = ['name','domain','catchall','default_quota']
+        FIELDS = ['name','domain','catchall','default_quota', 'email']
         record = {}
         for f in FIELDS:
             record[f] = eval('self.%s' % f)
 
-        #record['rml_header'] = ""    
-        #record['currency_id'] = 1
-        #record['partner_id'] = 17
-
-        _logger.warn("record: %s" % record)
+        _logger.warn("record: %s" % self._name)
 
         server = Sync2server()
         remote_company_id = server.search(self._name,[('domain','=',self.domain),])
 
+        _logger.warn("REMOTE ID IS: %s" % remote_company_id)
+        _logger.warn("MY DOMAIN: %s" % self.domain)
+
         if remote_company_id:
             server.write(self._name,remote_company_id,record)
         else:
+            _logger.warn("CREATING: %s" % record)
             server.create(self._name,record)
         
 class postfix_vacation_notification(models.Model):
