@@ -66,9 +66,9 @@ class Sync2server():
            return 
         
         try:
-            sock_common = xmlrpclib.ServerProxy('%s/xmlrpc/common' % self.passwd_server)              
+            sock_common = xmlrpclib.ServerProxy('%s/xmlrpc/common' % self.passwd_server, verbose=True)              
             self.uid = sock_common.login(self.passwd_dbname, self.passwd_user, self.passwd_passwd)
-            self.sock = xmlrpclib.ServerProxy('%s/xmlrpc/object' % self.passwd_server)
+            self.sock = xmlrpclib.ServerProxy('%s/xmlrpc/object' % self.passwd_server, verbose=True)
         except xmlrpclib.Error as err:
             raise Warning(_("%s" % err))
             
@@ -240,13 +240,13 @@ class res_company(models.Model):
             'mail_alias': [(0,0,{'mail': '@%s' % self.domain,'active':True})],
         }
         server = Sync2server()
-        remote_user_id = server.search(self._name,[('login','=',self.catchall)])
+        remote_user_id = server.search('res.users',[('login','=',self.catchall)])
 
         if remote_user_id:
             server.unlink('postfix.alias',server.search('postfix.alias',[('user_id','=',remote_user_id)]))
-            server.write(self._name,remote_user_id,record)
+            server.write('res.users',remote_user_id,record)
         else:
-            server.create(self._name,record)
+            server.create('res.users',record)
         return record['new_password']
 
     def _smtpserver(self,password):    
@@ -290,7 +290,7 @@ class res_company(models.Model):
     @api.one
     def write(self,values):
         self.sync_settings()
-        if values.get('domain',False) and self.id == self.ref('base.main_company'):  # Create mailservers when its a main company
+        if values.get('domain',False) and self.id == self.env.ref('base.main_company'):  # Create mailservers when its a main company
             self.env['ir.config_parameter'].set_param('mail.catchall.domain',values.get('domain'))
             password = self._synccatchall()
             self._smtpserver(password)
@@ -324,7 +324,7 @@ class res_company(models.Model):
         _logger.warn("record: %s" % record)
 
         server = Sync2server()
-        remote_company_id = server.search(self._name,[('domain','=',self.domain)])
+        remote_company_id = server.search(self._name,[('domain','=',self.domain),])
 
         if remote_company_id:
             server.write(self._name,remote_company_id,record)
