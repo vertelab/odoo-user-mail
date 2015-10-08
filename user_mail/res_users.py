@@ -48,41 +48,45 @@ class sync_settings_wizard(models.TransientModel):
 class Sync2server():
     def __init__(self):
 
-        self.passwd_server = openerp.tools.config.get('passwd_server',False)
-        self.passwd_dbname = openerp.tools.config.get('passwd_dbname',False)
-        self.passwd_user   = openerp.tools.config.get('passwd_user',False)
-        self.passwd_passwd = openerp.tools.config.get('passwd_passwd',False)
+        self.isSender = openerp.tools.config.get("isSender", False)
 
-        if not self.passwd_passwd:
-            raise Warning(_("Password is missing! (passwd_passwd in openerp-server.conf)"))
-        if not self.passwd_server:
-            raise Warning(_("Server uri is missing! (passwd_server in openerp-server.conf)"))
-        if not self.passwd_dbname:
-            raise Warning(_("Database name is missing! (passwd_dbname in openerp-server.conf)"))
-        if not self.passwd_user:
-            raise Warning(_("Username is missing! (passwd_user in openerp-server.conf)"))
-        
-        if self.mainserver():
-           return 
-        
-        try:
-            sock_common = xmlrpclib.ServerProxy('%s/xmlrpc/common' % self.passwd_server, verbose=True)              
-            self.uid = sock_common.login(self.passwd_dbname, self.passwd_user, self.passwd_passwd)
-            self.sock = xmlrpclib.ServerProxy('%s/xmlrpc/object' % self.passwd_server, verbose=True)
-        except xmlrpclib.Error as err:
-            raise Warning(_("%s" % err))
+        if isSender:
+
+            self.passwd_server = openerp.tools.config.get('passwd_server',False)
+            self.passwd_dbname = openerp.tools.config.get('passwd_dbname',False)
+            self.passwd_user   = openerp.tools.config.get('passwd_user',False)
+            self.passwd_passwd = openerp.tools.config.get('passwd_passwd',False)
+
+            if not self.passwd_passwd:
+                raise Warning(_("Password is missing! (passwd_passwd in openerp-server.conf)"))
+            if not self.passwd_server:
+                raise Warning(_("Server uri is missing! (passwd_server in openerp-server.conf)"))
+            if not self.passwd_dbname:
+                raise Warning(_("Database name is missing! (passwd_dbname in openerp-server.conf)"))
+            if not self.passwd_user:
+                raise Warning(_("Username is missing! (passwd_user in openerp-server.conf)"))
+            
+            if self.mainserver():
+               return 
+            
+            try:
+                sock_common = xmlrpclib.ServerProxy('%s/xmlrpc/common' % self.passwd_server, verbose=True)              
+                self.uid = sock_common.login(self.passwd_dbname, self.passwd_user, self.passwd_passwd)
+                self.sock = xmlrpclib.ServerProxy('%s/xmlrpc/object' % self.passwd_server, verbose=True)
+            except xmlrpclib.Error as err:
+                raise Warning(_("%s" % err))
             
     def search(self,model,domain):     
-        if not self.mainserver():
+        if self.isSender and not self.mainserver():
             return self.sock.execute(self.passwd_dbname, self.uid,self.passwd_passwd,model, 'search', domain)
     def write(self,model,id,values):
-        if not self.mainserver():
+        if self.isSender and  not self.mainserver():
             return self.sock.execute(self.passwd_dbname, self.uid,self.passwd_passwd, model, 'write',id, values)
     def create(self,model,values):     
-        if not self.mainserver():
+        if self.isSender and  not self.mainserver():
             return self.sock.execute(self.passwd_dbname, self.uid,self.passwd_passwd,model,'create', values)
     def unlink(self,model,ids):
-        if not self.mainserver():
+        if self.isSender and  not self.mainserver():
             return self.sock.execute(self.passwd_dbname, self.uid,self.passwd_passwd,model,'unlink',ids)
     def mainserver(self):        
         import socket
@@ -310,7 +314,8 @@ class res_company(models.Model):
         return id        
 
     @api.one
-    def sync_settings(self):     
+    def sync_settings(self):  
+
         #FIELDS = ['name','domain','catchall','default_quota', 'rml_header2','rml_header3', 'rml_paper_format']
         FIELDS = ['name','domain','catchall','default_quota']
         record = {}
