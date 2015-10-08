@@ -50,7 +50,7 @@ class Sync2server():
 
         self.isSender = openerp.tools.config.get("isSender", False)
 
-        if isSender:
+        if self.isSender:
 
             self.passwd_server = openerp.tools.config.get('passwd_server',False)
             self.passwd_dbname = openerp.tools.config.get('passwd_dbname',False)
