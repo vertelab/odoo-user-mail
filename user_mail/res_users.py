@@ -46,9 +46,8 @@ class sync_settings_wizard(models.TransientModel):
         return {}
 
 class Sync2server():
-    def __init__(self,db):
+    def __init__(self):
 
-        self.db = db
         self.passwd_server = openerp.tools.config.get('passwd_server',False)
         self.passwd_dbname = openerp.tools.config.get('passwd_dbname',False)
         self.passwd_user   = openerp.tools.config.get('passwd_user',False)
@@ -89,7 +88,7 @@ class Sync2server():
         import socket
 
         hostname = self.passwd_server.split("://")[1] #Do this to get rid of "http://" in the hostname from config file (which is needed for the XML-RPC-request)
-        return (socket.gethostbyname(hostname) == socket.gethostbyname(socket.gethostname()) and (self.db == self.passwd_dbname))
+        return (socket.gethostbyname(hostname) == socket.gethostbyname(socket.gethostname()) and (self.env.cr.dbname == self.passwd_dbname))
 
 class res_users(models.Model):
     _inherit = 'res.users'    
@@ -167,7 +166,7 @@ class res_users(models.Model):
 #        record['new_password'] = self.passwd_mail
         record['mail_alias'] = [(0,0,{'mail':m.mail,'active':m.active}) for m in self.mail_alias ]
 
-        server = Sync2server(self.db)
+        server = Sync2server()
         remote_user_id = server.search(self._name,[('login','=',self.login)])
         if remote_user_id:
             server.unlink('postfix.alias',server.search('postfix.alias',[('user_id','=',remote_user_id)]))
@@ -179,7 +178,7 @@ class res_users(models.Model):
     def write(self,values):
         if values.get('new_password',False):
             self.env['res.users.password'].update_pw(self.id,values.get('new_password'))
-            server = Sync2server(self.db)
+            server = Sync2server()
             remote_user_id = server.search(self._name,[('login','=',self.login)])
             if remote_user_id:
                 server.write(self._name,remote_user_id,{'new_password': values['new_password']})
@@ -209,12 +208,12 @@ class users_password(models.TransientModel):
             
 class res_company(models.Model):
     _inherit = 'res.company'
-
   
     def _get_param(self,param,value):
         if not self.env['ir.config_parameter'].get_param(param):
             self.env['ir.config_parameter'].set_param(param,value)
         return self.env['ir.config_parameter'].get_param(param)
+
     @api.one
     def _domain(self):
         self.domain = self.env['ir.config_parameter'].get_param('mail.catchall.domain') or ''
@@ -240,8 +239,9 @@ class res_company(models.Model):
             'email': self.catchall, 
             'mail_alias': [(0,0,{'mail': '@%s' % self.domain,'active':True})],
         }
-        server = Sync2server(self.db)
+        server = Sync2server()
         remote_user_id = server.search(self._name,[('login','=',self.catchall)])
+
         if remote_user_id:
             server.unlink('postfix.alias',server.search('postfix.alias',[('user_id','=',remote_user_id)]))
             server.write(self._name,remote_user_id,record)
@@ -311,19 +311,19 @@ class res_company(models.Model):
 
     @api.one
     def sync_settings(self):     
-        FIELDS = ['name','domain','catchall','default_quota', 'rml_header2','rml_header3', 'rml_paper_format']
-        #FIELDS = ['name','domain','catchall','default_quota']
+        #FIELDS = ['name','domain','catchall','default_quota', 'rml_header2','rml_header3', 'rml_paper_format']
+        FIELDS = ['name','domain','catchall','default_quota']
         record = {}
         for f in FIELDS:
             record[f] = eval('self.%s' % f)
 
-        record['rml_header'] = ""    
-        record['currency_id'] = 1
-        record['partner_id'] = 17
+        #record['rml_header'] = ""    
+        #record['currency_id'] = 1
+        #record['partner_id'] = 17
 
         _logger.warn("record: %s" % record)
 
-        server = Sync2server(self.env.cr.dbname)
+        server = Sync2server()
         remote_company_id = server.search(self._name,[('domain','=',self.domain)])
 
         if remote_company_id:
