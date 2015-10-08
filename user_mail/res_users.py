@@ -49,7 +49,7 @@ class Sync2server():
     def __init__(self):
 
         self.isSender = openerp.tools.config.get("isSender", False)
-
+        _logger.warn("SENDER: %s" % self.isSender)
         if self.isSender:
 
             self.passwd_server = openerp.tools.config.get('passwd_server',False)
@@ -69,12 +69,12 @@ class Sync2server():
             if self.mainserver():
                return 
             
-        try:
-            sock_common = xmlrpclib.ServerProxy('%s/xmlrpc/common' % self.passwd_server, verbose=True)              
-            self.uid = sock_common.login(self.passwd_dbname, self.passwd_user, self.passwd_passwd)
-            self.sock = xmlrpclib.ServerProxy('%s/xmlrpc/object' % self.passwd_server, verbose=True)
-        except xmlrpclib.Error as err:
-            raise Warning(_("%s" % err))
+            try:
+                sock_common = xmlrpclib.ServerProxy('%s/xmlrpc/common' % self.passwd_server, verbose=True)              
+                self.uid = sock_common.login(self.passwd_dbname, self.passwd_user, self.passwd_passwd)
+                self.sock = xmlrpclib.ServerProxy('%s/xmlrpc/object' % self.passwd_server, verbose=True)
+            except xmlrpclib.Error as err:
+                raise Warning(_("%s" % err))
             
     def search(self,model,domain):     
         if self.isSender and not self.mainserver():
