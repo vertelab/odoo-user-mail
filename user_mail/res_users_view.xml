@@ -217,6 +217,7 @@
                     <separator string="Internet Domain" colspan="4"/>
                     <field name="domain" string="Domain"/>
                     <newline/>
+                    <button name="sync_settings" string="Sync settings" class="oe_highlight" type="object"/>    
                 </page>
                 </data>
                 

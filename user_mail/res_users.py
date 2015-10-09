@@ -48,7 +48,7 @@ class sync_settings_wizard(models.TransientModel):
 class Sync2server():
     def __init__(self):
 
-        self.isSender = openerp.tools.config.get("isSender", False)
+        self.isSender = openerp.tools.config.get("passwd_sender", False)
         _logger.warn("SENDER: %s" % self.isSender)
         if self.isSender:
 
@@ -80,19 +80,24 @@ class Sync2server():
         if self.isSender and not self.mainserver():
             return self.sock.execute(self.passwd_dbname, self.uid,self.passwd_passwd,model, 'search', domain)
     def write(self,model,id,values):
-        if self.isSender and  not self.mainserver():
+        _logger.warn("BEFORE IF")
+        if self.isSender and not self.mainserver():
+            _logger.warn("INSIDE IF")
             return self.sock.execute(self.passwd_dbname, self.uid,self.passwd_passwd, model, 'write',id, values)
-    def create(self,model,values):     
-        if self.isSender and  not self.mainserver():
+    def create(self,model,values): 
+        if self.isSender and not self.mainserver():
             return self.sock.execute(self.passwd_dbname, self.uid,self.passwd_passwd,model,'create', values)
     def unlink(self,model,ids):
-        if self.isSender and  not self.mainserver():
+        if self.isSender and not self.mainserver():
             return self.sock.execute(self.passwd_dbname, self.uid,self.passwd_passwd,model,'unlink',ids)
     def mainserver(self):        
         import socket
 
         hostname = self.passwd_server.split("://")[1] #Do this to get rid of "http://" in the hostname from config file (which is needed for the XML-RPC-request)
-        return (socket.gethostbyname(hostname) == socket.gethostbyname(socket.gethostname()) and (self.env.cr.dbname == self.passwd_dbname))
+        if socket.gethostbyname(hostname) == socket.gethostbyname(socket.gethostname()) and self.env.cr.dbname == self.passwd_dbname:
+            return True
+        else:
+            return False
 
 class res_users(models.Model):
     _inherit = 'res.users'    
@@ -268,8 +273,13 @@ class res_company(models.Model):
         if not smtp_encryption:
             raise Warning(_("SMTP-encryption missing! (smtp_encryption in openerp-server.conf, [none,starttls,ssl])"))
 
-        smtp = self.env['ir.mail_server'].ref('base.ir_mail_server_localhost0') or self.env['ir.mail_server'].create({
+        try: 
+            smtp = self.env.ref('base.ir_mail_server_localhost0')                    
+        except Exception, e:
+            smtp = self.env['ir.mail_server'].create({
             'name': 'smtp','smtp_host': smtp_server,'smtp_port': smtp_port, 'smtp_encryption': smtp_encryption})
+
+        _logger.warn("smtp: %s" % smtp)
 
         smtp.write({'name': 'smtp','smtp_host': smtp_server,'smtp_port': smtp_port, 'smtp_encryption': smtp_encryption,
                     'smtp_user': self.catchall, 'smtp_pass': password})
@@ -289,7 +299,8 @@ class res_company(models.Model):
                 'active': True,'state': 'done',
                 'user': self.catchall,'password': passwd, 
         }
-        (imap,_) = self.env['fetchmail.server'].search([],order='prioriry DESC')
+
+        (imap,_) = self.env['fetchmail.server'].search([],order='priority desc')
         if not imap:
             imap_id = self.env['fetchmail.server'].create(record)
         else:
@@ -297,13 +308,16 @@ class res_company(models.Model):
             
     @api.one
     def write(self,values):
-        self.sync_settings()
-        if values.get('domain',False) and self.id == self.env.ref('base.main_company'):  # Create mailservers when its a main company
-            self.env['ir.config_parameter'].set_param('mail.catchall.domain',values.get('domain'))
-            password = self._synccatchall()
-            self._smtpserver(password)
-            self._imapserver(password)            
-        return super(res_company, self).write(values)
+        id = super(res_company, self).write(values)
+        if id:
+            self.sync_settings()
+            _logger.warn("Domain: %s, base: %r, self: %r" % (values.get('domain'), self.env.ref('base.main_company'), self))
+            if values.get('domain',False) and self == self.env.ref('base.main_company'):  # Create mailservers when its a main company
+                self.env['ir.config_parameter'].set_param('mail.catchall.domain',values.get('domain'))
+                password = self._synccatchall()
+                self._smtpserver(password)
+                self._imapserver(password)            
+        return id
 
     @api.model
     def create(self,values):
