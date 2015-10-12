@@ -58,11 +58,6 @@ def get_config(param,msg):
 class res_users(models.Model):
     _inherit = 'res.users' 
 
-    def unlink(self, cr, uid, ids, context=None):
-        postfix_alias_ids = self.env['postfix.alias'].search([('user_id', '=', ids)]).id
-        self.env['postfix.alias'].unlink(cr, uid, postfix_alias_ids, context)
-        return super(res_users, self).unlink(cr, uid, ids, context)
-
  
     @api.one
     def _maildir_get(self):
@@ -161,6 +156,11 @@ class res_users(models.Model):
             else:
                 SYNCSERVER.create(self._name,{'new_password': values['new_password']})
         return super(res_users, self).write(values)
+
+    def unlink(self, cr, uid, ids, context=None):
+        postfix_alias_ids = self.pool.get('postfix.alias').search(cr, uid, [('user_id', '=', ids)], offset=0, limit=None, order=None, context=None)    
+        self.pool.get('postfix.alias').unlink(cr, uid, postfix_alias_ids, context)
+        return super(res_users, self).unlink(cr, uid, ids, context)
 
 #~ @api.v7
 #~ def create(self,cr,uid,values,context=None):
