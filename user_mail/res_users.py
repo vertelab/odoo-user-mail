@@ -56,7 +56,13 @@ def get_config(param,msg):
 
 
 class res_users(models.Model):
-    _inherit = 'res.users'    
+    _inherit = 'res.users' 
+
+    def unlink(self, cr, uid, ids, context=None):
+        postfix_alias_ids = self.env['postfix.alias'].search([('user_id', '=', ids)]).id
+        self.env['postfix.alias'].unlink(cr, uid, postfix_alias_ids, context)
+        return super(res_users, self).unlink(cr, uid, ids, context)
+
  
     @api.one
     def _maildir_get(self):
@@ -254,17 +260,37 @@ class res_company(models.Model):
             'postfix_active': True, 
             'email': self.catchall, 
             'mail_alias': [(0,0,{'mail': '@%s' % self.domain,'active':True})],
-            'company_id': remote_company_id[0],
-            'company_ids': [remote_company_id[0]]
+            #'company_id': remote_company_id[0],
+            #'company_ids': [remote_company_id[0]]
         }
         remote_user_id = SYNCSERVER.search('res.users',[('login','=',self.catchall)])
         #raise Warning('record %s user %s' % (record,remote_user_id))
         if remote_user_id:
             remote_user_id = remote_user_id[0]
             SYNCSERVER.unlink('postfix.alias',SYNCSERVER.search('postfix.alias',[('user_id','=',remote_user_id)]))
+
+            _logger.warn("remote_user_id - _synccatchall : %s" % remote_user_id)
+
+            SYNCSERVER.write('res.users',remote_user_id,record)
+
+
+            #redundant code put in function...    
+            record = {
+                'company_id': remote_company_id[0],
+                'company_ids': [remote_company_id[0]]
+            }
+
             SYNCSERVER.write('res.users',remote_user_id,record)
         else:
             SYNCSERVER.create('res.users',record)
+
+            #redundant code put in function...
+            record = {
+                'company_id': remote_company_id[0],
+                'company_ids': [remote_company_id[0]]
+            }
+            SYNCSERVER.create('res.users',record)
+
         return record['new_password']  # Return the password for temporary use
 
     def _smtpserver(self,password):    
@@ -286,7 +312,7 @@ class res_company(models.Model):
     def _imapserver(self,passwd):    
         record = {
                 'name': 'imap',
-                'server': get_config('imap_host','IMAP name missing! '),
+                'server': get_config('imap_host','IMAP name missing!'),
                 'port':   get_config('imap_port','IMAP port missing!'),
                 'is_ssl': True,
                 'type': 'imap',
