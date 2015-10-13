@@ -223,11 +223,10 @@ class res_company(models.Model):
                 SYNCSERVER = Sync2server(self)
             if not SYNCSERVER.mainserver():
                 password = self._synccatchall(remote_company_id)
+                self._smtpserver(password)
+                self._imapserver(password) 
 
-            _logger.warn("AFTER IF Base: %s, Self.id: %s" % (self.env.ref('base.main_company'), self.id))
-
-            self._smtpserver(password)
-            self._imapserver(password)            
+            _logger.warn("AFTER IF Base: %s, Self.id: %s" % (self.env.ref('base.main_company'), self.id))           
 
     @api.model
     def create(self,values):
