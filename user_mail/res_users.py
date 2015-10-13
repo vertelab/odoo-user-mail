@@ -190,6 +190,7 @@ class res_company(models.Model):
         self.domain = self.env['ir.config_parameter'].get_param('mail.catchall.domain') or ''
     domain = fields.Char(string='Domain',help="the internet domain for mail",default=_domain)
 
+    @api.one
     def _catchall(self):
         self.catchall = self.env['ir.config_parameter'].get_param('mail.catchall.alias') or 'catchall' + '@' + self.domain
     catchall = fields.Char(compute=_catchall,string='Catchall',help="catchall mail address",)   
