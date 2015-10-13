@@ -257,9 +257,11 @@ class res_company(models.Model):
         if remote_company_id:
             #raise Warning('%s %s' % (remote_company_id[0],record))
             SYNCSERVER.write(self._name,remote_company_id[0], record)
+            return remote_company_id[0]
         else:
             return SYNCSERVER.create(self._name, record)
-        return remote_company_id[0]
+        
+
 
     @api.one
     def _synccatchall(self,remote_company_id):
@@ -372,7 +374,9 @@ class Sync2server():
     def write(self,model,id,values):
         if not self.mainserver():
             #raise Warning('%s %s %s' % (model,id,values))
-            _logger.warn("VALS: %s remote-id: %s" % (values,id))            
+            _logger.warn("VALS: %s remote-id: %s  model: %s\n  dbname; %s  uid:  %s\n  passwd:  %s" %
+             (values,id, model, self.passwd_dbname, self.uid, self.passwd_passwd))         
+
             return self.sock.execute(self.passwd_dbname, self.uid,self.passwd_passwd, model, 'write',id, values)
     def create(self,model,values): 
         if not self.mainserver():
