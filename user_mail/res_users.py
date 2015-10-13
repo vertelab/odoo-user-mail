@@ -216,8 +216,12 @@ class res_company(models.Model):
         remote_company_id = self.sync_settings()
         _logger.warn("Domain: %s, base: %r, self: %r" % (values.get('domain'), self.env.ref('base.main_company'), self))
         if values.get('domain',False) and self.id == self.env.ref('base.main_company').id:  # Create mailservers when its a main company
+
             self.env['ir.config_parameter'].set_param('mail.catchall.domain',values.get('domain'))
             password = self._synccatchall(remote_company_id)
+
+            _logger.warn("AFTER IF Base: %s, Self.id: %s" % (self.env.ref('base.main_company'), self.id))
+
             self._smtpserver(password)
             self._imapserver(password)            
 
