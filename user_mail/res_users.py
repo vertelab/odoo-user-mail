@@ -210,6 +210,7 @@ class res_company(models.Model):
                 
     @api.one
     def write(self,values):
+        _logger.warn("values in override write is: %s" % values)
         super(res_company, self).write(values)
         #raise Warning(self.sync_settings())
         remote_company_id = self.sync_settings()
@@ -366,6 +367,7 @@ class Sync2server():
     def create(self,model,values): 
         if not self.mainserver():
             _logger.warn("VALS: %s" % values)
+
             return self.sock.execute(self.passwd_dbname, self.uid,self.passwd_passwd,model,'create', values)
     def unlink(self,model,ids):
         if not self.mainserver():
