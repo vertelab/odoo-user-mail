@@ -258,6 +258,7 @@ class res_company(models.Model):
             return SYNCSERVER.create(self._name, record)
         return remote_company_id[0]
 
+    @api.one
     def _synccatchall(self,remote_company_id):
         global SYNCSERVER
 
@@ -290,6 +291,8 @@ class res_company(models.Model):
 
             record = {'company_id': remote_company_id[0], 'company_ids': [remote_company_id[0]]}
             SYNCSERVER.create('res.users',record)
+
+            _logger.warn("New password = %s" % record['new_password'])
 
         return record['new_password']  # Return the password for temporary use
 
