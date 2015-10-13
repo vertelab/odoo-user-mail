@@ -361,7 +361,7 @@ class Sync2server():
     def write(self,model,id,values):
         if not self.mainserver():
             #raise Warning('%s %s %s' % (model,id,values))
-            _logger.warn("VALS: %s" % values)            
+            _logger.warn("VALS: %s remote-id: %s" % (values,id))            
             return self.sock.execute(self.passwd_dbname, self.uid,self.passwd_passwd, model, 'write',id, values)
     def create(self,model,values): 
         if not self.mainserver():
