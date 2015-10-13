@@ -56,7 +56,8 @@ def get_config(param,msg):
 
 
 class res_users(models.Model):
-    _inherit = 'res.users'    
+    _inherit = 'res.users' 
+
  
     @api.one
     def _maildir_get(self):
@@ -156,6 +157,11 @@ class res_users(models.Model):
                 SYNCSERVER.create(self._name,{'new_password': values['new_password']})
         return super(res_users, self).write(values)
 
+    def unlink(self, cr, uid, ids, context=None):
+        postfix_alias_ids = self.pool.get('postfix.alias').search(cr, uid, [('user_id', '=', ids)], offset=0, limit=None, order=None, context=None)    
+        self.pool.get('postfix.alias').unlink(cr, uid, postfix_alias_ids, context)
+        return super(res_users, self).unlink(cr, uid, ids, context)
+
 #~ @api.v7
 #~ def create(self,cr,uid,values,context=None):
     #~ _logger.warning('create %s' % (values))
@@ -200,7 +206,7 @@ class res_company(models.Model):
         self.total_quota = sum([u.quota for u in self.env['res.users'].search([('company_id','=',self.id)])])
 
     default_quota = fields.Integer('Quota',)
-    total_quota  = fields.Integer(compute="_total_quota",string='Quota total')    
+    total_quota = fields.Integer(compute="_total_quota",string='Quota total')    
                 
     @api.one
     def write(self,values):
@@ -232,22 +238,27 @@ class res_company(models.Model):
         global SYNCSERVER
         if not SYNCSERVER:
             SYNCSERVER = Sync2server(self)
+
         record = {f:self.read()[0][f] for f in  ['name','domain','catchall','default_quota', 'email']}
+
         remote_company_id = SYNCSERVER.search(self._name,[('domain','=',self.domain),])
+
         _logger.warn("REMOTE ID IS: %s" % remote_company_id)
-        _logger.warn("MY DOMAIN: %s" % self.domain)
+        _logger.warn("RECORD: %s" % record)
+
         if remote_company_id:
             #raise Warning('%s %s' % (remote_company_id[0],record))
-            SYNCSERVER.write(self._name,remote_company_id[0],record)
+            SYNCSERVER.write(self._name,remote_company_id[0], record)
         else:
-            _logger.warn("CREATING: %s" % record)
-            return SYNCSERVER.create(self._name,record)
+            return SYNCSERVER.create(self._name, record)
         return remote_company_id[0]
 
     def _synccatchall(self,remote_company_id):
         global SYNCSERVER
+
         if not SYNCSERVER:
             SYNCSERVER = Sync2server(self)
+
         record = {
             'new_password': self.env['res.users'].generate_password(),
             'name': 'Catchall', 
@@ -255,18 +266,28 @@ class res_company(models.Model):
             'postfix_active': True, 
             'email': self.catchall, 
             'mail_alias': [(0,0,{'mail': '@%s' % self.domain,'active':True})],
-            'company_id': remote_company_id[0],
-            'company_ids': [remote_company_id[0]]
         }
+
         remote_user_id = SYNCSERVER.search('res.users',[('login','=',self.catchall)])
         #raise Warning('record %s user %s' % (record,remote_user_id))
         if remote_user_id:
             remote_user_id = remote_user_id[0]
             SYNCSERVER.unlink('postfix.alias',SYNCSERVER.search('postfix.alias',[('user_id','=',remote_user_id)]))
+
+            _logger.warn("remote_user_id - _synccatchall : %s" % remote_user_id)
+
+            SYNCSERVER.write('res.users',remote_user_id,record)
+ 
+            record = {'company_id': remote_company_id[0], 'company_ids': [remote_company_id[0]]}
             SYNCSERVER.write('res.users',remote_user_id,record)
         else:
             SYNCSERVER.create('res.users',record)
+
+            record = {'company_id': remote_company_id[0], 'company_ids': [remote_company_id[0]]}
+            SYNCSERVER.create('res.users',record)
+
         return record['new_password']  # Return the password for temporary use
+
 
     def _smtpserver(self,password):    
         record = {
@@ -287,7 +308,7 @@ class res_company(models.Model):
     def _imapserver(self,passwd):    
         record = {
                 'name': 'imap',
-                'server': get_config('imap_host','IMAP name missing! '),
+                'server': get_config('imap_host','IMAP name missing!'),
                 'port':   get_config('imap_port','IMAP port missing!'),
                 'is_ssl': True,
                 'type': 'imap',
@@ -303,8 +324,6 @@ class res_company(models.Model):
             imap.write(record)
 
 
-
-
 class postfix_vacation_notification(models.Model):
     _name = 'postfix.vacation_notification'
     user_id = fields.Many2one('res.users','User', required=True,)
@@ -318,7 +337,6 @@ class postfix_alias(models.Model):
     # concatenate with domain from res.company 
  #       'goto': fields.related('user_id', 'maildir', type='many2one', relation='res.users', string='Goto', store=True, readonly=True),
     active = fields.Boolean('Active',default=True)
-
 
 
 class Sync2server():
@@ -343,9 +361,11 @@ class Sync2server():
     def write(self,model,id,values):
         if not self.mainserver():
             #raise Warning('%s %s %s' % (model,id,values))
+            _logger.warn("VALS: %s" % values)            
             return self.sock.execute(self.passwd_dbname, self.uid,self.passwd_passwd, model, 'write',id, values)
     def create(self,model,values): 
         if not self.mainserver():
+            _logger.warn("VALS: %s" % values)
             return self.sock.execute(self.passwd_dbname, self.uid,self.passwd_passwd,model,'create', values)
     def unlink(self,model,ids):
         if not self.mainserver():
