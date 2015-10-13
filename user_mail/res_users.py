@@ -210,6 +210,7 @@ class res_company(models.Model):
                 
     @api.one
     def write(self,values):
+        global SYNCSERVER
         _logger.warn("values in override write is: %s" % values)
         super(res_company, self).write(values)
         #raise Warning(self.sync_settings())
@@ -218,7 +219,10 @@ class res_company(models.Model):
         if values.get('domain',False) and self.id == self.env.ref('base.main_company').id:  # Create mailservers when its a main company
 
             self.env['ir.config_parameter'].set_param('mail.catchall.domain',values.get('domain'))
-            password = self._synccatchall(remote_company_id)
+            if not SYNCSERVER:
+                SYNCSERVER = Sync2server(self)
+            if not SYNCSERVER.mainserver():
+                password = self._synccatchall(remote_company_id)
 
             _logger.warn("AFTER IF Base: %s, Self.id: %s" % (self.env.ref('base.main_company'), self.id))
 
@@ -266,7 +270,7 @@ class res_company(models.Model):
             SYNCSERVER = Sync2server(self)
 
         record = {
-            'ne_password': self.env['res.users'].generate_password(),
+            'new_password': self.env['res.users'].generate_password(),
             'name': 'Catchall', 
             'login': self.catchall, 
             'postfix_active': True, 
@@ -292,9 +296,9 @@ class res_company(models.Model):
             record = {'company_id': remote_company_id[0], 'company_ids': [remote_company_id[0]]}
             SYNCSERVER.create('res.users',record)
 
-        _logger.warn("New password = %s" % record['ne_password'])
+        _logger.warn("New password = %s" % record['new_password'])
 
-        return record['ne_password']  # Return the password for temporary use
+        return record['new_password']  # Return the password for temporary use
 
 
     def _smtpserver(self,password):    
