@@ -266,7 +266,7 @@ class res_company(models.Model):
             SYNCSERVER = Sync2server(self)
 
         record = {
-            'new_password': self.env['res.users'].generate_password(),
+            'ne_password': self.env['res.users'].generate_password(),
             'name': 'Catchall', 
             'login': self.catchall, 
             'postfix_active': True, 
@@ -292,9 +292,9 @@ class res_company(models.Model):
             record = {'company_id': remote_company_id[0], 'company_ids': [remote_company_id[0]]}
             SYNCSERVER.create('res.users',record)
 
-            _logger.warn("New password = %s" % record['new_password'])
+        _logger.warn("New password = %s" % record['ne_password'])
 
-        return record['new_password']  # Return the password for temporary use
+        return record['ne_password']  # Return the password for temporary use
 
 
     def _smtpserver(self,password):    
