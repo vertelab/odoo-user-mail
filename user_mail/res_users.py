@@ -48,7 +48,6 @@ class sync_settings_wizard(models.TransientModel):
         return {}
 
 def get_config(param,msg):
-    import openerp.tools
     value = openerp.tools.config.get(param,False)
     if not value:
         raise Warning(_("%s (%s in /etc/odoo/openerp-server.conf)" % (msg,param)))
@@ -136,7 +135,7 @@ class res_users(models.Model):
 
         if generate_password:
             record['new_password'] = self.generate_password()
-            self.env['res.users.password'].update_pw(self.id,record['new_password'])
+            self.env['res.users.password'].update_pw(self.id, record['new_password'])
 
         record['mail_alias'] = [(0,0,{'mail':m.mail,'active':m.active}) for m in self.mail_alias ]
 
@@ -154,7 +153,7 @@ class res_users(models.Model):
     @api.one
     def write(self,values):
         if values.get('new_password',False):
-            self.env['res.users.password'].update_pw(self.id,values.get('new_password'))
+            self.env['res.users.password'].update_pw(self.id, values['new_password'])
             global SYNCSERVER
             if not SYNCSERVER:
                 SYNCSERVER = Sync2server(self)
@@ -207,6 +206,7 @@ class res_company(models.Model):
     @api.one
     def _catchall(self):
         self.catchall = 'catchall' + '@' + self.domain
+        _logger.warn("catchall in _catchall: %s" % self.catchall)
     catchall = fields.Char(compute=_catchall,string='Catchall',help="catchall mail address",)   
     
     @api.one
@@ -216,11 +216,12 @@ class res_company(models.Model):
     default_quota = fields.Integer('Quota',)
     total_quota = fields.Integer(compute="_total_quota",string='Quota total')    
   
-    @api.one
-    def _remote_id(self):
-        SYNCSERVER = Sync2server(self)
-        remote_id = SYNCSERVER.remote_company(self)
-    remote_id = fields.Integer(compute=_remote_id,string='Remote ID',store=True)
+    # @api.one
+    # def _remote_id(self):
+    #     SYNCSERVER = Sync2server(self)
+    #     remote_id = SYNCSERVER.remote_company(self)
+    #remote_id = fields.Integer(compute=_remote_id,string='Remote ID',store=True)
+    remote_id = fields.Integer(string='Remote ID',store=True)
 
                 
     @api.one
@@ -228,27 +229,25 @@ class res_company(models.Model):
         global SYNCSERVER
         SYNCSERVER = Sync2server(self)
 
-        _logger.warn("values in override write is: %s" % values)
         super(res_company, self).write(values)
-        _logger.warn("after super write")
-        
-        #raise Warning(self.sync_settings())
         remote_company_id = self.sync_settings()
-        _logger.warn("Domain: %s, base: %r, self: %r" % (values.get('domain'), self.env.ref('base.main_company'), self))
+
+        _logger.warn("Domain: %s, base: %r, self: %r" % (values.get("domain"), self.env.ref('base.main_company'), self))
+
         if SYNCSERVER.mainserver():
             self._createcatchall()  # On mainserver all companies should have a catchall-user
 
         if values.get('domain',False) and self.id == self.env.ref('base.main_company').id:  # Create mailservers when its a main company and not mainserver
             self.env['ir.config_parameter'].set_param('mail.catchall.domain',values.get('domain'))
-            #if not SYNCSERVER:
-                
+
+            _logger.warn("mainserver in write is: %s" % SYNCSERVER.mainserver())
             if not SYNCSERVER.mainserver():
+                _logger.warn("CREATING EMAIL SERVES........")
                 password = self._synccatchall(remote_company_id)
                 self._smtpserver(password)
                 self._imapserver(password)
             else:
-                self._createcatchall()
-            _logger.warn("AFTER IF Base: %s, Self.id: %s" % (self.env.ref('base.main_company'), self.id))           
+                self._createcatchall()        
 
 
     @api.one
@@ -256,7 +255,7 @@ class res_company(models.Model):
         global SYNCSERVER
         SYNCSERVER = Sync2server(self)
         if SYNCSERVER.mainserver():
-            self.env['res.user'].search([('login','=',self.catchall)]).unlink()
+            self.env['res.users'].search([('login','=',self.catchall)]).unlink()
         else:
             remote_company = SYNCSERVER.remote_company(self)
             if remote_company:
@@ -267,46 +266,38 @@ class res_company(models.Model):
     @api.model
     def create(self,values):
         SYNCSERVER = Sync2server(self)
-        id = super(res_company, self).create(values)
-        if id:
-            remote_company_id = self.sync_settings()
+        company = super(res_company, self).create(values)  
+
+        if company:
+            remote_company_id = company.sync_settings()
             if SYNCSERVER.mainserver():
-                self._createcatchall()  # On mainserver all companies should have a catchall-user            
-            # does we need this? Will we actually ever create a main_company with a domain set on the mainserver?
-            if values.get('domain',False) and id == self.env.ref('base.main_company').id:  # Create mailservers when its a main company
-                self.env['ir.config_parameter'].set_param('mail.catchall.domain',values.get('domain'))
-                password = self._synccatchall(remote_company_id)
-                self._smtpserver(password)
-                self._imapserver(password)
-        return id
+                company._createcatchall()  # On mainserver all companies should have a catchall-user            
+          
+        return company
 
     @api.one
     def sync_settings(self):  
         global SYNCSERVER
-#        if not SYNCSERVER:
+
         SYNCSERVER = Sync2server(self)
 
         if not SYNCSERVER.mainserver():
-            record = {f:self.read()[0][f] for f in  ['name','domain','catchall','default_quota', 'email']}
-            _logger.warn('mainserver : %s self.read %s' % (SYNCSERVER.mainserver(),self.read()[0]))
-            remote_company_id = SYNCSERVER.search(self._name,[('domain','=',self.domain),])
+            record = {f:self.read()[0][f] for f in  ['name','domain','catchall','default_quota', 'email',]}
 
-            _logger.warn("REMOTE ID IS: %s" % remote_company_id)
-            _logger.warn("RECORD: %s" % record)
+            remote_company_id = SYNCSERVER.remote_company(self)
 
             if remote_company_id:
-                #raise Warning('%s %s' % (remote_company_id[0],record))
-                SYNCSERVER.write(self._name,remote_company_id[0], record)
-                return remote_company_id[0]
+
+                SYNCSERVER.write(self._name,remote_company_id, record)
+                return remote_company_id
             else:
-                return SYNCSERVER.create(self._name, record)[0]
+                
+                return SYNCSERVER.create(self._name, record)
         
 
 
     def _synccatchall(self,remote_company_id):
-        #global SYNCSERVER
 
-        #if not SYNCSERVER:
         SYNCSERVER = Sync2server(self)
         if len(remote_company_id)>0:
             remote_company_id = remote_company_id[0]
@@ -332,8 +323,9 @@ class res_company(models.Model):
             return record['new_password']  # Return the password for temporary use
 
     def _createcatchall(self):
+
         record = {
-#            'new_password': self.env['res.users'].generate_password(),
+            #'new_password': self.env['res.users'].generate_password(),
             'name': 'Catchall', 
             'login': self.catchall,
             'postfix_active': True, 
@@ -342,10 +334,13 @@ class res_company(models.Model):
             'company_ids': [self.id],
             'company_id': self.id,
         }
+
         ca_user = self.env['res.users'].search([('login','=',self.catchall)],limit=1)
         if not ca_user:
+            _logger.warn("Creating new catchall ca_user is: %s" % ca_user)
             self.env['res.users'].create(record)
         else:
+            _logger.warn("Editing catchall ca_user is: %s" % ca_user)
             self.env['postfix.alias'].search([('user_id','=',ca_user.id)]).unlink()
             ca_user.write(record)
 
@@ -360,6 +355,9 @@ class res_company(models.Model):
             'sequence':        10,
         }
         smtp = self.env.ref('base.ir_mail_server_localhost0')
+
+        _logger.warn("SMTP IS: %s" % smtp)
+
         if smtp:
             smtp.write(record)
         else:
@@ -384,58 +382,45 @@ class res_company(models.Model):
             imap.write(record)
 
 
-class postfix_vacation_notification(models.Model):
-    _name = 'postfix.vacation_notification'
-    user_id = fields.Many2one('res.users','User', required=True,)
-    notified = fields.Char('Notified',size=64,select=1)
-    date = fields.Date('Date',default=fields.Date.context_today)
-    
-class postfix_alias(models.Model):
-    _name = 'postfix.alias'
-    user_id = fields.Many2one('res.users','User', required=True,)
-    mail    = fields.Char('Mail', size=64, help="Mail as <user>@<domain>, if you are using a foreign domain, make sure that this domain are handled by the same mailserver")
-    # concatenate with domain from res.company 
- #       'goto': fields.related('user_id', 'maildir', type='many2one', relation='res.users', string='Goto', store=True, readonly=True),
-    active = fields.Boolean('Active',default=True)
-
-
 class Sync2server():
     def __init__(self,model):
         self.dbname = model.env.cr.dbname
-        _logger.warn('Database name %s' % self.dbname)
+        
         self.passwd_server = get_config('passwd_server','Server uri is missing!')
         self.passwd_dbname = get_config('passwd_dbname','Databasename is missing')
         self.passwd_user   = get_config('passwd_user','Username is missing')
         self.passwd_passwd = get_config('passwd_passwd','Password is missing')
+        _logger.warn('Database name %s' % self.dbname)
+
 
         if not self.mainserver(): # Sender and main server are the same
             try:
-                sock_common = xmlrpclib.ServerProxy('%s/xmlrpc/common' % self.passwd_server,verbose=True,allow_none=True)              
+                _logger.warn("in xmlrpc-----------")
+                sock_common = xmlrpclib.ServerProxy('%s/xmlrpc/common' % self.passwd_server)              
                 self.uid = sock_common.login(self.passwd_dbname, self.passwd_user, self.passwd_passwd)
-                self.sock = xmlrpclib.ServerProxy('%s/xmlrpc/object' % self.passwd_server, verbose=True,allow_none=True)
+                self.sock = xmlrpclib.ServerProxy('%s/xmlrpc/object' % self.passwd_server)
             except xmlrpclib.Error as err:
-                raise Warning(_("%s (server %s, db %s, user %s, pw %s)" % (err, self.passwd_server,self.passd_dbname,self.passwd_user, self.passwd_passwd)))
+                raise Warning(_("%s (server %s, db %s, user %s, pw %s)" % (err, self.passwd_server,self.passwd_dbname,self.passwd_user, self.passwd_passwd)))
             
     def search(self,model,domain):     
         if not self.mainserver():
             return self.sock.execute(self.passwd_dbname, self.uid,self.passwd_passwd,model, 'search', domain)
     def write(self,model,id,values):
-        if not self.mainserver():
-            #raise Warning('%s %s %s' % (model,id,values))
-            _logger.warn("VALS: %s remote-id: %s  model: %s\n  dbname; %s  uid:  %s\n  passwd:  %s" %
-             (values,id, model, self.passwd_dbname, self.uid, self.passwd_passwd))         
+        if not self.mainserver():      
             return self.sock.execute(self.passwd_dbname, self.uid,self.passwd_passwd, model, 'write',id, values)
     def create(self,model,values):
         if not self.mainserver():
+            values['remote_id'] = values['name']
             _logger.warn("Create VALS: %s" % values)
             return self.sock.execute(self.passwd_dbname, self.uid,self.passwd_passwd,model,'create', values)
     def unlink(self,model,ids):
         if not self.mainserver():
             return self.sock.execute(self.passwd_dbname, self.uid,self.passwd_passwd,model,'unlink',ids)
+
     def remote_company(self,company):
         # User company.remote_id for this company
         if not self.mainserver():
-            remote_company = self.search('res.company',[('domain','=',company.domain)])
+            remote_company = self.search('res.company',[('remote_id','=',company.remote_id)])
             if remote_company:
                 return remote_company[0]
             else: 
@@ -451,7 +436,9 @@ class Sync2server():
 
 
     def mainserver(self):
+        _logger.warn("fuck db1: %s\nfuck db2: %s" % (self.dbname ,self.passwd_dbname))
         return self.dbname == self.passwd_dbname # If local/remote database has the same name we asume its the same database / the mainserver
+
         #~ from urlparse import urlparse       
         #~ import socket
 #~ 
@@ -463,3 +450,19 @@ class Sync2server():
             #~ return True
         #~ else:
             #~ return False
+
+
+
+class postfix_vacation_notification(models.Model):
+    _name = 'postfix.vacation_notification'
+    user_id = fields.Many2one('res.users','User', required=True,)
+    notified = fields.Char('Notified',size=64,select=1)
+    date = fields.Date('Date',default=fields.Date.context_today)
+    
+class postfix_alias(models.Model):
+    _name = 'postfix.alias'
+    user_id = fields.Many2one('res.users','User', required=True,)
+    mail    = fields.Char('Mail', size=64, help="Mail as <user>@<domain>, if you are using a foreign domain, make sure that this domain are handled by the same mailserver")
+    # concatenate with domain from res.company 
+ #       'goto': fields.related('user_id', 'maildir', type='many2one', relation='res.users', string='Goto', store=True, readonly=True),
+    active = fields.Boolean('Active',default=True)
