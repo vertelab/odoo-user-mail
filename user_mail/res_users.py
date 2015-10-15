@@ -189,7 +189,7 @@ class res_company(models.Model):
     default_quota = fields.Integer('Quota',)
     total_quota = fields.Integer(compute="_total_quota",string='Quota total')    
 
-    remote_id = fields.Integer(string='Remote ID',store=True)
+    remote_id = fields.Integer(string='Remote ID')
 
     def mainserver(self):
         # If local/remote database has the same name we asume its the same database / the mainserver
