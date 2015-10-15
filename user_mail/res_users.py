@@ -370,9 +370,13 @@ class Sync2server():
 
         if not self.mainserver():
             try:
-                sock_common = xmlrpclib.ServerProxy('%s/xmlrpc/common' % self.passwd_server)              
-                self.uid = sock_common.login(self.passwd_dbname, self.passwd_user, self.passwd_passwd)
+                _logger.warn("One")
+                self.sock_common = xmlrpclib.ServerProxy('%s/xmlrpc/common' % self.passwd_server)     
+                _logger.warn("Two")         
+                self.uid = self.sock_common.login(self.passwd_dbname, self.passwd_user, self.passwd_passwd)
+                _logger.warn("Three")
                 self.sock = xmlrpclib.ServerProxy('%s/xmlrpc/object' % self.passwd_server)
+                _logger.warn("Four")
             except xmlrpclib.Error as err:
                 raise Warning(_("%s (server %s, db %s, user %s, pw %s)" % (err, self.passwd_server, self.passwd_dbname, self.passwd_user, self.passwd_passwd)))
             
