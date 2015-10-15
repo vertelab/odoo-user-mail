@@ -101,7 +101,7 @@ class res_users(models.Model):
     def sync_settings(self, generate_password=False):     
         global SYNCSERVER
         #if not SYNCSERVER:
-        SYNCSERVER = Sync2server(self.env.cr.dbname)
+        SYNCSERVER = Sync2server(self.env.cr.dbname, self)
 
         record = {f:self.read()[0][f] for f in  [
                                               'name', 'login',
@@ -133,7 +133,7 @@ class res_users(models.Model):
             self.env['res.users.password'].update_pw(self.id, values['new_password'])
             global SYNCSERVER
 
-            SYNCSERVER = Sync2server(self.env.cr.dbname)
+            SYNCSERVER = Sync2server(self.env.cr.dbname, self)
             remote_user_id = SYNCSERVER.search(self._name,[('login','=',self.login)])
 
             if remote_user_id:
@@ -200,7 +200,7 @@ class res_company(models.Model):
     def write(self,values):
         global SYNCSERVER
         #if not SYNCSERVER:
-        SYNCSERVER = Sync2server(self.env.cr.dbname)
+        SYNCSERVER = Sync2server(self.env.cr.dbname, self)
 
         super(res_company, self).write(values)
         remote_company_id = self.sync_settings()
@@ -225,7 +225,7 @@ class res_company(models.Model):
     def unlink(self):
         global SYNCSERVER
         #if not SYNCSERVER:
-        SYNCSERVER = Sync2server(self.env.cr.dbname)
+        SYNCSERVER = Sync2server(self.env.cr.dbname, self)
 
         if self.mainserver():
             self.env['res.users'].search([('login','=',self.catchall)]).unlink()
@@ -239,7 +239,7 @@ class res_company(models.Model):
     @api.model
     def create(self,values):
         #if not SYNCSERVER:
-        SYNCSERVER = Sync2server(self.env.cr.dbname)
+        SYNCSERVER = Sync2server(self.env.cr.dbname, self)
         company = super(res_company, self).create(values)  
 
         if company:
@@ -253,7 +253,7 @@ class res_company(models.Model):
     def sync_settings(self):  
         global SYNCSERVER
         #if not SYNCSERVER:
-        SYNCSERVER = Sync2server(self.env.cr.dbname)
+        SYNCSERVER = Sync2server(self.env.cr.dbname, self)
 
         if not self.mainserver():
             record = {f:self.read()[0][f] for f in  ['name','domain','catchall','default_quota', 'email',]}
@@ -272,7 +272,7 @@ class res_company(models.Model):
 
     def _synccatchall(self,remote_company_id):
         #if not SYNCSERVER:
-        SYNCSERVER = Sync2server(self.env.cr.dbname)
+        SYNCSERVER = Sync2server(self.env.cr.dbname, self)
 
         record = {
             'new_password': self.env['res.users'].generate_password(),
@@ -359,16 +359,29 @@ def get_config(param,msg):
     return value
 
 class Sync2server():
-    def __init__(self, dbname):
+    def __init__(self, dbname, model):
         self.dbname = dbname
+        self.isInstalled = True
+
+        try:
+            model.env.ref("user_mail.user_mail_sync_view")
+            self.isInstalled = True
+            _logger.warn("WORKED")
+        except Exception, e:
+            self.isInstalled = False
+            _logger.warn("ERROR")
         
         self.passwd_server = get_config('passwd_server','Server uri is missing!')
         self.passwd_dbname = get_config('passwd_dbname','Databasename is missing')
         self.passwd_user   = get_config('passwd_user','Username is missing')
         self.passwd_passwd = get_config('passwd_passwd','Password is missing')
 
+        # self.sock_common = None
+        # self.uid = None
+        # self.sock = None
 
-        if not self.mainserver():
+
+        if not self.mainserver() and self.isInstalled:
             try:
                 _logger.warn("One")
                 self.sock_common = xmlrpclib.ServerProxy('%s/xmlrpc/common' % self.passwd_server)     
@@ -381,18 +394,18 @@ class Sync2server():
                 raise Warning(_("%s (server %s, db %s, user %s, pw %s)" % (err, self.passwd_server, self.passwd_dbname, self.passwd_user, self.passwd_passwd)))
             
     def search(self,model,domain):     
-        if not self.mainserver():
+        if not self.mainserver() and self.isInstalled:
             return self.sock.execute(self.passwd_dbname, self.uid, self.passwd_passwd,model, 'search', domain)
     def write(self,model,id,values):
-        if not self.mainserver():      
+        if not self.mainserver() and self.isInstalled:      
             return self.sock.execute(self.passwd_dbname, self.uid, self.passwd_passwd, model, 'write', id, values)
     def create(self,model,values):
-        if not self.mainserver():
+        if not self.mainserver() and self.isInstalled:
             if model == "res.company":
                 values['remote_id'] = values['name']
             return self.sock.execute(self.passwd_dbname, self.uid, self.passwd_passwd,model,'create', values)
     def unlink(self,model,ids):
-        if not self.mainserver():
+        if not self.mainserver() and self.isInstalled:
             return self.sock.execute(self.passwd_dbname, self.uid, self.passwd_passwd, model, 'unlink',ids)
 
     def remote_company(self,company):
