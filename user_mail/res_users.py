@@ -189,7 +189,7 @@ class res_company(models.Model):
     default_quota = fields.Integer('Quota',)
     total_quota = fields.Integer(compute="_total_quota",string='Quota total')    
 
-    remote_id = fields.Integer(string='Remote ID')
+    remote_id = fields.Char(string='Remote ID')
 
     def mainserver(self):
         # If local/remote database has the same name we asume its the same database / the mainserver
@@ -204,8 +204,6 @@ class res_company(models.Model):
 
         super(res_company, self).write(values)
         remote_company_id = self.sync_settings()
-
-        _logger.warn("Domain: %s, base: %r, self: %r" % (values.get("domain"), self.env.ref('base.main_company'), self))
 
         if self.mainserver():
             self._createcatchall()  # On mainserver all companies should have a catchall-user
@@ -240,6 +238,8 @@ class res_company(models.Model):
     def create(self,values):
         #if not SYNCSERVER:
         SYNCSERVER = Sync2server(self.env.cr.dbname, self)
+
+        values['remote_id'] = values['name']
         company = super(res_company, self).create(values)  
 
         if company:
@@ -256,8 +256,7 @@ class res_company(models.Model):
         SYNCSERVER = Sync2server(self.env.cr.dbname, self)
 
         if not self.mainserver():
-            record = {f:self.read()[0][f] for f in  ['name','domain','catchall','default_quota', 'email',]}
-
+            record = {f:self.read()[0][f] for f in  ['name','domain','catchall','default_quota', 'email', 'remote_id']}
             remote_company_id = SYNCSERVER.remote_company(self)
 
             if remote_company_id:
@@ -265,7 +264,6 @@ class res_company(models.Model):
                 SYNCSERVER.write(self._name,remote_company_id, record)
                 return remote_company_id
             else:
-                
                 return SYNCSERVER.create(self._name, record)
         
 
@@ -280,11 +278,11 @@ class res_company(models.Model):
         }
 
         if not self.mainserver():
-            remote_user_id = SYNCSERVER.search('res.users',[('login','=',self.catchall)])
+            remote_user_id = SYNCSERVER.search('res.users',[('login','=',self.catchall)]) #TODO: put a remote id here to update catchall
 
             if remote_user_id:
                 remote_user_id = remote_user_id[0]
-                SYNCSERVER.write('res.users',remote_user_id,record)
+                SYNCSERVER.write('res.users',remote_user_id, record)
             else:
                 SYNCSERVER.create('res.users', record)
 
@@ -293,7 +291,7 @@ class res_company(models.Model):
     def _createcatchall(self):
 
         record = {
-            #'new_password': self.env['res.users'].generate_password(),
+            'new_password': self.env['res.users'].generate_password(),
             'name': 'Catchall', 
             'login': self.catchall,
             'postfix_active': True, 
@@ -385,22 +383,23 @@ class Sync2server():
     def search(self,model,domain):     
         if not self.mainserver() and self.isInstalled:
             return self.sock.execute(self.passwd_dbname, self.uid, self.passwd_passwd,model, 'search', domain)
+
     def write(self,model,id,values):
         if not self.mainserver() and self.isInstalled:      
             return self.sock.execute(self.passwd_dbname, self.uid, self.passwd_passwd, model, 'write', id, values)
+
     def create(self,model,values):
         if not self.mainserver() and self.isInstalled:
-            if model == "res.company":
-                values['remote_id'] = values['name']
             return self.sock.execute(self.passwd_dbname, self.uid, self.passwd_passwd,model,'create', values)
+
     def unlink(self,model,ids):
         if not self.mainserver() and self.isInstalled:
             return self.sock.execute(self.passwd_dbname, self.uid, self.passwd_passwd, model, 'unlink',ids)
 
-    def remote_company(self,company):
+    def remote_company(self, company):
         # User company.remote_id for this company
         if not self.mainserver():
-            remote_company = self.search('res.company',[('remote_id','=',company.remote_id)])
+            remote_company = self.search('res.company',[('remote_id','=',company.remote_id)])            
             if remote_company:
                 return remote_company[0]
             else: 

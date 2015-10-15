@@ -13,7 +13,7 @@
     'summary': 'Administation of mail for users',
     'author': 'Vertel AB',
     'website': 'http://www.vertel.se',
-    'depends': ['fetchmail'],
+    'depends': ['base', 'fetchmail'],
     'data': ['res_users_view.xml'],
 
     'installable': True,
