@@ -189,7 +189,7 @@ class res_company(models.Model):
     default_quota = fields.Integer('Quota',)
     total_quota = fields.Integer(compute="_total_quota",string='Quota total')    
 
-    remote_id = fields.Integer(string='Remote ID',store=True)
+    remote_id = fields.Integer(string='Remote ID')
 
     def mainserver(self):
         # If local/remote database has the same name we asume its the same database / the mainserver
@@ -366,30 +366,19 @@ class Sync2server():
         try:
             model.env.ref("user_mail.user_mail_sync_view")
             self.isInstalled = True
-            _logger.warn("WORKED")
         except Exception, e:
             self.isInstalled = False
-            _logger.warn("ERROR")
         
         self.passwd_server = get_config('passwd_server','Server uri is missing!')
         self.passwd_dbname = get_config('passwd_dbname','Databasename is missing')
         self.passwd_user   = get_config('passwd_user','Username is missing')
         self.passwd_passwd = get_config('passwd_passwd','Password is missing')
 
-        # self.sock_common = None
-        # self.uid = None
-        # self.sock = None
-
-
         if not self.mainserver() and self.isInstalled:
             try:
-                _logger.warn("One")
-                self.sock_common = xmlrpclib.ServerProxy('%s/xmlrpc/common' % self.passwd_server)     
-                _logger.warn("Two")         
+                self.sock_common = xmlrpclib.ServerProxy('%s/xmlrpc/common' % self.passwd_server)           
                 self.uid = self.sock_common.login(self.passwd_dbname, self.passwd_user, self.passwd_passwd)
-                _logger.warn("Three")
                 self.sock = xmlrpclib.ServerProxy('%s/xmlrpc/object' % self.passwd_server)
-                _logger.warn("Four")
             except xmlrpclib.Error as err:
                 raise Warning(_("%s (server %s, db %s, user %s, pw %s)" % (err, self.passwd_server, self.passwd_dbname, self.passwd_user, self.passwd_passwd)))
             
