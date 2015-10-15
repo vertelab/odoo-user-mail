@@ -47,6 +47,21 @@ class sync_settings_wizard(models.TransientModel):
 
         return {}
 
+class postfix_vacation_notification(models.Model):
+    _name = 'postfix.vacation_notification'
+    #could not install because of the relation to user_id (postfix.alias has the same relation only one is allowed?)
+    #user_id = fields.Many2one('res.users','User', required=True,)
+    notified = fields.Char('Notified',size=64,select=1)
+    date = fields.Date('Date',default=fields.Date.context_today)
+    
+class postfix_alias(models.Model):
+    _name = 'postfix.alias'
+    user_id = fields.Many2one('res.users',ondelete="set null", required=True,)
+    mail    = fields.Char('Mail', size=64, help="Mail as <user>@<domain>, if you are using a foreign domain, make sure that this domain are handled by the same mailserver")
+    # concatenate with domain from res.company 
+ #       'goto': fields.related('user_id', 'maildir', type='many2one', relation='res.users', string='Goto', store=True, readonly=True),
+    active = fields.Boolean('Active',default=True)
+
 
 class res_users(models.Model):
     _inherit = 'res.users' 
@@ -72,13 +87,13 @@ class res_users(models.Model):
     spam_tag =      fields.Selection([('7.0','low (7)'),('3','medium (3)'),('1.5','high (1.5)'),('0','very high (0)')]    ,string='Spam Tag Level' , help="Tagged spam will be marked as spam in your mail client",default='3')
     maildir = fields.Char(compute="_maildir_get",string='Maildir',size=64,store=True,select=1)
     transport = fields.Char('Transport', size=64,default="virtual:")
+    domain  = fields.Char(related="company_id.domain",string='Domain', size=64,store=True, readonly=True)
+    mail_alias = fields.One2many('postfix.alias', 'user_id', string='Alias', copy=True)
 
     @api.one
     def _quota_get(self):
         return self.company_id.default_quota
     quota = fields.Integer('Quota',default=_quota_get)
-    domain  = fields.Char(related="company_id.domain",string='Domain', size=64,store=True, readonly=True)
-    mail_alias = fields.One2many('postfix.alias', 'user_id', string='Alias', copy=True)
 
     @api.one
     def _passwd_mail(self):
@@ -418,16 +433,3 @@ class Sync2server():
         return self.dbname == self.passwd_dbname 
 
 
-class postfix_vacation_notification(models.Model):
-    _name = 'postfix.vacation_notification'
-    user_id = fields.Many2one('res.users','User', required=True,)
-    notified = fields.Char('Notified',size=64,select=1)
-    date = fields.Date('Date',default=fields.Date.context_today)
-    
-class postfix_alias(models.Model):
-    _name = 'postfix.alias'
-    user_id = fields.Many2one('res.users','User', required=True,)
-    mail    = fields.Char('Mail', size=64, help="Mail as <user>@<domain>, if you are using a foreign domain, make sure that this domain are handled by the same mailserver")
-    # concatenate with domain from res.company 
- #       'goto': fields.related('user_id', 'maildir', type='many2one', relation='res.users', string='Goto', store=True, readonly=True),
-    active = fields.Boolean('Active',default=True)
