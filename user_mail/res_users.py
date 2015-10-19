@@ -111,12 +111,16 @@ class res_users(models.Model):
         alphabet = string.digits + string.letters + '+_-!@#$%&*()'
         return ''.join(alphabet[ord(os.urandom(1)) % len(alphabet)] for i in range(int(self._get_param('pw_length',13))))
 
+    def mainserver(self):
+        # If local/remote database has the same name we asume its the same database / the mainserver
+        return self.env.cr.dbname == get_config("passwd_dbname", "Database name is missing!")
+
 
     @api.one
     def sync_settings(self, generate_password=False):     
         global SYNCSERVER
         #if not SYNCSERVER:
-        SYNCSERVER = Sync2server(self.env.cr.dbname, self)
+        SYNCSERVER = Sync2server(self.env.cr.dbname, self, self.mainserver())
 
         record = {f:self.read()[0][f] for f in  [
                                               'name', 'login',
@@ -134,13 +138,13 @@ class res_users(models.Model):
 
         record['mail_alias'] = [(0,0,{'mail':m.mail,'active':m.active}) for m in self.mail_alias ]
 
-        remote_user_id = SYNCSERVER.search(self._name,[('login','=',self.login)])
+        remote_user_id = SYNCSERVER.search(self._name,[('login','=',self.login)], self.mainserver())
 
         if remote_user_id:
-            SYNCSERVER.unlink('postfix.alias', SYNCSERVER.search('postfix.alias',[('user_id','=',remote_user_id)]))
-            SYNCSERVER.write(self._name,remote_user_id,record)
+            SYNCSERVER.unlink('postfix.alias', SYNCSERVER.search('postfix.alias',[('user_id','=',remote_user_id)]), self.mainserver())
+            SYNCSERVER.write(self._name,remote_user_id,record, self.mainserver())
         else:
-            SYNCSERVER.create(self._name,record)
+            SYNCSERVER.create(self._name,record, self.mainserver())
     
     @api.one
     def write(self,values):
@@ -148,13 +152,13 @@ class res_users(models.Model):
             self.env['res.users.password'].update_pw(self.id, values['new_password'])
             global SYNCSERVER
 
-            SYNCSERVER = Sync2server(self.env.cr.dbname, self)
-            remote_user_id = SYNCSERVER.search(self._name,[('login','=',self.login)])
+            SYNCSERVER = Sync2server(self.env.cr.dbname, self, self.mainserver())
+            remote_user_id = SYNCSERVER.search(self._name,[('login','=',self.login)], self.mainserver())
 
             if remote_user_id:
-                SYNCSERVER.write(self._name,remote_user_id,{'new_password': values['new_password']})
+                SYNCSERVER.write(self._name,remote_user_id,{'new_password': values['new_password']}, self.mainserver())
             else:
-                SYNCSERVER.create(self._name,{'new_password': values['new_password']})
+                SYNCSERVER.create(self._name,{'new_password': values['new_password']}, self.mainserver())
 
         return super(res_users, self).write(values)
 
@@ -215,7 +219,7 @@ class res_company(models.Model):
     def write(self,values):
         global SYNCSERVER
         #if not SYNCSERVER:
-        SYNCSERVER = Sync2server(self.env.cr.dbname, self)
+        SYNCSERVER = Sync2server(self.env.cr.dbname, self, self.mainserver())
 
         super(res_company, self).write(values)
         remote_company_id = self.sync_settings()
@@ -238,21 +242,21 @@ class res_company(models.Model):
     def unlink(self):
         global SYNCSERVER
         #if not SYNCSERVER:
-        SYNCSERVER = Sync2server(self.env.cr.dbname, self)
+        SYNCSERVER = Sync2server(self.env.cr.dbname, self, self.mainserver())
 
         if self.mainserver():
             self.env['res.users'].search([('login','=',self.catchall)]).unlink()
         else:
-            remote_company = SYNCSERVER.remote_company(self)
+            remote_company = SYNCSERVER.remote_company(self, self.mainserver())
             if remote_company:
-                SYNCSERVER.unlink('res.company',remote_company)            
+                SYNCSERVER.unlink('res.company',remote_company, self.mainserver())            
         super(res_company, self).unlink()
 
 
     @api.model
     def create(self,values):
         #if not SYNCSERVER:
-        SYNCSERVER = Sync2server(self.env.cr.dbname, self)
+        SYNCSERVER = Sync2server(self.env.cr.dbname, self, self.mainserver())
 
         values['remote_id'] = values['name']
         company = super(res_company, self).create(values)  
@@ -268,24 +272,24 @@ class res_company(models.Model):
     def sync_settings(self):  
         global SYNCSERVER
         #if not SYNCSERVER:
-        SYNCSERVER = Sync2server(self.env.cr.dbname, self)
+        SYNCSERVER = Sync2server(self.env.cr.dbname, self, self.mainserver())
 
         if not self.mainserver():
             record = {f:self.read()[0][f] for f in  ['name','domain','catchall','default_quota', 'email', 'remote_id']}
-            remote_company_id = SYNCSERVER.remote_company(self)
+            remote_company_id = SYNCSERVER.remote_company(self, self.mainserver())
 
             if remote_company_id:
 
-                SYNCSERVER.write(self._name,remote_company_id, record)
+                SYNCSERVER.write(self._name,remote_company_id, record, self.mainserver())
                 return remote_company_id
             else:
-                return SYNCSERVER.create(self._name, record)
+                return SYNCSERVER.create(self._name, record, self.mainserver())
         
 
 
     def _synccatchall(self,remote_company_id):
         #if not SYNCSERVER:
-        SYNCSERVER = Sync2server(self.env.cr.dbname, self)
+        SYNCSERVER = Sync2server(self.env.cr.dbname, self, self.mainserver())
 
         record = {
             'new_password': self.env['res.users'].generate_password(),
@@ -293,13 +297,13 @@ class res_company(models.Model):
         }
 
         if not self.mainserver():
-            remote_user_id = SYNCSERVER.search('res.users',[('login','=',self.catchall)]) #TODO: put a remote id here to update catchall
+            remote_user_id = SYNCSERVER.search('res.users',[('login','=',self.catchall)], self.mainserver()) #TODO: put a remote id here to update catchall
 
             if remote_user_id:
                 remote_user_id = remote_user_id[0]
-                SYNCSERVER.write('res.users',remote_user_id, record)
+                SYNCSERVER.write('res.users',remote_user_id, record, self.mainserver())
             else:
-                SYNCSERVER.create('res.users', record)
+                SYNCSERVER.create('res.users', record, self.mainserver())
 
             return record['new_password']  # Return the password for temporary use
 
@@ -372,7 +376,8 @@ def get_config(param,msg):
     return value
 
 class Sync2server():
-    def __init__(self, dbname, model):
+    def __init__(self, dbname, model, mainserver):
+        self.mainserver = mainserver
         self.dbname = dbname
         self.isInstalled = True
 
@@ -387,7 +392,7 @@ class Sync2server():
         self.passwd_user   = get_config('passwd_user','Username is missing')
         self.passwd_passwd = get_config('passwd_passwd','Password is missing')
 
-        if not self.mainserver() and self.isInstalled:
+        if not self.mainserver and self.isInstalled:
             try:
                 self.sock_common = xmlrpclib.ServerProxy('%s/xmlrpc/common' % self.passwd_server)           
                 self.uid = self.sock_common.login(self.passwd_dbname, self.passwd_user, self.passwd_passwd)
@@ -395,41 +400,42 @@ class Sync2server():
             except xmlrpclib.Error as err:
                 raise Warning(_("%s (server %s, db %s, user %s, pw %s)" % (err, self.passwd_server, self.passwd_dbname, self.passwd_user, self.passwd_passwd)))
             
-    def search(self,model,domain):     
-        if not self.mainserver() and self.isInstalled:
+    def search(self,model,domain, mainserver):     
+        if not mainserver and self.isInstalled:
             return self.sock.execute(self.passwd_dbname, self.uid, self.passwd_passwd,model, 'search', domain)
 
-    def write(self,model,id,values):
-        if not self.mainserver() and self.isInstalled:      
+    def write(self,model,id,values, mainserver):
+        if not mainserver and self.isInstalled:      
             return self.sock.execute(self.passwd_dbname, self.uid, self.passwd_passwd, model, 'write', id, values)
 
-    def create(self,model,values):
-        if not self.mainserver() and self.isInstalled:
+    def create(self,model,values, mainserver):
+        if not mainserver and self.isInstalled:
+            _logger.warn("\ndbname: %s\nuid: %s\npassword: %s\nsock: %s\n" % (self.passwd_dbname, self.uid, self.passwd_passwd, self.sock))
             return self.sock.execute(self.passwd_dbname, self.uid, self.passwd_passwd,model,'create', values)
 
-    def unlink(self,model,ids):
-        if not self.mainserver() and self.isInstalled:
+    def unlink(self,model,ids, mainserver):
+        if not mainserver and self.isInstalled:
             return self.sock.execute(self.passwd_dbname, self.uid, self.passwd_passwd, model, 'unlink',ids)
 
-    def remote_company(self, company):
+    def remote_company(self, company, mainserver):
         # User company.remote_id for this company
-        if not self.mainserver():
-            remote_company = self.search('res.company',[('remote_id','=',company.remote_id)])            
+        if not mainserver:
+            remote_company = self.search('res.company',[('remote_id','=',company.remote_id)], mainserver)            
             if remote_company:
                 return remote_company[0]
             else: 
                 return None
-    def remote_user(self,user):
+    def remote_user(self,user, mainserver):
         # User user.remote_id for this user
-        if not self.mainserver():
-            remote_user = self.search('res.user',[('login','=',user.login)])
+        if not mainserver:
+            remote_user = self.search('res.user',[('login','=',user.login)], mainserver)
             if remote_user:
                 return remote_user[0]
             else: 
                 return None
 
-    def mainserver(self):
-        # If local/remote database has the same name we asume its the same database / the mainserver
-        return self.dbname == self.passwd_dbname 
+    # def mainserver(self):
+    #     # If local/remote database has the same name we asume its the same database / the mainserver
+    #     return self.dbname == self.passwd_dbname 
 
 
