@@ -8,13 +8,13 @@
 
 {
     'name': 'User mail',
-    'version': '1.0',
+    'version': '1.1',
     'category': 'other',
     'summary': 'Administation of mail for users',
     'author': 'Vertel AB',
     'website': 'http://www.vertel.se',
     'depends': ['base', 'fetchmail'],
-    'data': ['res_users_view.xml'],
+    'data': ['res_users_view.xml','security/ir.model.access.csv'],
 
     'installable': True,
     'application': False,
