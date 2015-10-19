@@ -159,7 +159,7 @@
                                 <separator string="Forward" colspan="4" />                            
                                     <field name="forward_active" /><newline/>
                                         <field name="forward_address" nolabel="1" placeholder="my@temporarymail.comXanother@mailaddress.com" colspan="4" attrs="{'invisible': [('forward_active', '=', False)], 'required':[('forward_active', '=', True)]}" />
-                                        <field name="forward_cp"      col="2" colspan="4"     attrs="{'invisible': [('forward_active', '=', False)], 'required':[('forward_active', '=', True)]}" />
+                                        <field name="forward_cp"      col="2" colspan="4"     attrs="{'invisible': [('forward_active', '=', False)]}" />
                                                                                         
                                  
                                 <separator string="Virus check" colspan="4"/>

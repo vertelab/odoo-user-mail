@@ -220,7 +220,7 @@ class res_company(models.Model):
 
                 
     @api.one
-    def write(self,values):
+    def Xwrite(self,values):
         global SYNCSERVER
         #if not SYNCSERVER:
         SYNCSERVER = Sync2server(self.env.cr.dbname, self, self.mainserver())
