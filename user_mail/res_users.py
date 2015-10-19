@@ -92,6 +92,7 @@ class res_users(models.Model):
     transport = fields.Char('Transport', size=64,default="virtual:")
     domain  = fields.Char(related="company_id.domain",string='Domain', size=64,store=True, readonly=True)
     mail_alias = fields.One2many('postfix.alias', 'user_id', string='Alias', copy=True)
+    dovecot_password = fields.Char()
 
     @api.one
     def _quota_get(self):
