@@ -262,8 +262,10 @@ class res_company(models.Model):
         #if not SYNCSERVER:
         SYNCSERVER = Sync2server(self.env.cr.dbname, self, self.mainserver())
 
-        values['remote_id'] = self.generateUUID()
-        _logger.warn("In create Remote_id: %s" % values['remote_id'])
+        if not self.mainserver():
+            values['remote_id'] = self.generateUUID()
+            _logger.warn("In create Remote_id: %s" % values['remote_id'])
+            
         company = super(res_company, self).create(values)  
 
         if company:
