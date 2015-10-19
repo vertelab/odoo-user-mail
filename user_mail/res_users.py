@@ -67,8 +67,10 @@ class postfix_alias(models.Model):
 class res_users(models.Model):
     _inherit = 'res.users' 
  
+    @api.one 
     @api.depends('company_id.domain','login')
     def _maildir_get(self):
+#        self.maildir = "%s/%s/" % (self.company_id.domain,self.login)
         self.maildir = "%s/%s/" % (self.company_id.domain,self.login)
 
     postfix_active = fields.Boolean('Active',default=False)
