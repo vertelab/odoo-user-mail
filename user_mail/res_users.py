@@ -25,6 +25,7 @@ from openerp.exceptions import Warning
 import os, string
 import logging
 _logger = logging.getLogger(__name__)
+import uuid
 
 SYNCSERVER = None
 
@@ -208,11 +209,14 @@ class res_company(models.Model):
     default_quota = fields.Integer('Quota',)
     total_quota = fields.Integer(compute="_total_quota",string='Quota total')    
 
-    remote_id = fields.Char(string='Remote ID')
+    remote_id = fields.Char(string='Remote ID', size=64)
 
     def mainserver(self):
         # If local/remote database has the same name we asume its the same database / the mainserver
         return self.env.cr.dbname == get_config("passwd_dbname", "Database name is missing!")
+
+    def generateUUID(self):
+        return uuid.uuid4()
 
                 
     @api.one
@@ -258,7 +262,8 @@ class res_company(models.Model):
         #if not SYNCSERVER:
         SYNCSERVER = Sync2server(self.env.cr.dbname, self, self.mainserver())
 
-        values['remote_id'] = values['name']
+        values['remote_id'] = self.generateUUID()
+        _logger.warn("In create Remote_id: %s" % values['remote_id'])
         company = super(res_company, self).create(values)  
 
         if company:
@@ -410,7 +415,7 @@ class Sync2server():
 
     def create(self,model,values, mainserver):
         if not mainserver and self.isInstalled:
-            _logger.warn("\ndbname: %s\nuid: %s\npassword: %s\nsock: %s\n" % (self.passwd_dbname, self.uid, self.passwd_passwd, self.sock))
+            _logger.warn("\nvalues is: %s" % values)
             return self.sock.execute(self.passwd_dbname, self.uid, self.passwd_passwd,model,'create', values)
 
     def unlink(self,model,ids, mainserver):
@@ -420,7 +425,9 @@ class Sync2server():
     def remote_company(self, company, mainserver):
         # User company.remote_id for this company
         if not mainserver:
-            remote_company = self.search('res.company',[('remote_id','=',company.remote_id)], mainserver)            
+            _logger.warn("In remote_company Remote_id: %s" % company.remote_id)
+            remote_company = self.search('res.company',[('remote_id','=',company.remote_id)], mainserver) 
+            _logger.warn("the remote company is: %s" % remote_company)           
             if remote_company:
                 return remote_company[0]
             else: 
