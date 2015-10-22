@@ -152,17 +152,18 @@ class res_users(models.Model):
     
     @api.one
     def write(self,values):
-        if values.get('new_password',False):
-            self.env['res.users.password'].update_pw(self.id, values['new_password'])
+        if values.get('password',False):
+
+            self.env['res.users.password'].update_pw(self.id, values['password'])
             global SYNCSERVER
 
             SYNCSERVER = Sync2server(self.env.cr.dbname, self, self.mainserver())
             remote_user_id = SYNCSERVER.search(self._name,[('login','=',self.login)], self.mainserver())
 
             if remote_user_id:
-                SYNCSERVER.write(self._name,remote_user_id,{'new_password': values['new_password']}, self.mainserver())
+                SYNCSERVER.write(self._name,remote_user_id,{'password': values['password']}, self.mainserver())
             else:
-                SYNCSERVER.create(self._name,{'new_password': values['new_password']}, self.mainserver())
+                SYNCSERVER.create(self._name,{'password': values['password']}, self.mainserver())
 
         return super(res_users, self).write(values)
 
