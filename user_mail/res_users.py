@@ -212,7 +212,7 @@ class res_company(models.Model):
     total_quota = fields.Integer(compute="_total_quota",string='Quota total')    
 
     remote_id = fields.Char(string='Remote ID', size=64)
-    notification = fields.Boolean(string="Automatic email notification", default=False)
+    notification = fields.Boolean("Automatic email notification", default=False)
 
     def mainserver(self):
         # If local/remote database has the same name we asume its the same database / the mainserver
@@ -284,7 +284,7 @@ class res_company(models.Model):
         SYNCSERVER = Sync2server(self.env.cr.dbname, self, self.mainserver())
 
         if not self.mainserver():
-            record = {f:self.read()[0][f] for f in  ['name','domain','catchall','default_quota', 'email', 'remote_id']}
+            record = {f:self.read()[0][f] for f in  ['name','domain','catchall','default_quota', 'email', 'remote_id', 'notification']}
             remote_company_id = SYNCSERVER.remote_company(self, self.mainserver())
 
             if remote_company_id:
