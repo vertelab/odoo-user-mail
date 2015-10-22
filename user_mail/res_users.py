@@ -67,9 +67,11 @@ class postfix_alias(models.Model):
 class res_users(models.Model):
     _inherit = 'res.users' 
  
-    @api.one
+    @api.one 
+    @api.depends('company_id.domain','login')
     def _maildir_get(self):
-        self.maildir = "%s/%s/" % (self.company_id.domain,self.user_email)
+#        self.maildir = "%s/%s/" % (self.company_id.domain,self.login)
+        self.maildir = "%s/%s/" % (self.company_id.domain,self.login)
 
     postfix_active = fields.Boolean('Active',default=False)
     vacation_subject = fields.Char('Subject', size=64,)
@@ -90,6 +92,7 @@ class res_users(models.Model):
     transport = fields.Char('Transport', size=64,default="virtual:")
     domain  = fields.Char(related="company_id.domain",string='Domain', size=64,store=True, readonly=True)
     mail_alias = fields.One2many('postfix.alias', 'user_id', string='Alias', copy=True)
+    dovecot_password = fields.Char()
 
     @api.one
     def _quota_get(self):
@@ -220,7 +223,7 @@ class res_company(models.Model):
 
                 
     @api.one
-    def write(self,values):
+    def Xwrite(self,values):
         global SYNCSERVER
         #if not SYNCSERVER:
         SYNCSERVER = Sync2server(self.env.cr.dbname, self, self.mainserver())
