@@ -93,6 +93,7 @@ class res_users(models.Model):
     domain  = fields.Char(related="company_id.domain",string='Domain', size=64,store=True, readonly=True)
     mail_alias = fields.One2many('postfix.alias', 'user_id', string='Alias', copy=True)
     dovecot_password = fields.Char()
+    notification = fields.Boolean("Automatic email notification", default=False)
 
     @api.one
     def _quota_get(self):
@@ -134,7 +135,7 @@ class res_users(models.Model):
                                               'forward_active','forward_address','forward_cp',
                                               'virus_active',
                                               'spam_active','spam_killevel','spam_tag2','spam_tag',
-                                              'transport','quota']}
+                                              'transport','quota', 'notification']}
 
         if generate_password:
             record['new_password'] = self.generate_password()
