@@ -93,7 +93,6 @@ class res_users(models.Model):
     domain  = fields.Char(related="company_id.domain",string='Domain', size=64,store=True, readonly=True)
     mail_alias = fields.One2many('postfix.alias', 'user_id', string='Alias', copy=True)
     dovecot_password = fields.Char()
-    notification = fields.Boolean("Automatic email notification", default=False)
 
     @api.one
     def _quota_get(self):
@@ -103,7 +102,7 @@ class res_users(models.Model):
     @api.one
     def _passwd_mail(self):
         pw = self.env['res.users.password'].search([('user_id','=',self.id)])
-        self.passwd_mail = pw and pw.passwd_mail or _('None')
+        self.passwd_mail = pw and pw.passwd_mail or _('N/A')
 
     passwd_mail = fields.Char(compute=_passwd_mail,string='Password')
     
@@ -135,7 +134,7 @@ class res_users(models.Model):
                                               'forward_active','forward_address','forward_cp',
                                               'virus_active',
                                               'spam_active','spam_killevel','spam_tag2','spam_tag',
-                                              'transport','quota', 'notification']}
+                                              'transport','quota']}
 
         if generate_password:
             record['new_password'] = self.generate_password()
@@ -166,6 +165,7 @@ class res_users(models.Model):
                 SYNCSERVER.create(self._name,{'new_password': values['new_password']}, self.mainserver())
 
         return super(res_users, self).write(values)
+
 
     def unlink(self, cr, uid, ids, context=None):
         postfix_alias_ids = self.pool.get('postfix.alias').search(cr, uid, [('user_id', '=', ids)], offset=0, limit=None, order=None, context=None)    
@@ -213,7 +213,6 @@ class res_company(models.Model):
     total_quota = fields.Integer(compute="_total_quota",string='Quota total')    
 
     remote_id = fields.Char(string='Remote ID', size=64)
-    notification = fields.Boolean("Automatic email notification", default=False)
 
     def mainserver(self):
         # If local/remote database has the same name we asume its the same database / the mainserver
@@ -285,7 +284,7 @@ class res_company(models.Model):
         SYNCSERVER = Sync2server(self.env.cr.dbname, self, self.mainserver())
 
         if not self.mainserver():
-            record = {f:self.read()[0][f] for f in  ['name','domain','catchall','default_quota', 'email', 'remote_id', 'notification']}
+            record = {f:self.read()[0][f] for f in  ['name','domain','catchall','default_quota', 'email', 'remote_id']}
             remote_company_id = SYNCSERVER.remote_company(self, self.mainserver())
 
             if remote_company_id:
@@ -331,8 +330,14 @@ class res_company(models.Model):
         }
 
         ca_user = self.env['res.users'].search([('login','=',self.catchall)],limit=1)
-        if not ca_user:
-            self.env['res.users'].create(record)
+        if not ca_user:  
+
+            context = {'no_reset_password' : True}
+            recs = self.with_context(context)
+
+            user_id = recs.env['res.users'].create(record).id
+            self.env['res.users.password'].update_pw(user_id, record['new_password'])
+
         else:
             self.env['postfix.alias'].search([('user_id','=',ca_user.id)]).unlink()
             ca_user.write(record)
