@@ -199,7 +199,6 @@ class res_company(models.Model):
     @api.one
     def _catchall(self):
         self.catchall = 'catchall' + '@' + self.domain
-        _logger.warn("catchall in _catchall: %s" % self.catchall)
     catchall = fields.Char(compute=_catchall,string='Catchall',help="catchall mail address",)   
     
     @api.one
@@ -210,6 +209,7 @@ class res_company(models.Model):
     total_quota = fields.Integer(compute="_total_quota",string='Quota total')    
 
     remote_id = fields.Char(string='Remote ID', size=64)
+    notification = fields.Boolean(string="Automatic email notification", default=False)
 
     def mainserver(self):
         # If local/remote database has the same name we asume its the same database / the mainserver
@@ -264,8 +264,7 @@ class res_company(models.Model):
 
         if not self.mainserver():
             values['remote_id'] = self.generateUUID()
-            _logger.warn("In create Remote_id: %s" % values['remote_id'])
-            
+
         company = super(res_company, self).create(values)  
 
         if company:
@@ -417,7 +416,6 @@ class Sync2server():
 
     def create(self,model,values, mainserver):
         if not mainserver and self.isInstalled:
-            _logger.warn("\nvalues is: %s" % values)
             return self.sock.execute(self.passwd_dbname, self.uid, self.passwd_passwd,model,'create', values)
 
     def unlink(self,model,ids, mainserver):
@@ -427,9 +425,7 @@ class Sync2server():
     def remote_company(self, company, mainserver):
         # User company.remote_id for this company
         if not mainserver:
-            _logger.warn("In remote_company Remote_id: %s" % company.remote_id)
-            remote_company = self.search('res.company',[('remote_id','=',company.remote_id)], mainserver) 
-            _logger.warn("the remote company is: %s" % remote_company)           
+            remote_company = self.search('res.company',[('remote_id','=',company.remote_id)], mainserver)          
             if remote_company:
                 return remote_company[0]
             else: 
@@ -442,9 +438,5 @@ class Sync2server():
                 return remote_user[0]
             else: 
                 return None
-
-    # def mainserver(self):
-    #     # If local/remote database has the same name we asume its the same database / the mainserver
-    #     return self.dbname == self.passwd_dbname 
 
 
