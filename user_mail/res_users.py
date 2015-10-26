@@ -333,6 +333,7 @@ class res_company(models.Model):
         ca_user = self.env['res.users'].search([('login','=',self.catchall)],limit=1)
         if not ca_user:  
 
+            #pass this context to auth_signup create-function to prevent it from sending reset password emails 
             context = {'no_reset_password' : True}
             recs = self.with_context(context)
 
