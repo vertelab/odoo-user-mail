@@ -14,7 +14,7 @@
     'author': 'Vertel AB',
     'website': 'http://www.vertel.se',
     'depends': ['base', 'fetchmail'],
-    'data': ['res_users_view.xml','security/ir.model.access.csv'],
+    'data': ['res_users_view.xml','security/ir.model.access.csv', 'security/user_mail_security.xml'],
 
     'installable': True,
     'application': False,

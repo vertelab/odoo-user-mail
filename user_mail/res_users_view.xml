@@ -112,6 +112,89 @@
             </field>
         </record>
 -->
+<!-- Update user form !-->
+        <record id="view_users_form_conf_mail_settings" model="ir.ui.view">
+            <field name="name">res.users.form.mail.settings</field>
+            <field name="model">res.users</field>
+            <field name="inherit_id" ref="base.view_users_form_simple_modif"/>
+            <field name="arch" type="xml">
+                <data>
+                    <group string="Email Preferences" position="replace">
+
+                    </group>
+                    <field name="company_id" position="after">
+                      <notebook colspan="5">
+                        <page string="Email Preferences">
+
+                          <group string="E-mail Preferences">
+                            <field name="email" widget="email" readonly="0"/>
+                            <field name="signature" readonly="0"/>
+                          </group>
+
+                        </page>
+                        <page string="E-mail settings" groups="user_mail.group_own_email_settings,user_mail.group_own_email_settings">
+                            
+                            <group colspan="4" col="4" string="E-mail Settings">
+                                <field name="postfix_active" col="2" colspan="4"/><newline/>
+                               
+                                <group attrs="{'invisible': [('postfix_active','=',False)]}" colspan="4" col="4" >
+
+                                    <separator string="Vacation" colspan="4" />
+                                            <field name="vacation_active"/><newline/>
+                                                <field name="vacation_from"  col="2"       attrs="{'invisible': [('vacation_active', '=', False)], 'required':[('vacation_active', '=', True)]}"  />
+                                                <field name="vacation_to"  col="2"         attrs="{'invisible': [('vacation_active', '=', False)], 'required':[('vacation_active', '=', True)]}"  />
+                                                <field name="vacation_subject" placeholder="I am at vacation" colspan="4" attrs="{'invisible': [('vacation_active', '=', False)], 'required':[('vacation_active', '=', True)]}" />
+                                                <field name="vacation_text" nolabel="1" colspan="4" 
+                                                                                           attrs="{'invisible': [('vacation_active', '=', False)], 'required':[('vacation_active', '=', True)]}"  />
+                                                <field name="vacation_forward" placeholder="my@vacationmail.com" col="2" colspan="4" 
+                                                                                           attrs="{'invisible': [('vacation_active', '=', False)], 'required':[('vacation_active', '=', True)]}" />
+
+
+                                    <separator string="Forward" colspan="4" />                            
+                                        <field name="forward_active" /><newline/>
+                                            <field name="forward_address" nolabel="1" placeholder="my@temporarymail.comXanother@mailaddress.com" colspan="4" attrs="{'invisible': [('forward_active', '=', False)], 'required':[('forward_active', '=', True)]}" />
+                                            <field name="forward_cp"      col="2" colspan="4"     attrs="{'invisible': [('forward_active', '=', False)]}" />
+                                                                                            
+                                     
+                                    <separator string="Virus check" colspan="4"/>
+                                        <field name="virus_active" colspan="4" />
+                                    <separator string="Spam check" colspan="4" />
+                                        <field name="spam_active"   /><newline/>
+                                        <field name="spam_tag"      colspan="4" attrs="{'invisible': [('spam_active', '=', False),], 'required':[('spam_active', '=', True)]}" />
+                                        <field name="spam_tag2"     colspan="4" attrs="{'invisible': [('spam_active', '=', False),], 'required':[('spam_active', '=', True)]}" />
+                                        <field name="spam_killevel" colspan="4" attrs="{'invisible': [('spam_active', '=', False),], 'required':[('spam_active', '=', True)]}" />
+
+                                    <separator string="Misc" colspan="4" />                        
+                                        <field name="maildir"   /><newline/>
+                                        <field name="transport" /><newline/>
+                                        <field name="quota" /><newline/>
+                                        <field name="domain" /><newline/>
+                                           <field name="passwd_mail" /><newline/>
+
+                                        <separator string="Alias" /><newline/>
+                                            <field name="mail_alias" nolabel="1" widget="one2many_list" colspan="4" >
+                                                <tree editable="bottom" string="Mail alias">
+                                                  <field name="mail"/>
+                                                  <field name="active"/>  
+                                                </tree>  
+                                            </field>
+
+                                </group>
+                            </group> 
+                        </page>
+                    </notebook>
+                </field>
+                </data>
+            </field>
+        </record>
+
+
+
+
+
+
+
+
 
         <!-- Force update of groups' user view.
              When updating (not new install), as `share` module is not loaded yet, shared groups
@@ -184,18 +267,8 @@
                                               <field name="active"/>  
                                             </tree>  
                                         </field>
-
-
                             </group>
-
-                        </group>
-                        
-                        
-
-                    
-                    
-               
-                       
+                        </group>                
                     </page>
                 </page>
                 </data>
@@ -265,7 +338,7 @@
             report_type="qweb-pdf"
             name="user_mail.mail_config_report"
             file="user_mail.mail_config_report"
-            attachment_use="True"
+            attachment_use="False"
             attachment="('Mailconf_'+(object.name or ''))+'.pdf'"
         />
            
