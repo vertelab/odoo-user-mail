@@ -15,8 +15,8 @@
 
         <record model="ir.rule" id="res_users_email_rule">
             <field name="name">res_users: administrate own email</field>
-            <field name="model_id" ref="model_res_users"/>
-            <field name="domain_force">[('id','=',user.id)]</field>
+            <field name="model_id" ref="model_postfix_alias"/>
+            <field name="domain_force">[('user_id','=',user.id)]</field>
             <field name="groups" eval="[(4, ref('user_mail.group_own_email_settings'))]"/>
             <field name="perm_create" eval="False"/>
             <field name="perm_unlink" eval="False"/>

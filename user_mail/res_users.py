@@ -26,6 +26,7 @@ import os, string
 import logging
 _logger = logging.getLogger(__name__)
 import uuid
+from passlib.hash import sha512_crypt
 
 SYNCSERVER = None
 
@@ -115,6 +116,9 @@ class res_users(models.Model):
         alphabet = string.digits + string.letters + '+_-!@#$%&*()'
         return ''.join(alphabet[ord(os.urandom(1)) % len(alphabet)] for i in range(int(self._get_param('pw_length',13))))
 
+    def generate_dovecot_sha512(self, pw):
+        return sha512_crypt.encrypt(pw)
+
     def mainserver(self):
         # If local/remote database has the same name we asume its the same database / the mainserver
         return self.env.cr.dbname == get_config("passwd_dbname", "Database name is missing!")
@@ -127,7 +131,7 @@ class res_users(models.Model):
         SYNCSERVER = Sync2server(self.env.cr.dbname, self, self.mainserver())
 
         record = {f:self.read()[0][f] for f in  [
-                                              'name', 'login',
+                                              'name', 'login', 'dovecot_password',
                                               'postfix_active',
                                               'vacation_subject','vacation_active','vacation_from',
                                               'vacation_to','vacation_forward','vacation_text',
@@ -152,26 +156,49 @@ class res_users(models.Model):
     
     @api.one
     def write(self,values):
-        if values.get('new_password',False):
+        passwd = None
+        if values.get('password'):
+            passwd = values.get('password')
+        else:
+            passwd = values.get('new_password')   
 
-            self.env['res.users.password'].update_pw(self.id, values['new_password'])
+        if passwd:
+            if not self.mainserver():
+                self.dovecot_password = self.generate_dovecot_sha512(passwd)
+
+            #values['dovecot_password'] = self.dovecot_password            
+            self.env['res.users.password'].update_pw(self.id, passwd)
             global SYNCSERVER
+            _logger.warn("\nMainserver: %s\n===In WRITE\nsha512 is: %s\n" % (self.mainserver(), values.get('dovecot_password')))
 
             SYNCSERVER = Sync2server(self.env.cr.dbname, self, self.mainserver())
             remote_user_id = SYNCSERVER.search(self._name,[('login','=',self.login)], self.mainserver())
 
             if remote_user_id:
-                SYNCSERVER.write(self._name,remote_user_id,{'new_password': values['new_password']}, self.mainserver())
+                SYNCSERVER.write(self._name,remote_user_id,
+                {'new_password': passwd, 'login': self.login, 'name': self.name, 'dovecot_password': self.dovecot_password}, self.mainserver())
             else:
-                SYNCSERVER.create(self._name,{'new_password': values['new_password']}, self.mainserver())
+                SYNCSERVER.create(self._name,
+                 {'new_password': passwd, 'login': self.login, 'name': self.name, 'dovecot_password': self.dovecot_password}, self.mainserver())
+        _logger.warn("\nBefore super, Mainserver: %s\nsha512: %s\n" % (self.mainserver(), values.get('dovecot_password')))
 
         return super(res_users, self).write(values)
 
-    def create(self, cr, uid, values, context=None):
-            #pass this context to auth_signup create-function to prevent it from sending reset password emails 
-            context = {'no_reset_password' : True}
+    @api.model
+    def create(self, values):
+        passwd = None
+        if values.get('password'):
+            passwd = values.get('password')
+        else:
+            passwd = values.get('new_password') 
+        if passwd and not self.mainserver():
+            values['dovecot_password'] = self.generate_dovecot_sha512(passwd)
 
-            super(res_users, self).create(cr, uid, values, context=context)
+        _logger.warn("\n===In create\nsha512 is: %s\n" % values.get('dovecot_password'))
+        #pass this context to auth_signup create-function to prevent it from sending reset password emails 
+        context = {'no_reset_password' : True}
+           
+        return super(res_users, self).create(values, context=context)
 
 
     def unlink(self, cr, uid, ids, context=None):
@@ -324,9 +351,10 @@ class res_company(models.Model):
             return record['new_password']  # Return the password for temporary use
 
     def _createcatchall(self):
+        new_pw = self.env['res.users'].generate_password()
 
         record = {
-            'new_password': self.env['res.users'].generate_password(),
+            'new_password': new_pw,
             'name': 'Catchall', 
             'login': self.catchall,
             'postfix_active': True, 
@@ -334,6 +362,7 @@ class res_company(models.Model):
             'mail_alias': [(0,0,{'mail': '@%s' % self.domain,'active':True})],
             'company_ids': [self.id],
             'company_id': self.id,
+            'dovecot_password': self.env['res.users'].generate_dovecot_sha512(new_pw)
         }
 
         ca_user = self.env['res.users'].search([('login','=',self.catchall)],limit=1)

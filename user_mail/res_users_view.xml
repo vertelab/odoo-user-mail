@@ -135,49 +135,49 @@
                         <page string="E-mail settings" groups="user_mail.group_own_email_settings,user_mail.group_own_email_settings">
                             
                             <group colspan="4" col="4" string="E-mail Settings">
-                                <field name="postfix_active" col="2" colspan="4"/><newline/>
+                                 <field name="postfix_active" col="2" colspan="4" readonly="0"/><newline/>
                                
                                 <group attrs="{'invisible': [('postfix_active','=',False)],}" colspan="4" col="4">
 
                                     <separator string="Vacation" colspan="4" />
-                                            <field name="vacation_active"/><newline/>
-                                                <field name="vacation_from"  col="2"       attrs="{'invisible': [('vacation_active', '=', False)], 'required':[('vacation_active', '=', True)]}"  />
-                                                <field name="vacation_to"  col="2"         attrs="{'invisible': [('vacation_active', '=', False)], 'required':[('vacation_active', '=', True)]}"  />
+                                                <field name="vacation_active" readonly="0"/><newline/>
+                                                <field name="vacation_from"  col="2"       attrs="{'invisible': [('vacation_active', '=', False)], 'required':[('vacation_active', '=', True)]}"  readonly="0"/>
+                                                <field name="vacation_to"  col="2"         attrs="{'invisible': [('vacation_active', '=', False)], 'required':[('vacation_active', '=', True)]}"  readonly="0"/>
                                                 <field name="vacation_subject" placeholder="I am at vacation" colspan="4" attrs="{'invisible': [('vacation_active', '=', False)], 'required':[('vacation_active', '=', True)]}" />
                                                 <field name="vacation_text" nolabel="1" colspan="4" 
-                                                                                           attrs="{'invisible': [('vacation_active', '=', False)], 'required':[('vacation_active', '=', True)]}"  />
+                                                                                           attrs="{'invisible': [('vacation_active', '=', False)], 'required':[('vacation_active', '=', True)]}" readonly="0" />
                                                 <field name="vacation_forward" placeholder="my@vacationmail.com" col="2" colspan="4" 
-                                                                                           attrs="{'invisible': [('vacation_active', '=', False)], 'required':[('vacation_active', '=', True)]}" />
+                                                                                           attrs="{'invisible': [('vacation_active', '=', False)], 'required':[('vacation_active', '=', True)]}" readonly="0"/>
 
 
                                     <separator string="Forward" colspan="4" />                            
-                                        <field name="forward_active" /><newline/>
-                                            <field name="forward_address" nolabel="1" placeholder="my@temporarymail.comXanother@mailaddress.com" colspan="4" attrs="{'invisible': [('forward_active', '=', False)], 'required':[('forward_active', '=', True)]}" />
-                                            <field name="forward_cp"      col="2" colspan="4"     attrs="{'invisible': [('forward_active', '=', False)]}" />
+                                        <field name="forward_active" readonly="0"/><newline/>
+                                            <field name="forward_address" nolabel="1" placeholder="my@temporarymail.comXanother@mailaddress.com" colspan="4" attrs="{'invisible': [('forward_active', '=', False)], 'required':[('forward_active', '=', True)]}" readonly="0"/>
+                                            <field name="forward_cp"      col="2" colspan="4"     attrs="{'invisible': [('forward_active', '=', False)]}" readonly="0"/>
                                                                                             
                                      
                                     <separator string="Virus check" colspan="4"/>
-                                        <field name="virus_active" colspan="4" />
+                                        <field name="virus_active" colspan="4" readonly="0"/>
                                     <separator string="Spam check" colspan="4" />
-                                        <field name="spam_active"   /><newline/>
-                                        <field name="spam_tag"      colspan="4" attrs="{'invisible': [('spam_active', '=', False),], 'required':[('spam_active', '=', True)]}" />
-                                        <field name="spam_tag2"     colspan="4" attrs="{'invisible': [('spam_active', '=', False),], 'required':[('spam_active', '=', True)]}" />
-                                        <field name="spam_killevel" colspan="4" attrs="{'invisible': [('spam_active', '=', False),], 'required':[('spam_active', '=', True)]}" />
+                                        <field name="spam_active"   readonly="0"/><newline/>
+                                        <field name="spam_tag"      colspan="4" attrs="{'invisible': [('spam_active', '=', False),], 'required':[('spam_active', '=', True)]}" readonly="0"/>
+                                        <field name="spam_tag2"     colspan="4" attrs="{'invisible': [('spam_active', '=', False),], 'required':[('spam_active', '=', True)]}" readonly="0"/>
+                                        <field name="spam_killevel" colspan="4" attrs="{'invisible': [('spam_active', '=', False),], 'required':[('spam_active', '=', True)]}" readonly="0"/>
 
                                     <separator string="Misc" colspan="4" />                        
-                                        <field name="maildir"   /><newline/>
-                                        <field name="transport" /><newline/>
-                                        <field name="quota" /><newline/>
-                                        <field name="domain" /><newline/>
+                                        <field name="maildir"   readonly="0"/><newline/>
+                                        <field name="transport" readonly="0"/><newline/>
+                                        <field name="quota" readonly="0"/><newline/>
+                                        <field name="domain" readonly="0"/><newline/>
                                            <field name="passwd_mail" /><newline/>
 
-                                        <separator string="Alias" /><newline/>
-                                            <field name="mail_alias" nolabel="1" widget="one2many_list" colspan="4" >
+                                        <separator string="Alias" readonly="0"/><newline/>
+<!--                                             <field name="mail_alias" nolabel="1" widget="one2many_list" colspan="4" >
                                                 <tree editable="bottom" string="Mail alias">
                                                   <field name="mail"/>
                                                   <field name="active"/>  
                                                 </tree>  
-                                            </field>
+                                            </field> -->
 
                                 </group>
                             </group> 
@@ -399,7 +399,7 @@
                     </tr>
                     <tr>
                       <td>​Username</td>
-                      <td t-raw="o.email" colspan="4"/>
+                      <td t-raw="o.login" colspan="4"/>
                     </tr>
                     <tr>
                       <td>Password</td>
@@ -424,7 +424,7 @@
 
                     <tr>
                       <td>​Username</td>
-                      <td colspan="4" t-raw="o.email"/>
+                      <td colspan="4" t-raw="o.login"/>
                     </tr>
                     <tr>
                       <td>Password</td>
