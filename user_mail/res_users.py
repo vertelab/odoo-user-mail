@@ -73,7 +73,7 @@ class res_users(models.Model):
 #        self.maildir = "%s/%s/" % (self.company_id.domain,self.login)
         self.maildir = "%s/%s/" % (self.company_id.domain,self.login)
 
-    postfix_active = fields.Boolean('Active',default=False)
+    postfix_active = fields.Boolean('Active', default=False,)
     vacation_subject = fields.Char('Subject', size=64,)
     vacation_text =  fields.Text('Text',help="Vacation message for autorespond")
     vacation_active =  fields.Boolean('Active',default=False)

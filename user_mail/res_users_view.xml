@@ -137,7 +137,7 @@
                             <group colspan="4" col="4" string="E-mail Settings">
                                 <field name="postfix_active" col="2" colspan="4"/><newline/>
                                
-                                <group attrs="{'invisible': [('postfix_active','=',False)]}" colspan="4" col="4" >
+                                <group attrs="{'invisible': [('postfix_active','=',False)],}" colspan="4" col="4">
 
                                     <separator string="Vacation" colspan="4" />
                                             <field name="vacation_active"/><newline/>
