@@ -13,8 +13,8 @@
     'summary': 'Administation of mail for users',
     'author': 'Vertel AB',
     'website': 'http://www.vertel.se',
-    'depends': ['base'],
-    'data': ['security/user_mail_security.xml', 'security/ir.model.access.csv', 'res_users_view.xml'],
+    'depends': ['base', 'user_mail_common'],
+    'data': [],
 
     'installable': True,
     'application': False,

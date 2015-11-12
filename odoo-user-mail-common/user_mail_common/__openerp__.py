@@ -7,7 +7,7 @@
 
 
 {
-    'name': 'User mail',
+    'name': 'User mail Common',
     'version': '1.1',
     'category': 'other',
     'summary': 'Administation of mail for users',
