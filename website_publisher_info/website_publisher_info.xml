@@ -1,0 +1,126 @@
+<?xml version="1.0"?>
+<openerp>
+    <data>
+
+        
+        <report
+            id="website_publisher_info.site_config"
+            model="res.users"
+            string="Site configuration instructions"
+            report_type="qweb-pdf"
+            name="website_publisher_info.site_config_report"
+            file="website_publisher_info.site_config_report"
+            attachment_use="False"
+            attachment="('Siteconf_'+(object.name or ''))+'.pdf'"
+        />
+           
+       <template id="site_config_report">
+            <t t-call="report.html_container">
+                <t t-foreach="doc_ids" t-as="doc_id">
+                    <t t-raw="translate_doc(doc_id, doc_model, 'partner_id.lang', 'website_publisher_info.site_config_document')"/>
+                </t>
+            </t>
+        </template> 
+
+        <template id="site_config_document">
+            <t t-call="report.external_layout">
+                <div class="page">
+                    <div class="oe_structure"/>
+                    <div class="row">
+                        <div class="col-xs-6">
+                       <section class="para_large">
+          <div class="container">
+            <div class="row">
+              <div class="col-md-12 mb16 mt16">
+
+                <h1>Mail Configuration instruction</h1>
+                <p>This is the mail configuration for mail clients in mobile phones, tablets and computers.</p>
+
+<br/>
+
+                <table class="table table-bordered table-responsive">
+                  <tbody>
+                    <tr>
+                      <td/>
+                      <td>
+                        <strong>​Server Name</strong>
+                      </td>
+                      <td>
+                        <strong>​Port</strong>
+                      </td>
+                      <td>
+                        <strong>​SSL/TSL</strong>
+                      </td>
+                      <td>
+                        <strong>​Authentication</strong>
+                      </td>
+                    </tr>
+                    <tr>
+                      <td>​Incomming (IMAP)</td>
+                      <td t-raw="'imap.' + (o.company_id.domain or 'example.com')"/>
+                      <td>​143</td>
+                      <td>​STARTTLS</td>
+                      <td>​Lösenord</td>
+                    </tr>
+                    <tr>
+                      <td>Outgoing​ (SMTP)</td>
+                      <td t-raw="'smtp.' + (o.company_id.domain or 'example.com')"/>
+                      <td>​587</td>
+                      <td>STARTTLS​</td>
+                      <td>​Lösenord</td>
+                    </tr>
+                    <tr>
+                      <td>​Username</td>
+                      <td t-raw="o.login" colspan="4"/>
+                    </tr>
+                    <tr>
+                      <td>Password</td>
+                      <td t-raw="o.passwd_mail" colspan="4"/>
+                    </tr>
+
+                  </tbody>
+                </table>
+
+<H1>Webmail</H1>
+                <p>This is your credentials for webmail.</p>
+
+                <table class="table table-bordered table-responsive">
+                  <tbody>
+                    <tr>
+                      <td>
+                        URL
+                      </td>
+                         <td t-raw="'http://epost.' + (o.company_id.domain or 'example.com')"/>
+
+                    </tr>
+
+                    <tr>
+                      <td>​Username</td>
+                      <td colspan="4" t-raw="o.login"/>
+                    </tr>
+                    <tr>
+                      <td>Password</td>
+                      <td colspan="4" t-raw="o.passwd_mail" />
+                    </tr>
+                  </tbody>
+                </table>
+
+               
+              </div>
+            </div>
+          </div>
+        </section>
+
+                        </div>
+                    </div>
+                    <div class="oe_structure"/>
+                </div>
+            </t>
+        </template>
+
+        
+
+        
+    </data> 
+</openerp>
+    
