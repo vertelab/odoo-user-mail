@@ -7,15 +7,14 @@
 
 
 {
-    'name': 'User mail Common',
+    'name': 'User Password Tmp',
     'version': '1.1',
     'category': 'other',
-    'summary': 'Administation of mail for users',
+    'summary': 'Saves users password in clear text for a short time',
     'author': 'Vertel AB',
     'website': 'http://www.vertel.se',
-    'depends': ['base','user_password_tmp'],
-    'data': ['security/user_mail_security.xml', 'security/ir.model.access.csv', 'res_users_view.xml'],
-
+    'depends': ['base'],
+    'data': [],
     'installable': True,
     'application': False,
     #'auto_install': False,

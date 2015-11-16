@@ -153,17 +153,6 @@ class res_users(models.Model):
 
         return super(res_users, self).unlink()
 
-class users_password(models.TransientModel):
-    _inherit = "res.users.password"
-
-    def update_pw(self,user_id,pw):
-        user = self.search([('user_id','=',user_id)])
-        if user:
-            user.passwd_mail = pw
-        else:
-            self.create({'user_id': user_id, 'passwd_mail': pw})
-        return pw
-            
 class res_company(models.Model):
     _inherit = 'res.company'
   
