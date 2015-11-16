@@ -177,7 +177,10 @@ class res_company(models.Model):
                 
     @api.one
     def write(self,values):
+        _logger.warn("\nIN WRITE-----------")
+        values['remote_id'] = self.generateUUID()
         super(res_company, self).write(values)
+        _logger.warn("\nVALUES IS IN WRITE: %s" % values)
         self.sync_settings()
 
         if values.get('domain',False) and self.id == self.env.ref('base.main_company').id:  # Create mailservers when its a main company and not mainserver
@@ -200,10 +203,11 @@ class res_company(models.Model):
 
     @api.model
     def create(self,values):
+        _logger.warn("\nIN WRITE-----------")
         SYNCSERVER = Sync2server(self)
 
         values['remote_id'] = self.generateUUID()
-
+        _logger.warn("\nVALUES IS IN WRITE: %s" % values)
         company = super(res_company, self).create(values)  
 
         if company:
@@ -219,11 +223,11 @@ class res_company(models.Model):
 
     @api.one
     def sync_settings(self):  
-        SYNCSERVER = Sync2server(self)
+        SYNCSERVER = Sync2server(self) 
 
         record = {f:self.read()[0][f] for f in  ['name','domain','catchall','default_quota', 'email', 'remote_id']}
         remote_company_id = SYNCSERVER.remote_company(self)
-
+        
         if remote_company_id:
             SYNCSERVER.write(self._name, remote_company_id, record)
             return remote_company_id
@@ -308,7 +312,7 @@ class Sync2server():
         self.passwd_passwd = get_config('passwd_passwd','Password is missing')
 
         try:
-            self.sock_common = xmlrpclib.ServerProxy('%s/xmlrpc/common' % self.passwd_server)           
+            self.sock_common = xmlrpclib.ServerProxy('%s/xmlrpc/common' % self.passwd_server)
             self.uid = self.sock_common.login(self.passwd_dbname, self.passwd_user, self.passwd_passwd)
             self.sock = xmlrpclib.ServerProxy('%s/xmlrpc/object' % self.passwd_server, allow_none=True)
         except xmlrpclib.Error as err:
