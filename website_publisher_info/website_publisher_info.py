@@ -33,13 +33,14 @@ _logger = logging.getLogger(__name__)
 
 class website_publisher_info(http.Controller):
 
-    # this controller will control url: /image/image_id/magic/recipe_id
-    @http.route(['/website/publisher_info',
-                 ], type='http', auth="public", website=True)
+    # this controller will render a pdf-file
+    @http.route(['/website/publisher_info'], type='http', auth="public", website=True)
     def publisher_info(self, **post):
-        return render-something
-    # this controller will control url: /image/image_url/magic/recipe_id
-    @http.route(['/website/module.info'], type='http', auth="public", website=True)
+        
+        return request.website.render("website_publisher_info.publisher_info_page")
+        
+    # this controller will list all modules installed on database
+    @http.route(['/website/info'], type='http', auth="public", website=True)
     def module_info(self, url=None, recipe=None, recipe_ref=None, **post):
         if recipe_ref:
             recipe = request.env.ref(recipe_ref) # 'imagemagick.my_recipe'        

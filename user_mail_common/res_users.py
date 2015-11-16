@@ -43,20 +43,13 @@ class postfix_alias(models.Model):
  #       'goto': fields.related('user_id', 'maildir', type='many2one', relation='res.users', string='Goto', store=True, readonly=True),
     active = fields.Boolean('Active',default=True)
 
-
 class res_users(models.Model):
     _inherit = 'res.users' 
-
 
     @api.one 
     @api.depends('company_id.domain','login')
     def _maildir_get(self):
         self.maildir = "%s/%s/" % (self.company_id.domain,self.login)
-
-    @api.one
-    def _passwd_mail(self):
-        pw = self.env['res.users.password'].search([('user_id','=',self.id)])
-        self.passwd_mail = pw and pw.passwd_mail or _('N/A')
 
     postfix_active = fields.Boolean('Active', default=False,)
     vacation_subject = fields.Char('Subject', size=64,)
@@ -78,7 +71,6 @@ class res_users(models.Model):
     domain  = fields.Char(related="company_id.domain",string='Domain', size=64,store=True, readonly=True)
     mail_alias = fields.One2many('postfix.alias', 'user_id', string='Alias', copy=True, ondelete="cascade")
     dovecot_password = fields.Char()
-    passwd_mail = fields.Char(compute=_passwd_mail,string='Password')
 
     @api.one
     def _quota_get(self):
@@ -86,11 +78,6 @@ class res_users(models.Model):
     quota = fields.Integer('Quota',default=_quota_get)
     
 
-class users_password(models.TransientModel):
-    _name = "res.users.password"
-    
-    user_id = fields.Many2one(comodel_name='res.users',string="User")
-    passwd_mail = fields.Char('Password')
             
 class res_company(models.Model):
     _inherit = 'res.company'

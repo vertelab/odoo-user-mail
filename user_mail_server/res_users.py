@@ -30,16 +30,6 @@ class postfix_vacation_notification(models.Model):
 class postfix_alias(models.Model):
     _inherit = 'postfix.alias'
 
-class users_password(models.TransientModel):
-    _inherit = "res.users.password"
-
-    def update_pw(self,user_id,pw):
-        user = self.search([('user_id','=',user_id)])
-        if user:
-            user.passwd_mail = pw
-        else:
-            self.create({'user_id': user_id, 'passwd_mail': pw})
-        return pw
 
 class res_users(models.Model):
     _inherit = 'res.users' 
@@ -78,13 +68,8 @@ class res_company(models.Model):
     # @api.one
     # def unlink(self):
     #     _logger.warn("\nunlinking: %s\n" % self.catchall)
-
-    
     #     user_id = self.env['res.users'].search([('domain','=',self.catchall)]).id
-
     #     self.env['postfix.alias'].search([('user_id', '=', user_id)]).unlink() 
-
     #     #self.env['res.users'].search([('domain','=',self.catchall)]).unlink()
-             
     #     super(res_company, self).unlink()
 
