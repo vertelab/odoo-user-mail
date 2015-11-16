@@ -132,7 +132,7 @@
                           </group>
 
                         </page>
-                        <page string="E-mail settings" groups="user_mail.group_own_email_settings,user_mail.group_own_email_settings">
+                        <page string="E-mail settings" groups="user_mail_common.group_own_email_settings,user_mail_common.group_own_email_settings">
                             
                             <group colspan="4" col="4" string="E-mail Settings">
                                  <field name="postfix_active" col="2" colspan="4" readonly="0"/><newline/>
@@ -169,7 +169,7 @@
                                         <field name="transport" readonly="0"/><newline/>
                                         <field name="quota" readonly="0"/><newline/>
                                         <field name="domain" readonly="0"/><newline/>
-                                           <field name="passwd_mail" /><newline/>
+                                        <field name="passwd_mail" readonly="0"/><newline/>
 
                                         <separator string="Alias" readonly="0"/><newline/>
 <!--                                             <field name="mail_alias" nolabel="1" widget="one2many_list" colspan="4" >
@@ -327,12 +327,12 @@
 -->
         
         <report
-            id="user_mail.mail_config"
+            id="user_mail_common.mail_config"
             model="res.users"
             string="Mail configuration instructions"
             report_type="qweb-pdf"
-            name="user_mail.mail_config_report"
-            file="user_mail.mail_config_report"
+            name="user_mail_common.mail_config_report"
+            file="user_mail_common.mail_config_report"
             attachment_use="False"
             attachment="('Mailconf_'+(object.name or ''))+'.pdf'"
         />
@@ -340,7 +340,7 @@
        <template id="mail_config_report">
             <t t-call="report.html_container">
                 <t t-foreach="doc_ids" t-as="doc_id">
-                    <t t-raw="translate_doc(doc_id, doc_model, 'partner_id.lang', 'user_mail.mail_config_document')"/>
+                    <t t-raw="translate_doc(doc_id, doc_model, 'partner_id.lang', 'user_mail_common.mail_config_document')"/>
                 </t>
             </t>
         </template> 
