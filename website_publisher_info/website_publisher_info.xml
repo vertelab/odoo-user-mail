@@ -1,8 +1,6 @@
 <?xml version="1.0"?>
 <openerp>
     <data>
-
-        
         <report
             id="website_publisher_info.site_config"
             model="res.users"
@@ -14,7 +12,7 @@
             attachment="('Siteconf_'+(object.name or ''))+'.pdf'"
         />
            
-       <template id="site_config_report">
+        <template id="site_config_report">
             <t t-call="report.html_container">
                 <t t-foreach="doc_ids" t-as="doc_id">
                     <t t-raw="translate_doc(doc_id, doc_model, 'partner_id.lang', 'website_publisher_info.site_config_document')"/>
@@ -28,99 +26,206 @@
                     <div class="oe_structure"/>
                     <div class="row">
                         <div class="col-xs-6">
-                       <section class="para_large">
-          <div class="container">
-            <div class="row">
-              <div class="col-md-12 mb16 mt16">
+                            <section class="para_large">
+                                <div class="container">
+                                    <div class="row">
+                                        <div class="col-md-12 mb16 mt16">
+                                            <h1>Mail Configuration instruction</h1>
+                                            <p>This is the mail configuration for mail clients in mobile phones, tablets and computers.</p>
+                                            <br/>
+                                            <table class="table table-bordered table-responsive">
+                                                <tbody>
+                                                <tr>
+                                                    <td/>
+                                                    <td>
+                                                        <strong>​Server Name</strong>
+                                                    </td>
+                                                    <td>
+                                                        <strong>​Port</strong>
+                                                    </td>
+                                                    <td>
+                                                        <strong>​SSL/TSL</strong>
+                                                    </td>
+                                                    <td>
+                                                        <strong>​Authentication</strong>
+                                                    </td>
+                                                </tr>
+                                                <tr>
+                                                    <td>​Incomming (IMAP)</td>
+                                                    <td t-raw="'imap.' + (o.company_id.domain or 'example.com')"/>
+                                                    <td>​143</td>
+                                                    <td>​STARTTLS</td>
+                                                    <td>​Lösenord</td>
+                                                </tr>
+                                                <tr>
+                                                    <td>Outgoing​ (SMTP)</td>
+                                                    <td t-raw="'smtp.' + (o.company_id.domain or 'example.com')"/>
+                                                    <td>​587</td>
+                                                    <td>STARTTLS​</td>
+                                                    <td>​Lösenord</td>
+                                                </tr>
+                                                <tr>
+                                                    <td>​Username</td>
+                                                    <td t-raw="o.login" colspan="4"/>
+                                                </tr>
+                                                <tr>
+                                                    <td>Password</td>
+                                                    <td t-raw="o.passwd_mail" colspan="4"/>
+                                                </tr>
+                                            </tbody>
+                                        </table>
 
-                <h1>Mail Configuration instruction</h1>
-                <p>This is the mail configuration for mail clients in mobile phones, tablets and computers.</p>
-
-<br/>
-
-                <table class="table table-bordered table-responsive">
-                  <tbody>
-                    <tr>
-                      <td/>
-                      <td>
-                        <strong>​Server Name</strong>
-                      </td>
-                      <td>
-                        <strong>​Port</strong>
-                      </td>
-                      <td>
-                        <strong>​SSL/TSL</strong>
-                      </td>
-                      <td>
-                        <strong>​Authentication</strong>
-                      </td>
-                    </tr>
-                    <tr>
-                      <td>​Incomming (IMAP)</td>
-                      <td t-raw="'imap.' + (o.company_id.domain or 'example.com')"/>
-                      <td>​143</td>
-                      <td>​STARTTLS</td>
-                      <td>​Lösenord</td>
-                    </tr>
-                    <tr>
-                      <td>Outgoing​ (SMTP)</td>
-                      <td t-raw="'smtp.' + (o.company_id.domain or 'example.com')"/>
-                      <td>​587</td>
-                      <td>STARTTLS​</td>
-                      <td>​Lösenord</td>
-                    </tr>
-                    <tr>
-                      <td>​Username</td>
-                      <td t-raw="o.login" colspan="4"/>
-                    </tr>
-                    <tr>
-                      <td>Password</td>
-                      <td t-raw="o.passwd_mail" colspan="4"/>
-                    </tr>
-
-                  </tbody>
-                </table>
-
-<H1>Webmail</H1>
-                <p>This is your credentials for webmail.</p>
-
-                <table class="table table-bordered table-responsive">
-                  <tbody>
-                    <tr>
-                      <td>
-                        URL
-                      </td>
-                         <td t-raw="'http://epost.' + (o.company_id.domain or 'example.com')"/>
-
-                    </tr>
-
-                    <tr>
-                      <td>​Username</td>
-                      <td colspan="4" t-raw="o.login"/>
-                    </tr>
-                    <tr>
-                      <td>Password</td>
-                      <td colspan="4" t-raw="o.passwd_mail" />
-                    </tr>
-                  </tbody>
-                </table>
-
-               
-              </div>
-            </div>
-          </div>
-        </section>
-
+                                        <H1>Webmail</H1>
+                                            <p>This is your credentials for webmail.</p>
+                                            <table class="table table-bordered table-responsive">
+                                                <tbody>
+                                                    <tr>
+                                                        <td>
+                                                            URL
+                                                        </td>
+                                                        <td t-raw="'http://epost.' + (o.company_id.domain or 'example.com')"/>
+                                                    </tr>
+                                                    <tr>
+                                                        <td>​Username</td>
+                                                        <td colspan="4" t-raw="o.login"/>
+                                                    </tr>
+                                                    <tr>
+                                                        <td>Password</td>
+                                                        <td colspan="4" t-raw="o.passwd_mail" />
+                                                    </tr>
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    </div>
+                                </div>
+                            </section>
                         </div>
                     </div>
                     <div class="oe_structure"/>
                 </div>
             </t>
         </template>
-
         
-
-        
+        <template id="publisher_info" inherit_id="website.layout" name="Publisher Info">
+            <xpath expr="//ul[@class='dropdown-menu js_usermenu']/li[1]" position="after">
+                <li><a href="/website/publisher_info">Publisher Info</a></li>
+            </xpath>
+        </template>
+        <template id="publisher_info_page">
+            <t t-call="website.layout">
+                <section>
+                    <div class="container mt32 mb32">
+                        <h1 class="text-center"><b>Instruktioner för webbredaktör</b></h1>
+                        <div class="col-md-12 col-xs-12">
+                            <div class="col-md-6 col-xs-12 mt64 mb32">
+                                <h3 class="text-muted"><b>Byta lösenord</b></h3>
+                                <p>För att byta lösenord för användare ska du</p>
+                                <ul style="list-style:none;">
+                                    <li>Gå till Inställningar som du kan hitta längst upp på den svarta menyn</li>
+                                    <li>Gå till <i>Användare</i>, välj den användare du vill byta lösenord till</li>
+                                    <li>Tryck på fler-knappen och sedan på <i>ändra lösenord</i></li>
+                                    <li>Skriv det nya lösenordet under <i>New Password</i></li>
+                                    <li>När du är klar trycker du på <i>Ändra lösenord-knappen</i></li>
+                                </ul>
+                            </div>
+                            <div class="col-md-6 col-xs-12 mt64 mb32">
+                                <h3 class="text-muted"><b>Skapa användare</b></h3>
+                                <p>För att skapa användare ska du</p>
+                                <ul style="list-style:none;">
+                                    <li>Gå till Inställningar som du kan hitta längst upp på den svarta menyn</li>
+                                    <li>Gå till <i>Användare</i>,  tryck sedan på den röda <i>Skapa</i>-knappen</li>
+                                    <li>Fyll i användarens uppgifter och tryck sedan på <i>Spara</i>-knappen</li>
+                                    <li>För att användaren ska kunna komma åt kontot trycker du på <i>Send an invitation Email</i>som du kan hitta till höger på sidan</li>
+                                </ul>
+                            </div>
+                        </div>
+                        <div class="col-md-12 col-xs-12">
+                            <div class="col-md-6 col-xs-12 mt32 mb32">
+                                <h3 class="text-muted"><b>Ta bort användare</b></h3>
+                                <p>För att ta bort användare ska du</p>
+                                <ul style="list-style:none;">
+                                    <li>Gå till Inställningar som du kan hitta längst upp på den svarta menyn</li>
+                                    <li>Gå till <i>Användare</i></li>
+                                    <li>Markera den användare du vill ta bort</li>
+                                    <li>Tryck på knappen <i>Fler</i> och sedan på <i>Ta bort</i></li>
+                                </ul>
+                            </div>
+                            <div class="col-md-6 col-xs-12 mt32 mb32">
+                                <h3 class="text-muted"><b>Redigera kontaktuppgifter</b></h3>
+                                <p>För att redigera dina kontaktuppgifter som visas på sidan kan ska du</p>
+                                <ul style="list-style:none;">
+                                    <li>Tryck på menyvalet <i>Kontakta oss</i> där hittar du en knapp till höger med texten <i>Change address</i></li>
+                                    <li>Tryck på knappen <i>Change adress</i>. Du kommer nu till en ny sida.</li>
+                                    <li>Tryck på <i>Redigera</i>-knappen och ändra de kontaktauppgifter du vill ändra på. </li>
+                                    <li>Du kan även byta företagsbilden genom att trycka på pennan som syns när du pekar på bilden.</li>
+                                    <li>Välj nu en ny bild till företaget och tryck sedan på <i>Spara</i>-knappen.</li>
+                                </ul>
+                                <p>Tryck på <i>Webbplats</i> uppe i den svarta menyn för att komma tillbaka till webbplatsen.</p>
+                            </div>
+                        </div>
+                        <div class="col-md-12 col-xs-12">
+                            <div class="col-md-6 col-xs-12 mt32 mb32">
+                                <h3 class="text-muted"><b>Lägg till menyval</b></h3>
+                                <p>För att lägga till ett menyval ska du</p>
+                                <ul style="list-style:none;">
+                                    <li>Börja med att trycka på <i>Innehåll</i>-knappen uppe i högra hörnet och sedan <br/>på <i>Ändra menyn</i></li>
+                                    <li>Tryck på <i>Lägg till menyval</i> och fyll sedan i informationen för det nya menyvalet</li>
+                                </ul>
+                            </div>
+                            <div class="col-md-6 col-xs-12 mt32 mb32">
+                                <h3 class="text-muted"><b>Ändra menyval</b></h3>
+                                <p>För att byta ett menyval ska du</p>
+                                <ul>
+                                    <li>Börja med att trycka på <i>Innehåll</i>-knappen uppe i högra hörnet och sedan på <i>Ändra menyn</i></li>
+                                    <li>Tryck på pennan vid det menyval du vill ändra på och sedan ändra informationen till detta menyval</li>
+                                </ul>
+                                <p>Du kan även byta ordning på menyvalen genom att trycka på knappen men tre linjer vid menyvalet och sedan dra det upp eller ner.</p>
+                            </div>
+                        </div>
+                        <div class="col-md-12 col-xs-12 mt32 mb32">
+                            <div class="col-md-12 col-xs-12">
+                                <h3 class="text-muted"><b>Byta bilder</b></h3>
+                                <p>För att byta en bild ska du</p>
+                                <ul style="list-style:none;">
+                                    <li>Trycka på <i>Ändra</i>-knappen uppe i vänstra hörnet</li>
+                                    <li>Tryck på bilden du vill byta, du får nu fram en <i>Anpassa</i>-knapp</li>
+                                    <li>Tryck på <i>Anpassa</i>-knappen och sedan på <i>Ändra</i></li>
+                                    <li>Du får nu tre val
+                                        <ul style="margin-left: 15px;">
+                                            <li>Du kan välja en tidigare använd bild genom att markera den och sedan trycka på <i>Spara</i>-knappen</li>
+                                            <li>Du kan välja en ny bild från datorn genom att trycka på pilen vid knappen <i>Ladda upp en bild från din dator</i> och sedan på <i>ladda upp bild utan optimering</i>. 
+                                                Du får nu välja bild och bilden laddas upp på sidan 
+                                            </li>
+                                            <li>Du kan även klistra in en länk för en bild i fältet <i>lägg till bildens URL</i> och sedan trycka på <i>lägg in</i>-knappen</li>
+                                        </ul>
+                                    </li>
+                                    <li>När du är nöjd med bilden trycker du på <i>Spara</i>-knappen</li>
+                                </ul>
+                            </div>
+                        </div>
+                        <div class="col-md-12 col-xs-12 mt32 mb32">
+                            <div class="col-md-12 col-xs-12">
+                                <h3 class="text-muted"><b>Lägga in video</b></h3>
+                                <p>För att lägga in video ska du</p>
+                                <img class="mt32 mb32 img-responsive" src="/website_publisher_info/static/src/img/addvideo.png" style="align:left"/>
+                                <ul style="list-style:none;">
+                                    <li>Trycka på <i>Ändra</i>-knappen uppe i vänstra hörnet</li>
+                                    <li>Du får upp en ruta med bilder, du väljer video som finns under <i>Select a Media</i></li>
+                                    <li>Du får då två alternativ 
+                                        <ul style="margin-left: 15px;">
+                                            <li>Att skriva in URL för videon</li>
+                                            <li>Att skriva in en HTML till video URL:en som det står i rutan</li>
+                                        </ul>
+                                    </li>
+                                    <li>När du har valt en metod kan du även välja att aktivera <i>Autoplay</i></li>
+                                    <li>När du är klar trycker du på <i>Spara</i>-knappen</li>
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+            </t>
+        </template>
     </data> 
 </openerp>
     
