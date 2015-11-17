@@ -41,8 +41,8 @@ class res_users(models.Model):
 
     @api.model
     def create(self, values):
-        context = {'no_reset_password' : True}           
-        user = super(res_users, self).create(values, context=context)
+        #context = {'no_reset_password' : True}           
+        user = super(res_users, self).create(values)
 
         if values.get('name') == 'Catchall':
             self.env['res.users.password'].update_pw(user.id, values.get('new_password'))
