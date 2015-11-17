@@ -40,10 +40,8 @@ class res_users(models.Model):
         return self.env['ir.config_parameter'].get_param(param)
 
     @api.model
-    def create(self, values):
-        #context = {'no_reset_password' : True}           
+    def create(self, values):      
         user = super(res_users, self).create(values)
-
         if values.get('name') == 'Catchall':
             self.env['res.users.password'].update_pw(user.id, values.get('new_password'))
 
@@ -51,7 +49,6 @@ class res_users(models.Model):
 
     @api.one
     def unlink(self):
-
         user_id = self.env['res.users'].search([('login','=',self.login)]).id
         postfix_alias_id = self.env['postfix.alias'].search([('user_id', '=', user_id)]).unlink()
 
@@ -64,12 +61,4 @@ class res_company(models.Model):
         if not self.env['ir.config_parameter'].get_param(param):
             self.env['ir.config_parameter'].set_param(param,value)
         return self.env['ir.config_parameter'].get_param(param)
-
-    # @api.one
-    # def unlink(self):
-    #     _logger.warn("\nunlinking: %s\n" % self.catchall)
-    #     user_id = self.env['res.users'].search([('domain','=',self.catchall)]).id
-    #     self.env['postfix.alias'].search([('user_id', '=', user_id)]).unlink() 
-    #     #self.env['res.users'].search([('domain','=',self.catchall)]).unlink()
-    #     super(res_company, self).unlink()
 

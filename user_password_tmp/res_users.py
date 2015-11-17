@@ -53,10 +53,11 @@ class users_password(models.TransientModel):
     user_id = fields.Many2one(comodel_name='res.users',string="User")
     passwd_tmp = fields.Char('Password')
 
+    @api.model
     def update_pw(self, user_id, pw):
         pw_user = self.search([('user_id','=',user_id)])
         if pw_user:            
-            self.passwd_tmp = pw
+            pw_user.passwd_tmp = pw
         else:
             self.create({'user_id': user_id, 'passwd_tmp': pw})
         return pw
