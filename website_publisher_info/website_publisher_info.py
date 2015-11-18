@@ -33,11 +33,17 @@ _logger = logging.getLogger(__name__)
 
 class website_publisher_info(http.Controller):
 
-    # this controller will render a pdf-file
+     # this controller will render publisher information
     @http.route(['/website/publisher_info'], type='http', auth="public", website=True)
     def publisher_info(self, **post):
         
         return request.website.render("website_publisher_info.publisher_info_page")
+        
+        
+    @http.route(['/website/user_info'], type='http', auth="public", website=True)
+    def user_info(self, **post):
+        
+        return request.website.render("website_publisher_info.user_info_page")
         
     # this controller will list all modules installed on database
     @http.route(['/website/info'], type='http', auth="public", website=True)
@@ -46,6 +52,3 @@ class website_publisher_info(http.Controller):
             recipe = request.env.ref(recipe_ref) # 'imagemagick.my_recipe'        
         return recipe.send_file(http, url=url)
 
-
-#~ class image_recipe(models.Model):
-    #~ _name = "image.recipe"

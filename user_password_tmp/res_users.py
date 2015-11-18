@@ -29,10 +29,10 @@ class res_users(models.Model):
 
     @api.one
     def _passwd_tmp(self):
-        pw = self.env['res.users.password'].search([('user_id','=',self.id)])
-        self.passwd_tmp = pw and pw.passwd_tmp or _('N/A')
-
-    passwd_tmp = fields.Char(compute=_passwd_mail,string='Password')
+        user_pw = self.env['res.users.passwd'].search([('user_id','=',self.id)])
+        self.passwd_tmp = user_pw.passwd_tmp and user_pw.passwd_tmp or _('N/A') 
+               
+    passwd_tmp = fields.Char(compute='_passwd_tmp',string='Password')    
 
     @api.one
     def write(self,values):
@@ -45,19 +45,20 @@ class res_users(models.Model):
     def create(self, values):
         passwd = values.get('password') or values.get('new_password')
         if passwd:
-            self.env['res.users.password'].update_pw(self.id, passwd)
+            self.env['res.users.passwd'].update_pw(self.id, passwd)
         return super(res_users, self).create(values)
 
 class users_password(models.TransientModel):
     _name = "res.users.password"
-    
+
     user_id = fields.Many2one(comodel_name='res.users',string="User")
     passwd_tmp = fields.Char('Password')
 
-    def update_pw(self,user_id,pw):
-        user = self.search([('user_id','=',user_id)])
-        if user:
-            user.passwd_mail = pw
+    @api.model
+    def update_pw(self, user_id, pw):
+        pw_user = self.search([('user_id','=',user_id)])
+        if pw_user:            
+            pw_user.passwd_tmp = pw
         else:
-            self.create({'user_id': user_id, 'passwd_mail': pw})
+            self.create({'user_id': user_id, 'passwd_tmp': pw})
         return pw

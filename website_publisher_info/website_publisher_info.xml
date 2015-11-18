@@ -1,6 +1,7 @@
 <?xml version="1.0"?>
 <openerp>
     <data>
+<!--
         <report
             id="website_publisher_info.site_config"
             model="res.users"
@@ -19,84 +20,74 @@
                 </t>
             </t>
         </template> 
-
-        <template id="site_config_document">
-            <t t-call="report.external_layout">
+-->
+        
+        <template id="website_publisher_info.user_info_page">
+            <t t-call="website.layout">
                 <div class="page">
                     <div class="oe_structure"/>
                     <div class="row">
                         <div class="col-xs-6">
-                            <section class="para_large">
+                            <section>
+                                <t t-set="o" t-value="request.env['res.users'].sudo().search([])"/>
                                 <div class="container">
-                                    <div class="row">
-                                        <div class="col-md-12 mb16 mt16">
-                                            <h1>Mail Configuration instruction</h1>
-                                            <p>This is the mail configuration for mail clients in mobile phones, tablets and computers.</p>
-                                            <br/>
-                                            <table class="table table-bordered table-responsive">
-                                                <tbody>
-                                                <tr>
-                                                    <td/>
-                                                    <td>
-                                                        <strong>​Server Name</strong>
-                                                    </td>
-                                                    <td>
-                                                        <strong>​Port</strong>
-                                                    </td>
-                                                    <td>
-                                                        <strong>​SSL/TSL</strong>
-                                                    </td>
-                                                    <td>
-                                                        <strong>​Authentication</strong>
-                                                    </td>
-                                                </tr>
-                                                <tr>
-                                                    <td>​Incomming (IMAP)</td>
-                                                    <td t-raw="'imap.' + (o.company_id.domain or 'example.com')"/>
-                                                    <td>​143</td>
-                                                    <td>​STARTTLS</td>
-                                                    <td>​Lösenord</td>
-                                                </tr>
-                                                <tr>
-                                                    <td>Outgoing​ (SMTP)</td>
-                                                    <td t-raw="'smtp.' + (o.company_id.domain or 'example.com')"/>
-                                                    <td>​587</td>
-                                                    <td>STARTTLS​</td>
-                                                    <td>​Lösenord</td>
-                                                </tr>
-                                                <tr>
-                                                    <td>​Username</td>
-                                                    <td t-raw="o.login" colspan="4"/>
-                                                </tr>
-                                                <tr>
-                                                    <td>Password</td>
-                                                    <td t-raw="o.passwd_mail" colspan="4"/>
-                                                </tr>
-                                            </tbody>
-                                        </table>
-
-                                        <H1>Webmail</H1>
-                                            <p>This is your credentials for webmail.</p>
-                                            <table class="table table-bordered table-responsive">
-                                                <tbody>
-                                                    <tr>
-                                                        <td>
-                                                            URL
-                                                        </td>
-                                                        <td t-raw="'http://epost.' + (o.company_id.domain or 'example.com')"/>
-                                                    </tr>
-                                                    <tr>
-                                                        <td>​Username</td>
-                                                        <td colspan="4" t-raw="o.login"/>
-                                                    </tr>
-                                                    <tr>
-                                                        <td>Password</td>
-                                                        <td colspan="4" t-raw="o.passwd_mail" />
-                                                    </tr>
-                                                </tbody>
-                                            </table>
+                                    <h1 class="text-center"><b>User Information</b></h1>
+                                    
+                                    <div class="col-md-12">
+                                        <h3><b>Your Domain</b></h3>
+                                        <div class="col-md-12 mb8 mt16">
+                                            <h5><b>​URL: </b></h5>
+                                            <p t-raw="o.company_id.website"/>
                                         </div>
                                     </div>
+                                    
+                                    <div class="col-md-12">
+                                        <h3><b>Log In Information</b></h3>
+                                        <div class="col-md-12 mb8 mt16">
+                                            <h5><b>​Username: </b></h5>
+                                            <p t-raw="o.login"/>
+                                        </div>
+                                        <div class="col-md-12 mb16 mt8">
+                                            <h5><b>Password: </b></h5>
+                                            <p t-field="o.passwd_tmp"/>
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="col-md-12">
+                                        <h3><b>Webmail</b></h3>
+                                        <div class="col-md-12 mb8 mt16">
+                                            <h5><b>​Username: </b></h5>
+                                            <p t-raw="o.login"/>
+                                        </div>
+                                        <div class="col-md-12 mb16 mt8">
+                                            <h5><b>Password: </b></h5>
+<!--
+                                            <p t-raw="o.passwd_tmp"/>
+-->
+                                        </div>
+                                    </div>
+<!--
+                                    <H1>Webmail</H1>
+                                    <p>This is your credentials for webmail</p>
+                                    <table class="table table-bordered table-responsive">
+                                        <tbody>
+                                            <tr>
+                                                <td>
+                                                    URL
+                                                </td>
+                                                <td t-raw="'http://epost.' + (o.company_id.domain or 'example.com')"/>
+                                            </tr>
+                                            <tr>
+                                                <td>​Username</td>
+                                                <td colspan="4" t-raw="o.login"/>
+                                            </tr>
+                                            <tr>
+                                                <td>Password</td>
+                                                <td colspan="4" t-raw="o.passwd_mail" />
+                                            </tr>
+                                        </tbody>
+                                    </table>
+-->
                                 </div>
                             </section>
                         </div>
@@ -105,6 +96,8 @@
                 </div>
             </t>
         </template>
+
+       
         
         <template id="publisher_info" inherit_id="website.layout" name="Publisher Info">
             <xpath expr="//ul[@class='dropdown-menu js_usermenu']/li[1]" position="after">
