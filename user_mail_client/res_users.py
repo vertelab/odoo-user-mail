@@ -43,7 +43,6 @@ class sync_settings_wizard(models.TransientModel):
             user.sync_settings(self.gen_pw)
             companies.add(user.company_id)
         for c in companies:
-            pass
             c.sync_settings()
 
         return {}
@@ -100,16 +99,10 @@ class res_users(models.Model):
     
     @api.one
     def write(self,values):
-        passwd = None
-        if values.get('password'):
-            passwd = values.get('password')
-        elif values.get('new_password'):
-            passwd = values.get('new_password')   
-
+        passwd = values.get('password') or values.get('new_password')
         if passwd:
             self.dovecot_password = self.generate_dovecot_sha512(passwd)
             values['dovecot_password'] = self.dovecot_password            
-            self.env['res.users.password'].update_pw(self.id, passwd)
 
         SYNCSERVER = Sync2server(self)
         remote_user_id = SYNCSERVER.search(self._name,[('login','=',self.login)])
@@ -121,14 +114,9 @@ class res_users(models.Model):
 
     @api.model
     def create(self, values):
-        passwd = None
-        if values.get('password'):
-            passwd = values.get('password')
-        elif values.get('new_password'):
-            passwd = values.get('new_password') 
+        passwd = values.get('password') or values.get('new_password')
         if passwd:
             values['dovecot_password'] = self.generate_dovecot_sha512(passwd)         
-            self.env['res.users.password'].update_pw(self.id, passwd)
 
         #pass this context to auth_signup create-function to prevent it from sending reset password emails 
         context = {'no_reset_password' : True}
@@ -166,10 +154,12 @@ class res_company(models.Model):
                 
     @api.one
     def write(self,values):
-        _logger.warn("\nIN WRITE-----------")
-        values['remote_id'] = self.generateUUID()
+        SYNCSERVER = Sync2server(self)
+        remote_company = SYNCSERVER.remote_company(self)
+        if not remote_company:
+            values['remote_id'] = self.generateUUID()
+            
         super(res_company, self).write(values)
-        _logger.warn("\nVALUES IS IN WRITE: %s" % values)
         self.sync_settings()
 
         if values.get('domain',False) and self.id == self.env.ref('base.main_company').id:  # Create mailservers when its a main company and not mainserver

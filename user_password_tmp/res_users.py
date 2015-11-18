@@ -34,10 +34,11 @@ class res_users(models.Model):
                
     passwd_tmp = fields.Char(compute='_passwd_tmp',string='Password')    
 
+
     @api.one
     def write(self,values):
         passwd = values.get('password') or values.get('new_password')
-        if passwd:
+        if passwd:            
             self.env['res.users.password'].update_pw(self.id, passwd)
         return super(res_users, self).write(values)
 
