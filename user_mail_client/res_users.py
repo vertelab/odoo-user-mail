@@ -154,10 +154,12 @@ class res_company(models.Model):
                 
     @api.one
     def write(self,values):
-        _logger.warn("\nIN WRITE-----------")
-        values['remote_id'] = self.generateUUID()
+        SYNCSERVER = Sync2server(self)
+        remote_company = SYNCSERVER.remote_company(self)
+        if not remote_company:
+            values['remote_id'] = self.generateUUID()
+            
         super(res_company, self).write(values)
-        _logger.warn("\nVALUES IS IN WRITE: %s" % values)
         self.sync_settings()
 
         if values.get('domain',False) and self.id == self.env.ref('base.main_company').id:  # Create mailservers when its a main company and not mainserver
