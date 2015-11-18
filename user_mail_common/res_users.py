@@ -23,11 +23,6 @@ from openerp.exceptions import Warning
 import logging
 _logger = logging.getLogger(__name__)
 
-class sync_settings_wizard(models.TransientModel):
-    _name = "user.mail.sync.wizard"
-
-    gen_pw = fields.Boolean(string="generate_password")
-
 class postfix_vacation_notification(models.Model):
     _name = 'postfix.vacation_notification'
     #could not install because of the relation to user_id (postfix.alias has the same relation only one is allowed?)

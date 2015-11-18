@@ -30,8 +30,11 @@ from passlib.hash import sha512_crypt
 
 SYNCSERVER = None
 
+
 class sync_settings_wizard(models.TransientModel):
-    _inherit = "user.mail.sync.wizard"
+    _name = "user.mail.sync.wizard"
+
+    gen_pw = fields.Boolean(string="generate_password")
 
     def default_user_ids(self):
         return self.env['res.users'].browse(self._context.get('active_ids'))
@@ -46,12 +49,6 @@ class sync_settings_wizard(models.TransientModel):
             c.sync_settings()
 
         return {}
-
-class postfix_vacation_notification(models.Model):
-    _inherit = 'postfix.vacation_notification'
-    
-class postfix_alias(models.Model):
-    _inherit = 'postfix.alias'
 
 class res_users(models.Model):
     _inherit = 'res.users' 
@@ -101,8 +98,7 @@ class res_users(models.Model):
     def write(self,values):
         passwd = values.get('password') or values.get('new_password')
         if passwd:
-            self.dovecot_password = self.generate_dovecot_sha512(passwd)
-            values['dovecot_password'] = self.dovecot_password            
+            values['dovecot_password'] = self.generate_dovecot_sha512(passwd)            
 
         SYNCSERVER = Sync2server(self)
         remote_user_id = SYNCSERVER.search(self._name,[('login','=',self.login)])
