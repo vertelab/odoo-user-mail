@@ -146,7 +146,7 @@ class res_company(models.Model):
         return self.env['ir.config_parameter'].get_param(param)
 
     def generateUUID(self):
-        return uuid.uuid4()
+        return str(uuid.uuid4())
                 
     @api.one
     def write(self,values):
@@ -307,6 +307,7 @@ class Sync2server():
 
     def remote_company(self, remote_id):
         # User company.remote_id for this company
+        _logger.warn("Type is: %s\nValue is: %s" % (type(remote_id), remote_id))
         remote_company = self.search('res.company',[('remote_id','=',remote_id)])          
         if remote_company:
             return remote_company[0]
