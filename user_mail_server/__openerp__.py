@@ -7,13 +7,13 @@
 
 
 {
-    'name': 'User mail',
+    'name': 'User Mail Server',
     'version': '1.1',
     'category': 'other',
-    'summary': 'Administation of mail for users',
+    'summary': 'Administation of mail for users, serverside component',
     'author': 'Vertel AB',
     'website': 'http://www.vertel.se',
-    'depends': ['base', 'user_mail_common'],
+    'depends': ['user_mail_common'],
     'data': [],
 
     'installable': True,

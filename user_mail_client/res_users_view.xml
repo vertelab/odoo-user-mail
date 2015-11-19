@@ -1,0 +1,188 @@
+<?xml version="1.0"?>
+<openerp>
+  <data>
+    <!-- Update personal user form !-->
+    <record id="view_users_form_conf_mail_settings" model="ir.ui.view">
+      <field name="name">res.users.form.mail.settings</field>
+      <field name="model">res.users</field>
+      <field name="inherit_id" ref="base.view_users_form_simple_modif" />
+      <field name="arch" type="xml">
+        <data>
+          <group string="Email Preferences" position="replace" />
+          <field name="company_id" position="after">
+            <notebook colspan="5">
+              <page string="Email Preferences">
+                <group string="E-mail Preferences">
+                  <field name="email" widget="email" readonly="0" />
+                  <field name="signature" readonly="0" />
+                </group>
+              </page>
+              <page string="E-mail settings" groups="user_mail_common.group_own_email_settings,user_mail_common.group_own_email_settings">
+                <group colspan="4" col="4" string="E-mail Settings">
+                  <field name="postfix_active" col="2" colspan="4" readonly="0" />
+                  <newline />
+                  <group attrs="{'invisible': [('postfix_active','=',False)],}" colspan="4" col="4">
+                    <separator string="Vacation" colspan="4" />
+                    <field name="vacation_active" readonly="0" />
+                    <newline />
+                    <field name="vacation_from" col="2" attrs="{'invisible': [('vacation_active', '=', False)], 'required':[('vacation_active', '=', True)]}" readonly="0" />
+                    <field name="vacation_to" col="2" attrs="{'invisible': [('vacation_active', '=', False)], 'required':[('vacation_active', '=', True)]}" readonly="0" />
+                    <field name="vacation_subject" placeholder="I am at vacation" colspan="4" attrs="{'invisible': [('vacation_active', '=', False)], 'required':[('vacation_active', '=', True)]}" />
+                    <field name="vacation_text" nolabel="1" colspan="4" attrs="{'invisible': [('vacation_active', '=', False)], 'required':[('vacation_active', '=', True)]}" readonly="0" />
+                    <field name="vacation_forward" placeholder="my@vacationmail.com" col="2" colspan="4" attrs="{'invisible': [('vacation_active', '=', False)], 'required':[('vacation_active', '=', True)]}" readonly="0" />
+                    <separator string="Forward" colspan="4" />
+                    <field name="forward_active" readonly="0" />
+                    <newline />
+                    <field name="forward_address" nolabel="1" placeholder="my@temporarymail.comXanother@mailaddress.com" colspan="4" attrs="{'invisible': [('forward_active', '=', False)], 'required':[('forward_active', '=', True)]}" readonly="0" />
+                    <field name="forward_cp" col="2" colspan="4" attrs="{'invisible': [('forward_active', '=', False)]}" readonly="0" />
+                    <separator string="Virus check" colspan="4" />
+                    <field name="virus_active" colspan="4" readonly="0" />
+                    <separator string="Spam check" colspan="4" />
+                    <field name="spam_active" readonly="0" />
+                    <newline />
+                    <field name="spam_tag" colspan="4" attrs="{'invisible': [('spam_active', '=', False),], 'required':[('spam_active', '=', True)]}" readonly="0" />
+                    <field name="spam_tag2" colspan="4" attrs="{'invisible': [('spam_active', '=', False),], 'required':[('spam_active', '=', True)]}" readonly="0" />
+                    <field name="spam_killevel" colspan="4" attrs="{'invisible': [('spam_active', '=', False),], 'required':[('spam_active', '=', True)]}" readonly="0" />
+                    <separator string="Misc" colspan="4" />
+                    <field name="maildir" readonly="0" />
+                    <newline />
+                    <field name="transport" readonly="0" />
+                    <newline />
+                    <field name="quota" readonly="0" />
+                    <newline />
+                    <field name="domain" readonly="0" />
+                    <newline />
+                    <separator string="Alias" readonly="0" />
+                    <newline />
+                    <field name="mail_alias" nolabel="1" widget="one2many_list" colspan="4">
+                      <tree editable="bottom" string="Mail alias">
+                        <field name="mail" />
+                        <field name="active" />
+                      </tree>
+                    </field>
+                  </group>
+                </group>
+              </page>
+            </notebook>
+          </field>
+        </data>
+      </field>
+    </record>
+    
+    
+    <record id="user_mail_sync_view" model="ir.ui.view">
+      <field name="name">user.mail.sync.form</field>
+      <field name="model">user.mail.sync.wizard</field>
+      <field name="arch" type="xml">
+        <form string="Synchronize Settings">
+          <!--
+               <field name="user_ids"/>
+          -->
+          <label for="gen_pw" string="Generate Password" />
+          <field name="gen_pw" />
+          <footer>
+            <button type="object" name="sync_settings" string="Synchronize Settings" class="oe_highlight" />
+            <button special="cancel" string="Cancel" />
+          </footer>
+        </form>
+      </field>
+    </record>
+    
+    
+    <act_window id="action_user_mail_sync" multi="True" key2="client_action_multi" name="Synchronize Settings" res_model="user.mail.sync.wizard" src_model="res.users" view_mode="form" target="new" />
+
+    <report id="mail_config" model="res.users" string="Mail configuration instructions" report_type="qweb-pdf" name="user_mail_client.mail_config_report" file="user_mail_client.mail_config_report" attachment_use="False" attachment="('Mailconf_'+(object.name or ''))+'.pdf'" />
+
+    <template id="mail_config_report">
+      <t t-call="report.html_container">
+        <t t-foreach="doc_ids" t-as="doc_id">
+          <t t-raw="translate_doc(doc_id, doc_model, 'partner_id.lang', 'user_mail_client.mail_config_document')" />
+        </t>
+      </t>
+    </template>
+
+    <template id="mail_config_document">
+      <t t-call="report.external_layout">
+        <div class="page">
+          <div class="oe_structure" />
+          <div class="row">
+            <div class="col-xs-6">
+              <section class="para_large">
+                <div class="container">
+                  <div class="row">
+                    <div class="col-md-12 mb16 mt16">
+                      <h1>Mail Configuration instruction</h1>
+                      <p>This is the mail configuration for mail clients in mobile phones, tablets and computers.</p>
+                      <br />
+                      <table class="table table-bordered table-responsive">
+                        <tbody>
+                          <tr>
+                            <td />
+                            <td>
+                              <strong>​Server Name</strong>
+                            </td>
+                            <td>
+                              <strong>​Port</strong>
+                            </td>
+                            <td>
+                              <strong>​SSL/TSL</strong>
+                            </td>
+                            <td>
+                              <strong>​Authentication</strong>
+                            </td>
+                          </tr>
+                          <tr>
+                            <td>​Incomming (IMAP)</td>
+                            <td t-raw="'imap.' + (o.company_id.domain or 'example.com')" />
+                            <td>​143</td>
+                            <td>​STARTTLS</td>
+                            <td>​Lösenord</td>
+                          </tr>
+                          <tr>
+                            <td>Outgoing​ (SMTP)</td>
+                            <td t-raw="'smtp.' + (o.company_id.domain or 'example.com')" />
+                            <td>​587</td>
+                            <td>STARTTLS​</td>
+                            <td>​Lösenord</td>
+                          </tr>
+                          <tr>
+                            <td>​Username</td>
+                            <td t-raw="o.login" colspan="4" />
+                          </tr>
+                          <tr>
+                            <td>Password</td>
+                            <td t-raw="o.passwd_tmp" colspan="4" />
+                          </tr>
+                        </tbody>
+                      </table>
+                      <H1>Webmail</H1>
+                      <p>This is your credentials for webmail.</p>
+                      <table class="table table-bordered table-responsive">
+                        <tbody>
+                          <tr>
+                            <td>URL</td>
+                            <td t-raw="'http://epost.' + (o.company_id.domain or 'example.com')" />
+                          </tr>
+                          <tr>
+                            <td>​Username</td>
+                            <td colspan="4" t-raw="o.login" />
+                          </tr>
+                          <tr>
+                            <td>Password</td>
+                            <td colspan="4" t-raw="o.passwd_tmp" />
+                          </tr>
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                </div>
+              </section>
+            </div>
+          </div>
+          <div class="oe_structure" />
+        </div>
+      </t>
+    </template>
+
+  </data>
+</openerp>

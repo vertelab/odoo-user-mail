@@ -7,14 +7,14 @@
 
 
 {
-    'name': 'User mail',
-    'version': '1.1',
+    'name': 'User mail client',
+    'version': '1.2',
     'category': 'other',
-    'summary': 'Administation of mail for users',
+    'summary': 'Administation of mail for users on client side',
     'author': 'Vertel AB',
     'website': 'http://www.vertel.se',
-    'depends': ['fetchmail', 'user_mail_common'],
-    'data': [],
+    'depends': ['user_password_tmp','fetchmail', 'user_mail_common'],
+    'data': ['res_users_view.xml'],
 
     'installable': True,
     'application': False,

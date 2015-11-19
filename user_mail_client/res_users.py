@@ -30,8 +30,11 @@ from passlib.hash import sha512_crypt
 
 SYNCSERVER = None
 
+
 class sync_settings_wizard(models.TransientModel):
-    _inherit = "user.mail.sync.wizard"
+    _name = "user.mail.sync.wizard"
+
+    gen_pw = fields.Boolean(string="generate_password")
 
     def default_user_ids(self):
         return self.env['res.users'].browse(self._context.get('active_ids'))
@@ -46,12 +49,6 @@ class sync_settings_wizard(models.TransientModel):
             c.sync_settings()
 
         return {}
-
-class postfix_vacation_notification(models.Model):
-    _inherit = 'postfix.vacation_notification'
-    
-class postfix_alias(models.Model):
-    _inherit = 'postfix.alias'
 
 class res_users(models.Model):
     _inherit = 'res.users' 
@@ -101,8 +98,7 @@ class res_users(models.Model):
     def write(self,values):
         passwd = values.get('password') or values.get('new_password')
         if passwd:
-            self.dovecot_password = self.generate_dovecot_sha512(passwd)
-            values['dovecot_password'] = self.dovecot_password            
+            values['dovecot_password'] = self.generate_dovecot_sha512(passwd)            
 
         SYNCSERVER = Sync2server(self)
         remote_user_id = SYNCSERVER.search(self._name,[('login','=',self.login)])
@@ -150,14 +146,14 @@ class res_company(models.Model):
         return self.env['ir.config_parameter'].get_param(param)
 
     def generateUUID(self):
-        return uuid.uuid4()
+        return str(uuid.uuid4())
                 
     @api.one
     def write(self,values):
-        SYNCSERVER = Sync2server(self)
-        remote_company = SYNCSERVER.remote_company(self)
-        if not remote_company:
+        if not self.remote_id:
             values['remote_id'] = self.generateUUID()
+        SYNCSERVER = Sync2server(self)
+        remote_company = SYNCSERVER.remote_company(values.get('remote_id') or self.remote_id)
             
         super(res_company, self).write(values)
         self.sync_settings()
@@ -166,13 +162,13 @@ class res_company(models.Model):
             self.env['ir.config_parameter'].set_param('mail.catchall.domain',values.get('domain'))
             password = self._createcatchall()
             self._smtpserver(password)
-            self._imapserver(password)   
+            self._imapserver(password)
 
     @api.one
     def unlink(self):
         SYNCSERVER = Sync2server(self)
 
-        remote_company = SYNCSERVER.remote_company(self)
+        remote_company = SYNCSERVER.remote_company(self.remote_id)
 
         if remote_company:
             SYNCSERVER.unlink(self._name, remote_company) 
@@ -205,7 +201,7 @@ class res_company(models.Model):
         SYNCSERVER = Sync2server(self) 
 
         record = {f:self.read()[0][f] for f in  ['name','domain','catchall','default_quota', 'email', 'remote_id']}
-        remote_company_id = SYNCSERVER.remote_company(self)
+        remote_company_id = SYNCSERVER.remote_company(self.remote_id)
         
         if remote_company_id:
             SYNCSERVER.write(self._name, remote_company_id, record)
@@ -309,9 +305,10 @@ class Sync2server():
     def unlink(self,model,ids):
         return self.sock.execute(self.passwd_dbname, self.uid, self.passwd_passwd, model, 'unlink',ids)
 
-    def remote_company(self, company):
+    def remote_company(self, remote_id):
         # User company.remote_id for this company
-        remote_company = self.search('res.company',[('remote_id','=',company.remote_id)])          
+        _logger.warn("Type is: %s\nValue is: %s" % (type(remote_id), remote_id))
+        remote_company = self.search('res.company',[('remote_id','=',remote_id)])          
         if remote_company:
             return remote_company[0]
         else: 
