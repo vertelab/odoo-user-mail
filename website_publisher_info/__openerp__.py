@@ -13,7 +13,7 @@
     'summary': 'Information about the website for a website publisher',
     'author': 'Vertel AB',
     'website': 'http://www.vertel.se',
-    'depends': ['base',],
+    'depends': ['base', 'user_password_tmp'],
     'data': ['website_publisher_info.xml',],
 
     'installable': True,

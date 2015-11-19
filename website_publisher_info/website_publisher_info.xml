@@ -12,58 +12,54 @@
             attachment_use="False"
             attachment="('Siteconf_'+(object.name or ''))+'.pdf'"
         />
-           
+
         <template id="site_config_report">
             <t t-call="report.html_container">
                 <t t-foreach="doc_ids" t-as="doc_id">
                     <t t-raw="translate_doc(doc_id, doc_model, 'partner_id.lang', 'website_publisher_info.site_config_document')"/>
                 </t>
             </t>
-        </template> 
+        </template>
 -->
-        
-        <template id="website_publisher_info.user_info_page">
+
+        <template id="user_info_page">
             <t t-call="website.layout">
                 <div class="page">
                     <div class="oe_structure"/>
                     <div class="row">
                         <div class="col-xs-6">
                             <section>
-                                <t t-set="o" t-value="request.env['res.users'].sudo().search([])"/>
                                 <div class="container">
                                     <h1 class="text-center"><b>User Information</b></h1>
-                                    
                                     <div class="col-md-12">
                                         <h3><b>Your Domain</b></h3>
                                         <div class="col-md-12 mb8 mt16">
                                             <h5><b>​URL: </b></h5>
-                                            <p t-raw="o.company_id.website"/>
+                                            <p t-raw="me.company_id.website"/>
                                         </div>
                                     </div>
-                                    
+
                                     <div class="col-md-12">
                                         <h3><b>Log In Information</b></h3>
                                         <div class="col-md-12 mb8 mt16">
                                             <h5><b>​Username: </b></h5>
-                                            <p t-raw="o.login"/>
+                                            <p t-raw="me.login"/>
                                         </div>
                                         <div class="col-md-12 mb16 mt8">
                                             <h5><b>Password: </b></h5>
-                                            <p t-field="o.passwd_tmp"/>
+                                            <p t-field="me.passwd_tmp"/>
                                         </div>
                                     </div>
-                                    
+
                                     <div class="col-md-12">
                                         <h3><b>Webmail</b></h3>
                                         <div class="col-md-12 mb8 mt16">
                                             <h5><b>​Username: </b></h5>
-                                            <p t-raw="o.login"/>
+                                            <p t-raw="me.login"/>
                                         </div>
                                         <div class="col-md-12 mb16 mt8">
                                             <h5><b>Password: </b></h5>
-<!--
-                                            <p t-raw="o.passwd_tmp"/>
--->
+                                            <p t-raw="me.passwd_tmp"/>
                                         </div>
                                     </div>
 <!--
@@ -97,8 +93,12 @@
             </t>
         </template>
 
-       
-        
+       <template id="user_info" inherit_id="website.layout" name="Publisher Info">
+            <xpath expr="//ul[@class='dropdown-menu js_usermenu']/li[1]" position="after">
+                <li><a href="/website/user_info">User Info</a></li>
+            </xpath>
+        </template>
+
         <template id="publisher_info" inherit_id="website.layout" name="Publisher Info">
             <xpath expr="//ul[@class='dropdown-menu js_usermenu']/li[1]" position="after">
                 <li><a href="/website/publisher_info">Publisher Info</a></li>
@@ -186,8 +186,8 @@
                                     <li>Du får nu tre val
                                         <ul style="margin-left: 15px;">
                                             <li>Du kan välja en tidigare använd bild genom att markera den och sedan trycka på <i>Spara</i>-knappen</li>
-                                            <li>Du kan välja en ny bild från datorn genom att trycka på pilen vid knappen <i>Ladda upp en bild från din dator</i> och sedan på <i>ladda upp bild utan optimering</i>. 
-                                                Du får nu välja bild och bilden laddas upp på sidan 
+                                            <li>Du kan välja en ny bild från datorn genom att trycka på pilen vid knappen <i>Ladda upp en bild från din dator</i> och sedan på <i>ladda upp bild utan optimering</i>.
+                                                Du får nu välja bild och bilden laddas upp på sidan
                                             </li>
                                             <li>Du kan även klistra in en länk för en bild i fältet <i>lägg till bildens URL</i> och sedan trycka på <i>lägg in</i>-knappen</li>
                                         </ul>
@@ -204,7 +204,7 @@
                                 <ul style="list-style:none;">
                                     <li>Trycka på <i>Ändra</i>-knappen uppe i vänstra hörnet</li>
                                     <li>Du får upp en ruta med bilder, du väljer video som finns under <i>Select a Media</i></li>
-                                    <li>Du får då två alternativ 
+                                    <li>Du får då två alternativ
                                         <ul style="margin-left: 15px;">
                                             <li>Att skriva in URL för videon</li>
                                             <li>Att skriva in en HTML till video URL:en som det står i rutan</li>
@@ -219,6 +219,6 @@
                 </section>
             </t>
         </template>
-    </data> 
+    </data>
 </openerp>
-    
+

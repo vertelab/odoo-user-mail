@@ -36,19 +36,21 @@ class website_publisher_info(http.Controller):
      # this controller will render publisher information
     @http.route(['/website/publisher_info'], type='http', auth="public", website=True)
     def publisher_info(self, **post):
-        
+
         return request.website.render("website_publisher_info.publisher_info_page")
-        
-        
+
+
     @http.route(['/website/user_info'], type='http', auth="public", website=True)
     def user_info(self, **post):
-        
-        return request.website.render("website_publisher_info.user_info_page")
-        
+        me = request.env['res.users'].browse(request.context['uid'])
+        values = {
+            'me': me,
+        }
+        return request.website.render("website_publisher_info.user_info_page", values)
+
     # this controller will list all modules installed on database
     @http.route(['/website/info'], type='http', auth="public", website=True)
     def module_info(self, url=None, recipe=None, recipe_ref=None, **post):
         if recipe_ref:
-            recipe = request.env.ref(recipe_ref) # 'imagemagick.my_recipe'        
+            recipe = request.env.ref(recipe_ref) # 'imagemagick.my_recipe'
         return recipe.send_file(http, url=url)
-
