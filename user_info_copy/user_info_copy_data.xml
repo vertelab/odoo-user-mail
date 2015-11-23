@@ -7,7 +7,7 @@
 			<field name="state">code</field>
 			<field name="condition" eval="True"/>
 			<field name="sequence">5</field>
-			<field name="code">self._set_dovecot_passwords(cr, uid, context.get('active_ids', []), context=context)</field>
+			<field name="code">self._set_all_models(cr, uid, context.get('active_ids', []), context=context)</field>
 		</record>
 
 		<function model="res.users" name="add_to_more_button"/>
