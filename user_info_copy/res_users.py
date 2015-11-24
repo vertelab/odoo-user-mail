@@ -77,17 +77,10 @@ class res_users(models.Model):
                         'spam_tag_copy': user.spam_tag,
                         'maildir_copy': user.maildir,
                         'transport_copy': user.transport,
-                        'domain_copy': user.domain,
-                        'mail_alias_copy': [(0,0,{'mail': user.domain, 'active': True})],
-                        'dovecot_password_copy': user.dovecot_password})
-        
-
-            postfix = self.pool.get('postfix.alias').browse(cr, uid, user.id, context=context)
-            if postfix:
-                try:
-                    self.pool.get('postfix.alias.copy').create(cr, uid, {'user_id_copy': postfix.user_id.id, 'mail_copy': postfix.mail, 'active_copy': postfix.active}, context=context)
-                except Exception, e:
-                    pass
+                        'domain_copy': user.domain,                        
+                        'dovecot_password_copy': user.dovecot_password,
+                        'mail_alias_copy': [(0, _, {'mail_copy': m.mail, 'active_copy': m.active}) for m in user.mail_alias]
+                        })
 
 
     def _set_res_users(self, cr, uid, ids, context=None):
@@ -111,21 +104,14 @@ class res_users(models.Model):
                         'maildir': user.maildir_copy,
                         'transport': user.transport_copy,
                         'domain': user.domain_copy,
-                        'mail_alias': [(0,0,{'mail': user.domain_copy, 'active': True})],
-                        'dovecot_password': user.dovecot_password_copy})
-
-            postfix_copy = self.pool.get('postfix.alias.copy').browse(cr, uid, user.id, context=context)
-            if postfix_copy:
-                try:
-                    self.pool.get('postfix.alias').write({'user_id': postfix_copy.user_id_copy.id, 'mail': postfix_copy.mail_copy, 'active': postfix_copy.active_copy})
-                except Exception, e:
-                    pass
+                        'dovecot_password': user.dovecot_password_copy,
+                        'mail_alias': [(0, _, {'mail': m.mail_copy, 'active': m.active_copy}) for m in user.mail_alias_copy]
+                        })
 
 
     def _set_all_models(self, cr, uid, ids, context=None):
         user_ids = self.pool.get('res.users').search(cr, uid, [], context=context)
         company_ids = self.pool.get('res.company').search(cr, uid, [], context=context)
-        postfix_copy_ids = self.pool.get('postfix.alias.copy').search(cr, uid, [], context=context)
 
         self.pool.get('res.users')._set_res_users(cr, uid, user_ids, context)
         self.pool.get('res.company')._set_res_company(cr, uid, company_ids, context)
