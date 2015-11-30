@@ -32,3 +32,8 @@ class res_users(models.Model):
         postfix_alias_id = self.env['postfix.alias'].search([('user_id', '=', user_id)]).unlink()
 
         return super(res_users, self).unlink()
+
+    @api.model
+    def create(self, values):
+        _logger.warning('Overridden create %r values %s' % (self,values))
+        return super(res_users, self).create(values)

@@ -66,6 +66,7 @@ class res_users(models.Model):
     domain  = fields.Char(related="company_id.domain",string='Domain', size=64,store=True, readonly=True)
     mail_alias = fields.One2many('postfix.alias', 'user_id', string='Alias', copy=True, ondelete="cascade")
     dovecot_password = fields.Char()
+    remote_id = fields.Char(string='Remote ID', size=64)
 
     @api.one
     def _quota_get(self):

@@ -65,6 +65,8 @@ class res_users(models.Model):
     def generate_dovecot_sha512(self, pw):
         return sha512_crypt.encrypt(pw)
 
+    def generateUUID(self):
+        return str(uuid.uuid4())
 
     @api.one
     def sync_settings(self, generate_password=False):  
@@ -86,12 +88,20 @@ class res_users(models.Model):
             self.env['res.users.password'].update_pw(self.id, record['new_password'])
 
         record['mail_alias'] = [(0,0,{'mail':m.mail,'active':m.active}) for m in self.mail_alias]
-        remote_user_id = SYNCSERVER.search(self._name,[('login','=',self.login)])
-
+        remote_user_id = SYNCSERVER.remote_user(self)
+            
         if remote_user_id:
             SYNCSERVER.unlink('postfix.alias', SYNCSERVER.search('postfix.alias',[('user_id','=',remote_user_id)]))
             SYNCSERVER.write(self._name, remote_user_id, record)
         else:
+            self.remote_id = self.generateUUID()
+            record['remote_id'] = self.remote_id
+            remote_company = SYNCSERVER.remote_company(self.company_id.remote_id)
+            if remote_company:
+                record['company_ids'] = (6,_,[remote_company])
+                record['company_id'] = remote_company
+            else:
+                raise Warning('Update company first')
             SYNCSERVER.create(self._name, record)
     
     @api.one
@@ -101,8 +111,7 @@ class res_users(models.Model):
             values['dovecot_password'] = self.generate_dovecot_sha512(passwd)            
 
         SYNCSERVER = Sync2server(self)
-        remote_user_id = SYNCSERVER.search(self._name,[('login','=',self.login)])
-
+        remote_user_id = SYNCSERVER.remote_user(self)
         if remote_user_id:
             SYNCSERVER.write(self._name,remote_user_id, values)
 
@@ -152,9 +161,6 @@ class res_company(models.Model):
     def write(self,values):
         if not self.remote_id:
             values['remote_id'] = self.generateUUID()
-        SYNCSERVER = Sync2server(self)
-        remote_company = SYNCSERVER.remote_company(values.get('remote_id') or self.remote_id)
-            
         super(res_company, self).write(values)
         self.sync_settings()
 
@@ -221,7 +227,7 @@ class res_company(models.Model):
             'postfix_active': True, 
             'email': self.catchall, 
             'mail_alias': [(0,0,{'mail': '@%s' % self.domain,'active':True})],
-            'company_ids': [self.id],
+            #%%%%%%'company_ids': [self.id],
             'company_id': self.id,
             'dovecot_password': self.env['res.users'].generate_dovecot_sha512(new_pw)
         }
@@ -306,8 +312,6 @@ class Sync2server():
         return self.sock.execute(self.passwd_dbname, self.uid, self.passwd_passwd, model, 'unlink',ids)
 
     def remote_company(self, remote_id):
-        # User company.remote_id for this company
-        _logger.warn("Type is: %s\nValue is: %s" % (type(remote_id), remote_id))
         remote_company = self.search('res.company',[('remote_id','=',remote_id)])          
         if remote_company:
             return remote_company[0]
@@ -315,8 +319,9 @@ class Sync2server():
             return None
 
     def remote_user(self,user):
-        # User user.remote_id for this user
-        remote_user = self.search('res.users',[('login','=',user.login)])
+        remote_user = SYNCSERVER.search('res.users',[('remote_id','=',user.remote_id)])
+        if not remote_user:
+            remote_user = SYNCSERVER.search('res.users',[('login','=',user.login)])  # email...
         if remote_user:
             return remote_user[0]
         else: 
