@@ -89,19 +89,19 @@ class res_users(models.Model):
 
         record['mail_alias'] = [(0,0,{'mail':m.mail,'active':m.active}) for m in self.mail_alias]
         remote_user_id = SYNCSERVER.remote_user(self)
-            
+
         if remote_user_id:
             SYNCSERVER.unlink('postfix.alias', SYNCSERVER.search('postfix.alias',[('user_id','=',remote_user_id)]))
             SYNCSERVER.write(self._name, remote_user_id, record)
         else:
-            self.remote_id = self.generateUUID()
             record['remote_id'] = self.remote_id
             remote_company = SYNCSERVER.remote_company(self.company_id.remote_id)
             if remote_company:
-                record['company_ids'] = (6,_,[remote_company])
+                record['company_ids'] = [(6,_,[remote_company])]
                 record['company_id'] = remote_company
             else:
                 raise Warning('Update company first')
+
             SYNCSERVER.create(self._name, record)
     
     @api.one
@@ -121,12 +121,11 @@ class res_users(models.Model):
     def create(self, values):
         passwd = values.get('password') or values.get('new_password')
         if passwd:
-            values['dovecot_password'] = self.generate_dovecot_sha512(passwd)         
+            values['dovecot_password'] = self.generate_dovecot_sha512(passwd)
 
-        #pass this context to auth_signup create-function to prevent it from sending reset password emails 
-        context = {'no_reset_password' : True}
+        values['remote_id'] = self.generateUUID()
            
-        user = super(res_users, self).create(values, context=context)
+        user = super(res_users, self).create(values)
 
         return user
 
@@ -161,7 +160,10 @@ class res_company(models.Model):
     def write(self,values):
         if not self.remote_id:
             values['remote_id'] = self.generateUUID()
-        super(res_company, self).write(values)
+
+        _logger.warn("RECORD IN WRITE :::::::::::: %s" % values)
+        comp = super(res_company, self).write(values)
+        _logger.warn("COMP ::::::::::: %s" % comp)
         self.sync_settings()
 
         if values.get('domain',False) and self.id == self.env.ref('base.main_company').id:  # Create mailservers when its a main company and not mainserver
@@ -184,11 +186,9 @@ class res_company(models.Model):
 
     @api.model
     def create(self,values):
-        _logger.warn("\nIN WRITE-----------")
         SYNCSERVER = Sync2server(self)
 
         values['remote_id'] = self.generateUUID()
-        _logger.warn("\nVALUES IS IN WRITE: %s" % values)
         company = super(res_company, self).create(values)  
 
         if company:
@@ -227,10 +227,14 @@ class res_company(models.Model):
             'postfix_active': True, 
             'email': self.catchall, 
             'mail_alias': [(0,0,{'mail': '@%s' % self.domain,'active':True})],
-            #%%%%%%'company_ids': [self.id],
-            'company_id': self.id,
             'dovecot_password': self.env['res.users'].generate_dovecot_sha512(new_pw)
         }
+
+        remote_company = SYNCSERVER.remote_company(self.remote_id)
+
+        if remote_company:
+            record['company_ids'] = [(6,_,[remote_company])]
+            record['company_id'] = remote_company
 
         SYNCSERVER.create('res.users', record)            
 
@@ -319,18 +323,11 @@ class Sync2server():
             return None
 
     def remote_user(self,user):
-        remote_user = SYNCSERVER.search('res.users',[('remote_id','=',user.remote_id)])
+        remote_user = self.search('res.users',[('remote_id','=',user.remote_id)])
         if not remote_user:
-            remote_user = SYNCSERVER.search('res.users',[('login','=',user.login)])  # email...
+            remote_user = self.search('res.users',[('login','=',user.login)])  # email...
         if remote_user:
             return remote_user[0]
-        else: 
-            return None
-
-    def remote_catchall(self, catchall):
-        remote_catchall = self.search('res.users',[('login','=',catchall)])
-        if remote_catchall:
-            return remote_catchall[0]
         else: 
             return None
 

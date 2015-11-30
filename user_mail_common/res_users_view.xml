@@ -12,6 +12,7 @@
          and the commit introducing this line.
     -->
     <function model="res.groups" name="update_user_groups_view" />
+
     <!-- Update user form !-->
     <record id="view_users_form_conf_mail" model="ir.ui.view">
       <field name="name">res.users.form.mail</field>
@@ -19,6 +20,13 @@
       <field name="inherit_id" ref="base.view_users_form" />
       <field name="arch" type="xml">
         <data>
+          <field name="login" position="replace">
+            <field name="login" class="oe_inline"/>
+            <field name="domain_alias" class="oe_inline" readonly="1" attrs="{'invisible': [('domain_alias', '=', False)]}"/>
+            <div class="oe_edit_only" attrs="{'invisible': [('domain_alias', '=', False)]}">
+                
+            </div>
+          </field>
           <page string="Preferences" position="after">
             <page string="E-mail settings">
               <group colspan="4" col="4">
