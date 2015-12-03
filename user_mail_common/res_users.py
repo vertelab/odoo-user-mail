@@ -48,7 +48,11 @@ class res_users(models.Model):
 
     @api.one
     def _domain_alias(self):
-        self.domain_alias = "@%s" % self.env["ir.config_parameter"].get_param("mail.catchall.domain")
+        _logger.warn("SELF::::::::::%s" % self)
+        _logger.warn("ENV:::::::::::%s" % self.env)
+        _logger.warn("BASE COMP :::::%s" % self.env.ref('base.main_company'))
+        self.domain_alias = "@%s" % self.env.ref('base.main_company').domain
+        #return "@%s" % self.env.ref('base.main_company').domain
 
     postfix_active = fields.Boolean('Active', default=False,)
     vacation_subject = fields.Char('Subject', size=64,)
@@ -68,7 +72,7 @@ class res_users(models.Model):
     maildir = fields.Char(compute="_maildir_get",string='Maildir',size=64,store=True,select=1)
     transport = fields.Char('Transport', size=64,default="virtual:")
     domain  = fields.Char(related="company_id.domain",string='Domain', size=64,store=True, readonly=True)
-    domain_alias = fields.Char(compute="_domain_alias", string='Domain Alias', readonly=True)
+    domain_alias = fields.Char(compute=_domain_alias, string='Domain Alias', readonly=True)
     mail_alias = fields.One2many('postfix.alias', 'user_id', string='Alias', copy=True, ondelete="cascade")
     dovecot_password = fields.Char()
     remote_id = fields.Char(string='Remote ID', size=64)
