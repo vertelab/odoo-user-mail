@@ -36,18 +36,26 @@
       <field name="inherit_id" ref="base.view_users_form" />
       <field name="arch" type="xml">
         <data>
+        <field name="email" position="replace"/>
+        <label for="login" position="replace">
+            <label for="login" class="oe_edit_only" string="Login Name / Email Address"/>
+        </label>
+       
           <field name="login" position="replace">
             <div>
-              <field name="login" class="oe_inline"/>
-              <field name="domain_alias" class="oe_inline oe_edit_only" readonly="1" attrs="{'invisible': [('domain_alias', '=', False)]}"/>
+              <h2 class="oe_inline"><field name="login" class="oe_inline" /></h2>
+              <field name="email" class="oe_read_only" readonly="1"/>
             </div>
           </field>
+
           <page string="Preferences" position="after">
             <page string="E-mail settings">
               <group colspan="4" col="4">
                 <field name="postfix_active" col="2" colspan="4" />
+
                 <newline />
                 <group attrs="{'invisible': [('postfix_active','=',False)]}" colspan="4" col="4">
+                    <field name="postfix_mail" groups="base.group_erp_manager" />
                   <separator string="Vacation" colspan="4" />
                   <field name="vacation_active" />
                   <newline />
@@ -59,7 +67,7 @@
                   <separator string="Forward" colspan="4" />
                   <field name="forward_active" />
                   <newline />
-                  <field name="forward_address" nolabel="1" placeholder="my@temporarymail.comXanother@mailaddress.com" colspan="4" attrs="{'invisible': [('forward_active', '=', False)], 'required':[('forward_active', '=', True)]}" />
+                  <field name="forward_address" nolabel="1" placeholder="my@temporarymail.com" colspan="4" attrs="{'invisible': [('forward_active', '=', False)], 'required':[('forward_active', '=', True)]}" />
                   <field name="forward_cp" col="2" colspan="4" attrs="{'invisible': [('forward_active', '=', False)]}" />
                   <separator string="Virus check" colspan="4" />
                   <field name="virus_active" colspan="4" />
@@ -69,23 +77,24 @@
                   <field name="spam_tag" colspan="4" attrs="{'invisible': [('spam_active', '=', False),], 'required':[('spam_active', '=', True)]}" />
                   <field name="spam_tag2" colspan="4" attrs="{'invisible': [('spam_active', '=', False),], 'required':[('spam_active', '=', True)]}" />
                   <field name="spam_killevel" colspan="4" attrs="{'invisible': [('spam_active', '=', False),], 'required':[('spam_active', '=', True)]}" />
-                  <separator string="Misc" colspan="4" />
+
+                  <separator string="Alias" />
+                  <newline />
+                  <field name="postfix_alias" nolabel="1" widget="one2many_list" colspan="4">
+                    <tree editable="bottom" string="Mail alias">
+                      <field name="name" />
+                      <field name="mail" attrs="{'invisible': [('name', '=', ''),]}" class="oe_read_only"/>
+                      <field name="active" />
+                    </tree>
+                  </field>
+                 
+                   <separator string="Misc" colspan="4" />
                   <field name="maildir" />
                   <newline />
                   <field name="transport" />
                   <newline />
                   <field name="quota" />
                   <newline />
-                  <field name="domain" />
-                  <newline />
-                  <separator string="Alias" />
-                  <newline />
-                  <field name="mail_alias" nolabel="1" widget="one2many_list" colspan="4">
-                    <tree editable="bottom" string="Mail alias">
-                      <field name="mail" />
-                      <field name="active" />
-                    </tree>
-                  </field>
                 </group>
               </group>
             </page>
@@ -102,8 +111,14 @@
       <field name="arch" type="xml">
         <data>
           <page string="Configuration" position="inside">
-            <separator string="Internet Domain" colspan="4" />
-            <field name="domain" string="Domain" />
+            <separator string="E-mail settings" colspan="2" />
+            <group>
+                <field name="domain"/>
+                <field name="catchall" />
+                <field name="default_quota" class="oe_inline"/><span class="oe_inline">MB</span><newline />
+                <field name="total_quota" />
+                <field name="nbr_users"/>
+            </group>
             <newline />
           </page>
         </data>
