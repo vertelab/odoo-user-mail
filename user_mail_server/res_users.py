@@ -35,5 +35,9 @@ class res_users(models.Model):
 
     @api.model
     def create(self, values):
-        _logger.warning('Overridden create %r values %s' % (self,values))
-        return super(res_users, self).create(values)
+		_logger.warn("In create serverside::::::::::::::")
+		ctx = self.env.context.copy()
+		ctx.update({'no_reset_password' : True})
+		return super(res_users, self.with_context(ctx)).create(values)
+
+        #return super(res_users, self).create(values, context=context)

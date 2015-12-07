@@ -87,7 +87,7 @@ class res_users(models.Model):
             record['dovecot_password'] = self.generate_dovecot_sha512(record['new_password'])
             self.env['res.users.password'].update_pw(self.id, record['new_password'])
 
-        record['mail_alias'] = [(0,0,{'mail':m.mail,'active':m.active}) for m in self.mail_alias]
+        record['postfix_alias'] = [(0,0,{'mail':m.mail,'active':m.active}) for m in self.postfix_alias]
         remote_user_id = SYNCSERVER.remote_user(self)
 
         if remote_user_id:
@@ -124,8 +124,12 @@ class res_users(models.Model):
             values['dovecot_password'] = self.generate_dovecot_sha512(passwd)
 
         values['remote_id'] = self.generateUUID()
+
+        ctx = self.env.context.copy()
+        ctx.update({'no_reset_password' : False})
+        user = super(res_users, self.with_context(ctx)).create(values)
            
-        user = super(res_users, self).create(values)
+        #user = super(res_users, self).create(values)
 
         return user
 
@@ -226,7 +230,7 @@ class res_company(models.Model):
             'login': self.catchall,
             'postfix_active': True, 
             'email': self.catchall, 
-            'mail_alias': [(0,0,{'mail': '@%s' % self.domain,'active':True})],
+            'postfix_alias': [(0,0,{'mail': '@%s' % self.domain,'active':True})],
             'dovecot_password': self.env['res.users'].generate_dovecot_sha512(new_pw)
         }
 

@@ -66,7 +66,7 @@
                     <newline />
                     <separator string="Alias" readonly="0" />
                     <newline />
-                    <field name="mail_alias" nolabel="1" widget="one2many_list" colspan="4">
+                    <field name="postfix_alias" nolabel="1" widget="one2many_list" colspan="4">
                       <tree editable="bottom" string="Mail alias">
                         <field name="mail" />
                         <field name="active" />
