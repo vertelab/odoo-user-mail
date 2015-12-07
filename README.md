@@ -1,3 +1,4 @@
+```
 INSTALL INSTRUCTIONS
 
 Installing user_mail_client will make the clients update server when changes occur to users or companies,
@@ -119,4 +120,4 @@ table = res_users
 select_field = maildir
 where_field = login 
 additional_conditions = and postfix_active = '1' 
-
+```
