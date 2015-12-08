@@ -1,6 +1,13 @@
 <?xml version="1.0"?>
 <openerp>
     <data>
+
+        <template id="info_assets_frontend" inherit_id="website.assets_frontend" name="Website info frontend assets">
+            <xpath expr="." position="inside">
+            <script type="text/javascript" src="/website_publisher_info/static/src/js/website_publisher_info.js"></script>
+            <link rel="stylesheet" href="/website_publisher_info/static/src/css/website_publisher_info.css"/>
+            </xpath>
+        </template>
 <!--
         <report
             id="website_publisher_info.site_config"
@@ -22,202 +29,318 @@
         </template>
 -->
 
-        <template id="user_info_page">
-            <t t-call="website.layout">
-                <div class="page">
-                    <div class="oe_structure"/>
-                    <div class="row">
-                        <div class="col-xs-6">
-                            <section>
-                                <div class="container">
-                                    <h1 class="text-center"><b>User Information</b></h1>
-                                    <div class="col-md-12">
-                                        <h3><b>Your Domain</b></h3>
-                                        <div class="col-md-12 mb8 mt16">
-                                            <h5><b>​URL: </b></h5>
-                                            <p t-raw="me.company_id.website"/>
-                                        </div>
-                                    </div>
-
-                                    <div class="col-md-12">
-                                        <h3><b>Log In Information</b></h3>
-                                        <div class="col-md-12 mb8 mt16">
-                                            <h5><b>​Username: </b></h5>
-                                            <p t-raw="me.login"/>
-                                        </div>
-                                        <div class="col-md-12 mb16 mt8">
-                                            <h5><b>Password: </b></h5>
-                                            <p t-field="me.passwd_tmp"/>
-                                        </div>
-                                    </div>
-
-                                    <div class="col-md-12">
-                                        <h3><b>Webmail</b></h3>
-                                        <div class="col-md-12 mb8 mt16">
-                                            <h5><b>​Username: </b></h5>
-                                            <p t-raw="me.login"/>
-                                        </div>
-                                        <div class="col-md-12 mb16 mt8">
-                                            <h5><b>Password: </b></h5>
-                                            <p t-raw="me.passwd_tmp"/>
-                                        </div>
-                                    </div>
-<!--
-                                    <H1>Webmail</H1>
-                                    <p>This is your credentials for webmail</p>
-                                    <table class="table table-bordered table-responsive">
-                                        <tbody>
-                                            <tr>
-                                                <td>
-                                                    URL
-                                                </td>
-                                                <td t-raw="'http://epost.' + (o.company_id.domain or 'example.com')"/>
-                                            </tr>
-                                            <tr>
-                                                <td>​Username</td>
-                                                <td colspan="4" t-raw="o.login"/>
-                                            </tr>
-                                            <tr>
-                                                <td>Password</td>
-                                                <td colspan="4" t-raw="o.passwd_mail" />
-                                            </tr>
-                                        </tbody>
-                                    </table>
--->
-                                </div>
-                            </section>
-                        </div>
-                    </div>
-                    <div class="oe_structure"/>
-                </div>
-            </t>
-        </template>
-
-       <template id="user_info" inherit_id="website.layout" name="Publisher Info">
-            <xpath expr="//ul[@class='dropdown-menu js_usermenu']/li[1]" position="after">
-                <li><a href="/website/user_info">User Info</a></li>
-            </xpath>
-        </template>
-
+        <!-- publisher info -->
         <template id="publisher_info" inherit_id="website.layout" name="Publisher Info">
             <xpath expr="//ul[@class='dropdown-menu js_usermenu']/li[1]" position="after">
                 <li><a href="/website/publisher_info">Publisher Info</a></li>
             </xpath>
         </template>
-        <template id="publisher_info_page">
+
+        <!-- publisher info template -->
+        <template id="publisher_info_template" name="Publisher info template">
             <t t-call="website.layout">
-                <section>
-                    <div class="container mt32 mb32">
-                        <h1 class="text-center"><b>Instruktioner för webbredaktör</b></h1>
-                        <div class="col-md-12 col-xs-12">
-                            <div class="col-md-6 col-xs-12 mt64 mb32">
-                                <h3 class="text-muted"><b>Byta lösenord</b></h3>
-                                <p>För att byta lösenord för användare ska du</p>
-                                <ul style="list-style:none;">
-                                    <li>Gå till Inställningar som du kan hitta längst upp på den svarta menyn</li>
-                                    <li>Gå till <i>Användare</i>, välj den användare du vill byta lösenord till</li>
-                                    <li>Tryck på fler-knappen och sedan på <i>ändra lösenord</i></li>
-                                    <li>Skriv det nya lösenordet under <i>New Password</i></li>
-                                    <li>När du är klar trycker du på <i>Ändra lösenord-knappen</i></li>
-                                </ul>
-                            </div>
-                            <div class="col-md-6 col-xs-12 mt64 mb32">
-                                <h3 class="text-muted"><b>Skapa användare</b></h3>
-                                <p>För att skapa användare ska du</p>
-                                <ul style="list-style:none;">
-                                    <li>Gå till Inställningar som du kan hitta längst upp på den svarta menyn</li>
-                                    <li>Gå till <i>Användare</i>,  tryck sedan på den röda <i>Skapa</i>-knappen</li>
-                                    <li>Fyll i användarens uppgifter och tryck sedan på <i>Spara</i>-knappen</li>
-                                    <li>För att användaren ska kunna komma åt kontot trycker du på <i>Send an invitation Email</i>som du kan hitta till höger på sidan</li>
-                                </ul>
-                            </div>
-                        </div>
-                        <div class="col-md-12 col-xs-12">
-                            <div class="col-md-6 col-xs-12 mt32 mb32">
-                                <h3 class="text-muted"><b>Ta bort användare</b></h3>
-                                <p>För att ta bort användare ska du</p>
-                                <ul style="list-style:none;">
-                                    <li>Gå till Inställningar som du kan hitta längst upp på den svarta menyn</li>
-                                    <li>Gå till <i>Användare</i></li>
-                                    <li>Markera den användare du vill ta bort</li>
-                                    <li>Tryck på knappen <i>Fler</i> och sedan på <i>Ta bort</i></li>
-                                </ul>
-                            </div>
-                            <div class="col-md-6 col-xs-12 mt32 mb32">
-                                <h3 class="text-muted"><b>Redigera kontaktuppgifter</b></h3>
-                                <p>För att redigera dina kontaktuppgifter som visas på sidan kan ska du</p>
-                                <ul style="list-style:none;">
-                                    <li>Tryck på menyvalet <i>Kontakta oss</i> där hittar du en knapp till höger med texten <i>Change address</i></li>
-                                    <li>Tryck på knappen <i>Change adress</i>. Du kommer nu till en ny sida.</li>
-                                    <li>Tryck på <i>Redigera</i>-knappen och ändra de kontaktauppgifter du vill ändra på. </li>
-                                    <li>Du kan även byta företagsbilden genom att trycka på pennan som syns när du pekar på bilden.</li>
-                                    <li>Välj nu en ny bild till företaget och tryck sedan på <i>Spara</i>-knappen.</li>
-                                </ul>
-                                <p>Tryck på <i>Webbplats</i> uppe i den svarta menyn för att komma tillbaka till webbplatsen.</p>
-                            </div>
-                        </div>
-                        <div class="col-md-12 col-xs-12">
-                            <div class="col-md-6 col-xs-12 mt32 mb32">
-                                <h3 class="text-muted"><b>Lägg till menyval</b></h3>
-                                <p>För att lägga till ett menyval ska du</p>
-                                <ul style="list-style:none;">
-                                    <li>Börja med att trycka på <i>Innehåll</i>-knappen uppe i högra hörnet och sedan <br/>på <i>Ändra menyn</i></li>
-                                    <li>Tryck på <i>Lägg till menyval</i> och fyll sedan i informationen för det nya menyvalet</li>
-                                </ul>
-                            </div>
-                            <div class="col-md-6 col-xs-12 mt32 mb32">
-                                <h3 class="text-muted"><b>Ändra menyval</b></h3>
-                                <p>För att byta ett menyval ska du</p>
-                                <ul>
-                                    <li>Börja med att trycka på <i>Innehåll</i>-knappen uppe i högra hörnet och sedan på <i>Ändra menyn</i></li>
-                                    <li>Tryck på pennan vid det menyval du vill ändra på och sedan ändra informationen till detta menyval</li>
-                                </ul>
-                                <p>Du kan även byta ordning på menyvalen genom att trycka på knappen men tre linjer vid menyvalet och sedan dra det upp eller ner.</p>
-                            </div>
-                        </div>
-                        <div class="col-md-12 col-xs-12 mt32 mb32">
-                            <div class="col-md-12 col-xs-12">
-                                <h3 class="text-muted"><b>Byta bilder</b></h3>
-                                <p>För att byta en bild ska du</p>
-                                <ul style="list-style:none;">
-                                    <li>Trycka på <i>Ändra</i>-knappen uppe i vänstra hörnet</li>
-                                    <li>Tryck på bilden du vill byta, du får nu fram en <i>Anpassa</i>-knapp</li>
-                                    <li>Tryck på <i>Anpassa</i>-knappen och sedan på <i>Ändra</i></li>
-                                    <li>Du får nu tre val
-                                        <ul style="margin-left: 15px;">
-                                            <li>Du kan välja en tidigare använd bild genom att markera den och sedan trycka på <i>Spara</i>-knappen</li>
-                                            <li>Du kan välja en ny bild från datorn genom att trycka på pilen vid knappen <i>Ladda upp en bild från din dator</i> och sedan på <i>ladda upp bild utan optimering</i>.
-                                                Du får nu välja bild och bilden laddas upp på sidan
-                                            </li>
-                                            <li>Du kan även klistra in en länk för en bild i fältet <i>lägg till bildens URL</i> och sedan trycka på <i>lägg in</i>-knappen</li>
+                <body data-spy="scroll" data-target=".navspy" data-offset="50">
+
+                    <div class="container o_website_info">
+                        <div class="row mt16">
+
+                            <div class="col-md-3" style="position: fixed; left: 20px; top: 100px;">
+                                <div class="bs-sidebar" style="background-color: rgba(0,0,0,0.1); border: 0px solid #aaa; border-radius: 10px;">
+                                    <div class="hidden-print navspy" t-ignore="true" role="complementary">
+                                        <ul class="nav bs-sidenav" data-id="info_sidebar">
+
                                         </ul>
-                                    </li>
-                                    <li>När du är nöjd med bilden trycker du på <i>Spara</i>-knappen</li>
-                                </ul>
+                                    </div>
+                                </div>
                             </div>
-                        </div>
-                        <div class="col-md-12 col-xs-12 mt32 mb32">
-                            <div class="col-md-12 col-xs-12">
-                                <h3 class="text-muted"><b>Lägga in video</b></h3>
-                                <p>För att lägga in video ska du</p>
-                                <img class="mt32 mb32 img-responsive" src="/website_publisher_info/static/src/img/addvideo.png" style="align:left"/>
-                                <ul style="list-style:none;">
-                                    <li>Trycka på <i>Ändra</i>-knappen uppe i vänstra hörnet</li>
-                                    <li>Du får upp en ruta med bilder, du väljer video som finns under <i>Select a Media</i></li>
-                                    <li>Du får då två alternativ
-                                        <ul style="margin-left: 15px;">
-                                            <li>Att skriva in URL för videon</li>
-                                            <li>Att skriva in en HTML till video URL:en som det står i rutan</li>
-                                        </ul>
-                                    </li>
-                                    <li>När du har valt en metod kan du även välja att aktivera <i>Autoplay</i></li>
-                                    <li>När du är klar trycker du på <i>Spara</i>-knappen</li>
-                                </ul>
-                            </div>
+
+                            <section id="introduction">
+                                <div class="container">
+                                    <h1 class="page-header text-center" data-header="true">
+                                        Welcome
+                                    </h1>
+                                    <div class="oe_structure"/>
+                                </div>
+                            </section>
+
+                            <section id="user_info_page">
+                                <div class="container text-center">
+                                    <t t-call="website_publisher_info.user_info_page"/>
+                                    <div class="oe_structure"/>
+                                </div>
+                            </section>
+
+                            <section id="installed_app_page">
+                                <div class="container">
+                                    <t t-call="website_publisher_info.installed_app_page"/>
+                                    <div class="oe_structure"/>
+                                </div>
+                            </section>
+
+                            <section id="installed_module_page">
+                                <div class="container">
+                                    <t t-call="website_publisher_info.installed_module_page"/>
+                                    <div class="oe_structure"/>
+                                </div>
+                            </section>
+
+                            <section id="instruction_page">
+                                <div class="container">
+                                    <t t-call="website_publisher_info.instruction_page"/>
+                                    <div class="oe_structure"/>
+                                </div>
+                            </section>
+
                         </div>
                     </div>
-                </section>
+                </body>
             </t>
+        </template>
+
+
+        <!-- user info -->
+        <template id="user_info_page">
+            <h1 class="text-center" data-header="true"><b>User information</b></h1>
+            <div class="col-md-12">
+                <h3><b>Your Domain</b></h3>
+                <div class="col-md-12 mb8 mt16">
+                    <h5><b>​URL: </b></h5>
+                    <p t-raw="me.company_id.website"/>
+                </div>
+            </div>
+
+            <div class="col-md-12">
+                <h3><b>Log In Information</b></h3>
+                <div class="col-md-12 mb8 mt16">
+                    <h5><b>​Username: </b></h5>
+                    <p t-raw="me.login"/>
+                </div>
+                <div class="col-md-12 mb16 mt8">
+                    <h5><b>Password: </b></h5>
+                    <p t-field="me.passwd_tmp"/>
+                </div>
+            </div>
+
+            <div class="col-md-12">
+                <h3><b>Webmail</b></h3>
+                <div class="col-md-12 mb8 mt16">
+                    <h5><b>​Username: </b></h5>
+                    <p t-raw="me.login"/>
+                </div>
+                <div class="col-md-12 mb16 mt8">
+                    <h5><b>Password: </b></h5>
+                    <p t-raw="me.passwd_tmp"/>
+                </div>
+            </div>
+<!--
+            <H1>Webmail</H1>
+            <p>This is your credentials for webmail</p>
+            <table class="table table-bordered table-responsive">
+                <tbody>
+                    <tr>
+                        <td>
+                            URL
+                        </td>
+                        <td t-raw="'http://epost.' + (o.company_id.domain or 'example.com')"/>
+                    </tr>
+                    <tr>
+                        <td>​Username</td>
+                        <td colspan="4" t-raw="o.login"/>
+                    </tr>
+                    <tr>
+                        <td>Password</td>
+                        <td colspan="4" t-raw="o.passwd_mail" />
+                    </tr>
+                </tbody>
+            </table>
+-->
+        </template>
+
+        <!-- installed application -->
+        <template id="installed_app_page">
+            <h1 class="text-center" data-header="true"><b>Installed Applications</b></h1>
+            <t t-set="apps" t-value="request.env['ir.module.module'].sudo().search([('state', '=', 'installed'), ('application', '=', 'true')], order='shortdesc')"/>
+            <dl class="dl-horizontal mt32 mb32" t-foreach="apps" t-as="app">
+                <dt>
+                    <a t-att-href="'/website/publisher_info/%i' % app.id" t-if="app.name">
+                        <t t-raw="app.shortdesc"/>
+                    </a>
+                    <span t-raw="app.shortdesc" t-if="not app.website"/>
+                </dt>
+                <dd>
+                    <span t-raw="app.summary"/>
+                </dd><dd class="text-muted" groups="base.group_no_one">
+                    Technical name: <span t-field="app.name"/>, updated: <span t-field="app.write_date"/>, author: <span t-field="app.author"/>
+                </dd>
+            </dl>
+        </template>
+
+        <template id="publisher_info_module">
+            <t t-call="website.layout">
+                <div id="wrap" class="oe_structure oe_empty">
+                    <section>
+                        <div class="container">
+                            <div class="row">
+                                <div class="col-md-12">
+                                    <span t-field="module.description_html"/>
+                                </div>
+                            </div>
+                        </div>
+                    </section>
+                </div>
+            </t>
+        </template>
+
+
+        <!-- installed module -->
+        <template id="installed_module_page">
+            <h1 class="text-center" data-header="true"><b>Installed module</b></h1>
+            <t t-set="modules" t-value="request.env['ir.module.module'].sudo().search([('state', '=', 'installed')], order='shortdesc')"/>
+            <dl class="dl-horizontal mt32 mb32">
+                <t t-foreach="modules" t-as="app">
+                    <dt>
+                        <span t-raw="app.shortdesc"/>
+                    </dt>
+                    <dd t-if="app.summary">
+                        <span t-raw="app.summary"/>
+                    </dd><dd>
+                        Technical name: <span t-field="app.name"/>,
+                        updated: <span t-field="app.write_date"/>
+                        <t t-if="app.author">
+                            , author: <span t-field="app.author"/>
+                        </t>
+                    </dd>
+                </t>
+            </dl>
+<!--
+            <t t-set="modules" t-value="request.env['ir.module.module'].sudo().search([('state', '=', 'installed')], order='shortdesc')"/>
+            <div class="col-md-6 mt32 mb32">
+                <ul>
+                    <t t-foreach="modules[:len(modules)/2+1]" t-as="m">
+                        <li><h4><strong><t t-esc="m.shortdesc"/></strong></h4></li>
+                    </t>
+                </ul>
+            </div>
+            <div class="col-md-6 mt32 mb32">
+                <ul>
+                    <t t-foreach="modules[len(modules)/2+1:]" t-as="m">
+                        <li><h4><strong><t t-esc="m.shortdesc"/></strong></h4></li>
+                    </t>
+                </ul>
+            </div>
+-->
+        </template>
+
+
+        <!-- instruction -->
+        <template id="instruction_page">
+            <h1 class="text-center" data-header="true"><b>Instruktioner för webbredaktör</b></h1>
+            <div class="col-md-12 col-xs-12">
+                <div class="col-md-6 col-xs-12 mt32 mb32">
+                    <h3 class="text-muted"><b>Byta lösenord</b></h3>
+                    <p>För att byta lösenord för användare ska du</p>
+                    <ul style="list-style:none;">
+                        <li>Gå till Inställningar som du kan hitta längst upp på den svarta menyn</li>
+                        <li>Gå till <i>Användare</i>, välj den användare du vill byta lösenord till</li>
+                        <li>Tryck på fler-knappen och sedan på <i>ändra lösenord</i></li>
+                        <li>Skriv det nya lösenordet under <i>New Password</i></li>
+                        <li>När du är klar trycker du på <i>Ändra lösenord-knappen</i></li>
+                    </ul>
+                </div>
+                <div class="col-md-6 col-xs-12 mt32 mb32">
+                    <h3 class="text-muted"><b>Skapa användare</b></h3>
+                    <p>För att skapa användare ska du</p>
+                    <ul style="list-style:none;">
+                        <li>Gå till Inställningar som du kan hitta längst upp på den svarta menyn</li>
+                        <li>Gå till <i>Användare</i>,  tryck sedan på den röda <i>Skapa</i>-knappen</li>
+                        <li>Fyll i användarens uppgifter och tryck sedan på <i>Spara</i>-knappen</li>
+                        <li>För att användaren ska kunna komma åt kontot trycker du på <i>Send an invitation Email</i>som du kan hitta till höger på sidan</li>
+                    </ul>
+                </div>
+            </div>
+            <div class="col-md-12 col-xs-12">
+                <div class="col-md-6 col-xs-12 mt32 mb32">
+                    <h3 class="text-muted"><b>Ta bort användare</b></h3>
+                    <p>För att ta bort användare ska du</p>
+                    <ul style="list-style:none;">
+                        <li>Gå till Inställningar som du kan hitta längst upp på den svarta menyn</li>
+                        <li>Gå till <i>Användare</i></li>
+                        <li>Markera den användare du vill ta bort</li>
+                        <li>Tryck på knappen <i>Fler</i> och sedan på <i>Ta bort</i></li>
+                    </ul>
+                </div>
+                <div class="col-md-6 col-xs-12 mt32 mb32">
+                    <h3 class="text-muted"><b>Redigera kontaktuppgifter</b></h3>
+                    <p>För att redigera dina kontaktuppgifter som visas på sidan kan ska du</p>
+                    <ul style="list-style:none;">
+                        <li>Tryck på menyvalet <i>Kontakta oss</i> där hittar du en knapp till höger med texten <i>Change address</i></li>
+                        <li>Tryck på knappen <i>Change adress</i>. Du kommer nu till en ny sida.</li>
+                        <li>Tryck på <i>Redigera</i>-knappen och ändra de kontaktauppgifter du vill ändra på. </li>
+                        <li>Du kan även byta företagsbilden genom att trycka på pennan som syns när du pekar på bilden.</li>
+                        <li>Välj nu en ny bild till företaget och tryck sedan på <i>Spara</i>-knappen.</li>
+                    </ul>
+                    <p>Tryck på <i>Webbplats</i> uppe i den svarta menyn för att komma tillbaka till webbplatsen.</p>
+                </div>
+            </div>
+            <div class="col-md-12 col-xs-12">
+                <div class="col-md-6 col-xs-12 mt32 mb32">
+                    <h3 class="text-muted"><b>Lägg till menyval</b></h3>
+                    <p>För att lägga till ett menyval ska du</p>
+                    <ul style="list-style:none;">
+                        <li>Börja med att trycka på <i>Innehåll</i>-knappen uppe i högra hörnet och sedan <br/>på <i>Ändra menyn</i></li>
+                        <li>Tryck på <i>Lägg till menyval</i> och fyll sedan i informationen för det nya menyvalet</li>
+                    </ul>
+                </div>
+                <div class="col-md-6 col-xs-12 mt32 mb32">
+                    <h3 class="text-muted"><b>Ändra menyval</b></h3>
+                    <p>För att byta ett menyval ska du</p>
+                    <ul>
+                        <li>Börja med att trycka på <i>Innehåll</i>-knappen uppe i högra hörnet och sedan på <i>Ändra menyn</i></li>
+                        <li>Tryck på pennan vid det menyval du vill ändra på och sedan ändra informationen till detta menyval</li>
+                    </ul>
+                    <p>Du kan även byta ordning på menyvalen genom att trycka på knappen men tre linjer vid menyvalet och sedan dra det upp eller ner.</p>
+                </div>
+            </div>
+            <div class="col-md-12 col-xs-12 mt32 mb32">
+                <div class="col-md-12 col-xs-12">
+                    <h3 class="text-muted"><b>Byta bilder</b></h3>
+                    <p>För att byta en bild ska du</p>
+                    <ul style="list-style:none;">
+                        <li>Trycka på <i>Ändra</i>-knappen uppe i vänstra hörnet</li>
+                        <li>Tryck på bilden du vill byta, du får nu fram en <i>Anpassa</i>-knapp</li>
+                        <li>Tryck på <i>Anpassa</i>-knappen och sedan på <i>Ändra</i></li>
+                        <li>Du får nu tre val
+                            <ul style="margin-left: 15px;">
+                                <li>Du kan välja en tidigare använd bild genom att markera den och sedan trycka på <i>Spara</i>-knappen</li>
+                                <li>Du kan välja en ny bild från datorn genom att trycka på pilen vid knappen <i>Ladda upp en bild från din dator</i> och sedan på <i>ladda upp bild utan optimering</i>.
+                                    Du får nu välja bild och bilden laddas upp på sidan
+                                </li>
+                                <li>Du kan även klistra in en länk för en bild i fältet <i>lägg till bildens URL</i> och sedan trycka på <i>lägg in</i>-knappen</li>
+                            </ul>
+                        </li>
+                        <li>När du är nöjd med bilden trycker du på <i>Spara</i>-knappen</li>
+                    </ul>
+                </div>
+            </div>
+            <div class="col-md-12 col-xs-12 mt32 mb32">
+                <div class="col-md-12 col-xs-12">
+                    <h3 class="text-muted"><b>Lägga in video</b></h3>
+                    <p>För att lägga in video ska du</p>
+                    <img class="mt32 mb32 img-responsive" src="/website_publisher_info/static/src/img/addvideo.png" style="align:left"/>
+                    <ul style="list-style:none;">
+                        <li>Trycka på <i>Ändra</i>-knappen uppe i vänstra hörnet</li>
+                        <li>Du får upp en ruta med bilder, du väljer video som finns under <i>Select a Media</i></li>
+                        <li>Du får då två alternativ
+                            <ul style="margin-left: 15px;">
+                                <li>Att skriva in URL för videon</li>
+                                <li>Att skriva in en HTML till video URL:en som det står i rutan</li>
+                            </ul>
+                        </li>
+                        <li>När du har valt en metod kan du även välja att aktivera <i>Autoplay</i></li>
+                        <li>När du är klar trycker du på <i>Spara</i>-knappen</li>
+                    </ul>
+                </div>
+            </div>
         </template>
     </data>
 </openerp>
