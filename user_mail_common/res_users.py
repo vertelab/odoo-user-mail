@@ -47,16 +47,16 @@ class postfix_alias(models.Model):
     def _onchange_mail(self):
         self.mail = '%s@%s' % (self.name,self.user_id.company_id.domain)
 
-    mail    = fields.Char(string='Complete Mail Address',size=64, help="Mail as <user>@<domain>, if you are using a foreign domain, make sure that this domain are handled by the same mailserver")
+    mail    = fields.Char(string='Complete Mail Address',size=64, help="Mail as <user>@<domain>, if you are using a foreign domain, make sure that this domain are handled by the same mailserver", store=True)
     name = fields.Char(string='Mailaddress',size=64, help="Mail without domain")
 
-    @api.one
-    @api.constrains('name')
-    def _check_mail(self):
-        if len(self.user_id.company_id.user_ids.mapped('postfix_alias').filtered(lambda r: r.name == self.name))>1:
-            raise ValidationError("E-mail address %s already taken (alias)" % self.mail)
-        if len(self.user_id.company_id.user_ids.filtered(lambda r: r.email == self.mail))>1:
-            raise ValidationError("E-mail address %s already taken (main)" % self.mail)
+    # @api.one
+    # @api.constrains('name')
+    # def _check_mail(self):
+    #     if len(self.user_id.company_id.user_ids.mapped('postfix_alias').filtered(lambda r: r.name == self.name))>1:
+    #         raise ValidationError("E-mail address %s already taken (alias)" % self.mail)
+    #     if len(self.user_id.company_id.user_ids.filtered(lambda r: r.email == self.mail))>1:
+    #         raise ValidationError("E-mail address %s already taken (main)" % self.mail)
 
 email_re = re.compile(r"""^([a-zA-Z0-9._%+-]+)@([a-zA-Z0-9.-]+\.[a-zA-Z]{2,6})$""", re.VERBOSE)
 
@@ -80,7 +80,7 @@ class res_users(models.Model):
     spam_tag =      fields.Selection([('7.0','low (7)'),('3','medium (3)'),('1.5','high (1.5)'),('0','very high (0)')]    ,string='Spam Tag Level' , help="Tagged spam will be marked as spam in your mail client",default='3')
     transport = fields.Char('Transport', size=64,default="virtual:")
     domain  = fields.Char(related="company_id.domain",string='Domain', size=64,store=True, readonly=True)
-    postfix_alias = fields.One2many('postfix.alias', 'user_id', string='Alias', copy=False, ondelete="cascade")
+    postfix_alias_ids = fields.One2many('postfix.alias', 'user_id', string='Alias', copy=False, ondelete="cascade", oldname="mail_alias")
     dovecot_password = fields.Char()
     postfix_mail = fields.Char(string="Real Mail Address")
     remote_id = fields.Char(string='Remote ID', size=64)
@@ -109,7 +109,7 @@ class res_users(models.Model):
             self.partner_id.email = self.login
 
     email = fields.Char(help="Your e-mail address, Company or External")
-    email = fields.Char(readonly=True,invisible=False)
+    email = fields.Char(invisible=False)
     login = fields.Char(string="Email or login")
     login = fields.Char(help="External e-mail or login. Your Company e-mail address are constructed from login")   
     

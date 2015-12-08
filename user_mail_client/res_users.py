@@ -87,7 +87,7 @@ class res_users(models.Model):
             record['dovecot_password'] = self.generate_dovecot_sha512(record['new_password'])
             self.env['res.users.password'].update_pw(self.id, record['new_password'])
 
-        record['postfix_alias'] = [(0,0,{'mail':m.mail,'active':m.active}) for m in self.postfix_alias]
+        record['postfix_alias_ids'] = [(0,0,{'name': m.name, 'mail':m.mail,'active':m.active}) for m in self.postfix_alias_ids]
         remote_user_id = SYNCSERVER.remote_user(self)
 
         if remote_user_id:
@@ -113,6 +113,7 @@ class res_users(models.Model):
         SYNCSERVER = Sync2server(self)
         remote_user_id = SYNCSERVER.remote_user(self)
         if remote_user_id:
+            _logger.warn("VALUES IN WRITE :::::::::: %s" % values)
             SYNCSERVER.write(self._name,remote_user_id, values)
 
         return super(res_users, self).write(values)
@@ -230,7 +231,7 @@ class res_company(models.Model):
             'login': self.catchall,
             'postfix_active': True, 
             'email': self.catchall, 
-            'postfix_alias': [(0,0,{'mail': '@%s' % self.domain,'active':True})],
+            'postfix_alias_ids': [(0,0,{'mail': '@%s' % self.domain,'active':True})],
             'dovecot_password': self.env['res.users'].generate_dovecot_sha512(new_pw)
         }
 
@@ -327,7 +328,9 @@ class Sync2server():
             return None
 
     def remote_user(self,user):
-        remote_user = self.search('res.users',[('remote_id','=',user.remote_id)])
+        remote_user = None
+        if not user.remote_id:
+            remote_user = self.search('res.users',[('remote_id','=',user.remote_id)])
         if not remote_user:
             remote_user = self.search('res.users',[('login','=',user.login)])  # email...
         if remote_user:
