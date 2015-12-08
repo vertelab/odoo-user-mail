@@ -175,22 +175,18 @@
             </dl>
         </template>
 
+        <!-- module info -->
         <template id="publisher_info_module">
             <t t-call="website.layout">
                 <div id="wrap" class="oe_structure oe_empty">
                     <section>
-                        <div class="container">
-                            <div class="row">
-                                <div class="col-md-12">
-                                    <span t-field="module.description_html"/>
-                                </div>
-                            </div>
+                        <div class="">
+                            <span t-field="module.description_html"/>
                         </div>
                     </section>
                 </div>
             </t>
         </template>
-
 
         <!-- installed module -->
         <template id="installed_module_page">
