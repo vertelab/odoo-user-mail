@@ -7,16 +7,16 @@
 
 
 {
-    'name': 'User mail Common',
+    'name': 'User mail Common mail',
     'version': '1.1',
     'category': 'other',
-    'summary': 'Administation of mail for users',
+    'summary': 'Helper module for user_mail_common',
     'author': 'Vertel AB',
     'website': 'http://www.vertel.se',
-    'depends': ['base', 'base_setup',],
-    'data': ['security/user_mail_security.xml', 'security/ir.model.access.csv', 'res_users_view.xml'],
+    'depends': ['user_mail_common', 'mail',],
+    'data': [],
     'installable': True,
     'application': False,
-    #'auto_install': False,
+    'auto_install': True,
 }
 # vim:expandtab:smartindent:tabstop=4:softtabstop=4:shiftwidth=4:

@@ -1,0 +1,8 @@
+<?xml version="1.0"?>
+<openerp>
+  <data noupdate="1">
+    <!--<function model="res.users" name="_set_remote_id" />
+    <function model="res.company" name="_set_remote_id" />-->
+  
+  </data>
+</openerp>
