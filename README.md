@@ -120,4 +120,55 @@ table = res_users
 select_field = maildir
 where_field = postfix_mail 
 additional_conditions = and postfix_active = '1' 
+
+----/etc/dovecot/dovecot-sql.conf.ext
+
+...
+
+# Database driver: mysql, pgsql, sqlite
+driver = pgsql
+...
+# Examples:
+#   connect = host=192.168.1.1 dbname=users
+#   connect = host=sql.example.com dbname=virtual user=virtual password=blarg
+#   connect = /etc/dovecot/authdb.sqlite
+#
+connect = host=<hostname> dbname=<database> user=<postgres user> password=<postgres password>
+
+#default_pass_scheme = MD5
+default_pass_scheme = SHA512-CRYPT
+#default_pass_scheme = MD5-CRYPT
+#default_pass_scheme = PLAIN
+
+# Example:
+#   password_query = SELECT userid AS user, pw AS password \
+#     FROM users WHERE userid = '%u' AND active = 'Y'
+#
+#password_query = \
+#  SELECT username, domain, password \
+#  FROM users WHERE username = '%n' AND domain = '%d'
+
+password_query = SELECT postfix_mail as user, dovecot_password as password FROM res_users WHERE postfix_mail = '%u'
+#password_query = SELECT user_email as user, password FROM res_users WHERE user_email = '%u'
+#password_query = SELECT user_email as user, password, 'Y' as proxy FROM res_users WHERE user_email = '%u'
+# Examples:
+#   user_query = SELECT home, uid, gid FROM users WHERE userid = '%u'
+#   user_query = SELECT dir AS home, user AS uid, group AS gid FROM users where userid = '%u'
+#   user_query = SELECT home, 501 AS uid, 501 AS gid FROM users WHERE userid = '%u'
+#
+#user_query = \
+#  SELECT home, uid, gid \
+#  FROM users WHERE username = '%n' AND domain = '%d'
+user_query = SELECT 5000 as uid, 5000 as gid, '/var/lib/vmail/domains/' || maildir as home, quota as userdb_quota FROM res_users WHERE postfix_mail ='%u'
+
+
+# Query to get a list of all usernames.
+#iterate_query = SELECT user_email AS user FROM res_users
+iterate_query = SELECT postfix_mail AS user FROM res_users
+
+
+
+
 ```
+
+
