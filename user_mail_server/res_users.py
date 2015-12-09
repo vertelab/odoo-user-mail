@@ -26,20 +26,13 @@ _logger = logging.getLogger(__name__)
 class res_users(models.Model):
     _inherit = 'res.users' 
 
-    @api.one
-    def unlink(self):
-        user_id = self.env['res.users'].search([('login','=',self.login)]).id
-        postfix_alias_id = self.env['postfix.alias'].search([('user_id', '=', user_id)]).unlink()
-
-        return super(res_users, self).unlink()
-
     @api.model
     def create(self, values):
-		_logger.warn("In create serverside::::::::::::::")
+		#_logger.info("In create serverside::::::::::::::")
 		ctx = self.env.context.copy()
 		ctx.update({'no_reset_password' : True})
 		return super(res_users, self.with_context(ctx)).create(values)
-        #return super(res_users, self).create(values, context=context)
+
     @api.one
     def write(self,values):
         #raise Warning(values)
@@ -48,3 +41,10 @@ class res_users(models.Model):
             from passlib.hash import sha512_crypt
             values['dovecot_password'] = sha512_crypt.encrypt(values.get('password'))
         return super(res_users, self).write(values)
+
+    @api.one
+    def unlink(self):
+        user_id = self.env['res.users'].search([('login','=',self.login)]).id
+        postfix_alias_id = self.env['postfix.alias'].search([('user_id', '=', user_id)]).unlink()
+        return super(res_users, self).unlink()
+
