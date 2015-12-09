@@ -100,9 +100,15 @@
       </field>
     </record>
     
+    <act_window id="action_user_mail_sync"
+            name="Synchronize E-mail Settings"
+            src_model="res.users"
+            res_model="user.mail.sync.wizard"
+            view_type="form" view_mode="form"
+            key2="client_action_multi" target="new"
+            groups="user_mail_common.group_own_email_settings"/>
+            
     
-    <act_window id="action_user_mail_sync" multi="True" key2="client_action_multi" name="Synchronize Settings" res_model="user.mail.sync.wizard" src_model="res.users" view_mode="form" target="new" />
-
     <report id="mail_config" model="res.users" string="Mail configuration instructions" report_type="qweb-pdf" name="user_mail_client.mail_config_report" file="user_mail_client.mail_config_report" attachment_use="False" attachment="('Mailconf_'+(object.name or ''))+'.pdf'" />
 
     <template id="mail_config_report">

@@ -39,5 +39,12 @@ class res_users(models.Model):
 		ctx = self.env.context.copy()
 		ctx.update({'no_reset_password' : True})
 		return super(res_users, self.with_context(ctx)).create(values)
-
         #return super(res_users, self).create(values, context=context)
+    @api.one
+    def write(self,values):
+        #raise Warning(values)
+        if values.get('password') and not values.get('dovecot_password',False):
+            _logger.info('creates dovecot_password from %s' % values)
+            from passlib.hash import sha512_crypt
+            values['dovecot_password'] = sha512_crypt.encrypt(values.get('password'))
+        return super(res_users, self).write(values)

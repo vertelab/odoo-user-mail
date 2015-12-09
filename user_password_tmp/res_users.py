@@ -31,9 +31,7 @@ class res_users(models.Model):
     def _passwd_tmp(self):
         user_pw = self.env['res.users.password'].search([('user_id','=',self.id)])
         self.passwd_tmp = user_pw.passwd_tmp and user_pw.passwd_tmp or _('N/A')
-
     passwd_tmp = fields.Char(compute='_passwd_tmp',string='Password')
-
 
     @api.one
     def write(self,values):
@@ -42,12 +40,6 @@ class res_users(models.Model):
             self.env['res.users.password'].update_pw(self.id, passwd)
         return super(res_users, self).write(values)
 
-    @api.model
-    def create(self, values):
-        passwd = values.get('password') or values.get('new_password')
-        if passwd:
-            self.env['res.users.password'].update_pw(self.id, passwd)
-        return super(res_users, self).create(values)
 
 class users_password(models.TransientModel):
     _name = "res.users.password"

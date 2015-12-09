@@ -51,7 +51,7 @@ user = <postgres user>
 password = <postgres user password>
 hosts = <main server>
 dbname = <main server dbname (passwd_dbname)> 
-query = SELECT login FROM res_users WHERE login='%s' and active = '1'  and forward_active = '0'
+query = SELECT postfix_mail FROM res_users WHERE postfix_mail='%s' and active = '1'  and forward_active = '0'
 
 
 -------/etc/postfix/virtual_alias_maps.cf-------
@@ -61,7 +61,7 @@ password = <postgres user password>
 hosts = <main server>
 dbname = <main server dbname (passwd_dbname)> 
 table = postfix_alias p, res_users r 
-select_field = login 
+select_field = postfix_mail 
 where_field = p.mail
 additional_conditions = and p.user_id = r.id and p.active = '1' 
 
@@ -83,8 +83,8 @@ password = <postgres user password>
 hosts = <main server>
 dbname = <main server dbname (passwd_dbname)> 
 table = res_users 
-select_field = forward_address||', '||login 
-where_field = login
+select_field = forward_address||', '||postfix_mail 
+where_field = postfix_mail
 additional_conditions = and forward_active = '1' and forward_cp = '1' 
 
 
@@ -96,7 +96,7 @@ hosts = <main server>
 dbname = <main server dbname (passwd_dbname)> 
 table = res_users 
 select_field = forward_address 
-where_field = login
+where_field = postfix_mail
 additional_conditions = and forward_active = '1' and forward_cp = '0' 
 
 -------/etc/postfix/virtual_mailbox_limit_maps.cf-------
@@ -107,7 +107,7 @@ hosts = <main server>
 dbname = <main server dbname (passwd_dbname)> 
 table = res_users  
 select_field = quota
-where_field = login 
+where_field = postfix_mail
 additional_conditions = and postfix_active = '1'
 
 -------/etc/postfix/virtual_mailbox_maps.cf-------
@@ -118,6 +118,6 @@ hosts = <main server>
 dbname = <main server dbname (passwd_dbname)> 
 table = res_users  
 select_field = maildir
-where_field = login 
+where_field = postfix_mail 
 additional_conditions = and postfix_active = '1' 
 ```

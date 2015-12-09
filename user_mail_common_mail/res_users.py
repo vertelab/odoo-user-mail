@@ -36,4 +36,4 @@ class res_users(models.Model):
                 self.alias_id.alias_name = values.get('login')
             else:
                 self.alias_id.alias_name = email_re.match(values.get('login')).groups()[0] or ''
-            raise Warning('%s match %s' % (values.get('login'),email_re.match(values.get('login')).groups()))
+            #raise Warning('%s match %s' % (values.get('login'),email_re.match(values.get('login')) and email_re.match(values.get('login')).groups()) or '')

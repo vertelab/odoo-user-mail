@@ -87,29 +87,23 @@ class res_users(models.Model):
     vacation_to = fields.Date('To',help="Vacation ends")
     vacation_forward = fields.Char('Forward', size=64,help="Mailaddress to send messages during vacation")
     virus_active = fields.Boolean('Virus Check',default=True)
-    
-    @api.model
-    def _quota_get(self):
-        return self.company_id.default_quota
-
-#    quota = fields.Integer('Quota',default=lambda s: s.company_id.default_quota)
-    quota = fields.Integer('Quota',default=_quota_get)
+    quota = fields.Integer('Quota',)
 
     @api.one
     @api.depends('company_id.domain','login')
     def _maildir_get(self):
         self.maildir = "%s/%s/" % (self.domain,self.postfix_mail)
         self.alias_name = self.login
-
     maildir = fields.Char(compute="_maildir_get",string='Maildir',size=64,store=True)
 
     @api.one
     @api.onchange('login')
     def _email(self):
-        if not email_re.match(self.login):
-            self.partner_id.email = '%s@%s' % (self.login,self.domain)
-        else:
-            self.partner_id.email = self.login
+        if self.partner_id:
+            if not email_re.match(self.login):
+                self.partner_id.email = '%s@%s' % (self.login,self.domain)
+            else:
+                self.partner_id.email = self.login
 
     email = fields.Char(help="Your e-mail address, Company or External")
     email = fields.Char(invisible=False)
@@ -129,12 +123,14 @@ class res_users(models.Model):
                         ]
     @api.model
     def create(self,values):    # TODO: this does not create partner_id.email
+        company = self.env['res.company'].browse(values.get('company_id'))
         if values.get('login') and not email_re.match(values.get('login')):  # login is not an email address
-            values['postfix_mail'] = '%s@%s' % (values.get('login'),self.env.ref('base.main_company').domain)
-            values['email'] = '%s@%s' % (values.get('login'),self.env.ref('base.main_company').domain)
+            values['postfix_mail'] = '%s@%s' % (values.get('login'),company.domain)
+            values['email'] = '%s@%s' % (values.get('login'),company.domain)
         elif values.get('login') and email_re.match(values.get('login')):    # login is an (external) email address, use only left part
-            values['postfix_mail'] = '%s@%s' % (email_re.match(values.get('login')).groups()[0],self.env.ref('base.main_company').domain)
-            values['email'] = '%s@%s' % (email_re.match(values.get('login')).groups()[0],self.env.ref('base.main_company').domain)
+            values['postfix_mail'] = '%s@%s' % (email_re.match(values.get('login')).groups()[0],company.domain)
+            values['email'] = values.get('login')
+        values['quota'] = company.default_quota
         return super(res_users,self).create(values)
    
     @api.one
@@ -169,10 +165,7 @@ class res_company(models.Model):
 
     def _domain(self):
         return self.env['ir.config_parameter'].get_param('mail.catchall.domain')
-#    @api.onchange('domain')
-#    def onchange_domain(self):
-#        self.env['ir.config_parameter'].set_param('mail.catchall.domain',self.domain)
-    domain = fields.Char(string='Domain',help="the internet domain for mail",default=_domain)
+    domain = fields.Char(string='Domain',help="the internet domain for mail",default=_domain,required=True)
 
     @api.one
     def _nbr_users(self):
