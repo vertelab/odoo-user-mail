@@ -33,7 +33,9 @@
                 <group colspan="4" col="4" string="E-mail Settings">
                   <field name="postfix_active" col="2" colspan="4" readonly="0" />
                   <newline />
+
                   <group attrs="{'invisible': [('postfix_active','=',False)],}" colspan="4" col="4">
+<!--
                     <separator string="Vacation" colspan="4" />
                     <field name="vacation_active" readonly="0" />
                     <newline />
@@ -42,6 +44,7 @@
                     <field name="vacation_subject" placeholder="I am at vacation" colspan="4" attrs="{'invisible': [('vacation_active', '=', False)], 'required':[('vacation_active', '=', True)]}" />
                     <field name="vacation_text" nolabel="1" colspan="4" attrs="{'invisible': [('vacation_active', '=', False)], 'required':[('vacation_active', '=', True)]}" readonly="0" />
                     <field name="vacation_forward" placeholder="my@vacationmail.com" col="2" colspan="4" attrs="{'invisible': [('vacation_active', '=', False)], 'required':[('vacation_active', '=', True)]}" readonly="0" />
+-->
                     <separator string="Forward" colspan="4" />
                     <field name="forward_active" readonly="0" />
                     <newline />
