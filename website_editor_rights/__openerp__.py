@@ -14,7 +14,7 @@
     'author': 'Vertel AB',
     'website': 'http://www.vertel.se',
     'depends': ['website', ],
-    'data': ['website_editor_rights.xml','security/ir.model.access.csv'],
+    'data': ['website_editor_rights.xml'],
 
     'installable': True,
     'application': False,

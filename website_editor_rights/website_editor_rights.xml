@@ -7,13 +7,35 @@
             <xpath expr="//ul[@id='oe_systray']/li[@class='dropdown']" position="attributes">
                 <attribute name="groups">base.group_website_publisher</attribute>
             </xpath>
-            <xpath expr="//ul[@class='dropdown-menu oe_content_menu']//li" position="attributes">
+            <xpath expr="//ul[@class='dropdown-menu oe_content_menu']/li[1]" position="attributes">
+                <attribute name="groups">base.group_website_publisher</attribute>
+            </xpath>
+            <xpath expr="//ul[@class='dropdown-menu oe_content_menu']/li[2]" position="attributes">
+                <attribute name="groups">base.group_website_publisher</attribute>
+            </xpath>
+            <xpath expr="//ul[@class='dropdown-menu oe_content_menu']/li[3]" position="attributes">
                 <attribute name="groups">base.group_website_publisher</attribute>
             </xpath>
             <xpath expr="//li[@groups='base.group_website_designer']" position="attributes">
                 <attribute name="groups">base.group_website_publisher</attribute>
             </xpath>
         </template>
+
+        <record id="website.access_website" model="ir.model.access">
+            <field name="group_id" ref="base.group_website_publisher"/>
+        </record>
+        <record id="website.access_website_menu_designer" model="ir.model.access">
+            <field name="group_id" ref="base.group_website_publisher"/>
+        </record>
+        <record id="website.access_website_ir_ui_view" model="ir.model.access">
+            <field name="group_id" ref="base.group_website_publisher"/>
+        </record>
+        <record id="website.access_seo_public" model="ir.model.access">
+            <field name="group_id" ref="base.group_website_publisher"/>
+        </record>
+        <record id="website.access_seo_designer" model="ir.model.access">
+            <field name="group_id" ref="base.group_website_publisher"/>
+        </record>
 
     </data>
 </openerp>
