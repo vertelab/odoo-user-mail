@@ -1,0 +1,19 @@
+<?xml version="1.0"?>
+<openerp>
+    <data>
+
+
+        <!-- publisher info -->
+        <template id="editor_rights" inherit_id="website.user_navbar" name="Editor Rights">
+            <xpath expr="//ul[@id='oe_systray']/li[@class='dropdown']" position="attributes">
+                <attribute name="groups">base.group_website_publisher</attribute>
+            </xpath>
+            <xpath expr="//ul[@class='dropdown-menu oe_content_menu']//li" position="attributes">
+                <attribute name="groups">base.group_website_publisher</attribute>
+            </xpath>
+        </template>
+
+
+    </data>
+</openerp>
+

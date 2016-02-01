@@ -53,11 +53,18 @@
                                     </div>
                                 </div>
                             </div>
-
+                            <t t-if="'website' in [m.name for m in request.env['ir.module.module'].sudo().search([('state', '=', 'installed')])]">
+                                <t t-if="'user_mail' in [m.name for m in request.env['ir.module.module'].sudo().search([('state', '=', 'installed')])]">
+                                    <t t-set="services" t-value="Webbplats och e-post" />
+                                </t>
+                                <t t-if="not 'user_mail' in [m.name for m in request.env['ir.module.module'].sudo().search([('state', '=', 'installed')])]">
+                                    <t t-set="services" t-value="Webbplats" />
+                                </t>
+                            </t>
                             <section id="introduction">
                                 <div class="container">
-                                    <h1 class="page-header text-center" data-header="true">
-                                        Welcome
+                                    <h1 class="page-header text-left" data-header="true">
+                                        Användaruppgifter Odoo <t t-esc="services"/>
                                     </h1>
                                     <div class="oe_structure"/>
                                 </div>

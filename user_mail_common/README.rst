@@ -10,10 +10,15 @@ Administer mail for Odoo-users
 
 
 Mailaddress:
-                        mailaddress                         partner.email            messageing alias (when mail is installed)
-login a login name      <login name>@<domain>               <login name>@<domain>    <login name>@<domain>
-login an external mail  <left part of login name>@<domain>  <login>                  <left part of login name>@<domain>
-login a local mail      <login>                             <login>                  <login>
++----------------------+-----------------------------------+------------------------+--------------------------------------------+
+|                       | mailaddress                       |  partner.email        |  messageing alias (when mail is installed)|
++----------------------+-----------------------------------+------------------------+--------------------------------------------+
+| login a login name     |<login name>@<domain>              |<login name>@<domain> |  <login name>@<domain>                    |
++----------------------+-----------------------------------+------------------------+--------------------------------------------+
+| login an external mail |<left part of login name>@<domain> |<login>               |  <left part of login name>@<domain>       |
++----------------------+-----------------------------------+------------------------+--------------------------------------------+
+| login a local mail     |<login>                            |<login>               |  <login>                                  |
++----------------------+-----------------------------------+------------------------+--------------------------------------------+
 
 Postfix and Dovecot are using user.postfix_mail as mailaddress
 login?
