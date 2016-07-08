@@ -290,7 +290,7 @@ class Sync2server():
         self.passwd_dbname = get_config('passwd_dbname','Databasename is missing')
         self.passwd_user   = get_config('passwd_user','Username is missing')
         self.passwd_passwd = get_config('passwd_passwd','Password is missing')
-
+        _logger.info('Sync2server server %s database %s user %s' % (self.passwd_server,self.passwd_dbname,self.passwd_user))
         try:
             self.sock_common = xmlrpclib.ServerProxy('%s/xmlrpc/common' % self.passwd_server)
             self.uid = self.sock_common.login(self.passwd_dbname, self.passwd_user, self.passwd_passwd)

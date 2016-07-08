@@ -90,8 +90,10 @@
                  
                    <separator string="Misc" colspan="4" />
                   <field name="maildir" />
+<!--
                   <newline />
                   <field name="transport" />
+-->
                   <newline />
                   <field name="quota" />
                   <newline />

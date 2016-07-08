@@ -46,10 +46,13 @@ class postfix_alias(models.Model):
     @api.one
     @api.onchange('user_id.company_id.domain','name')
     def _onchange_mail(self):
-        self.mail = '%s@%s' % (self.name,self.user_id.company_id.domain)
-
+        if self.name:
+            self.mail = '%s@%s' % (self.name,self.user_id.company_id.domain)
+        else:
+            self.mail = '@%s' % (self.user_id.company_id.domain)
+            
     mail    = fields.Char(string='Complete Mail Address',size=64, help="Mail as <user>@<domain>, if you are using a foreign domain, make sure that this domain are handled by the same mailserver", store=True)
-    name = fields.Char(string='Mailaddress',size=64, help="Mail without domain")
+    name = fields.Char(string='Mailaddress',size=64, help="Mail without domain (left side of @), leave blank for a catcall for the domain")
 
     # @api.one
     # @api.constrains('name')
@@ -79,7 +82,7 @@ class res_users(models.Model):
     spam_killevel = fields.Selection([('10','low (10)'),('6','medium (6)'),('4.5','high (4.5)'),('3','very high (3)')]  ,string='Spam Kill Level', help="Killed spam never reach your mail client",default='6')
     spam_tag2 =     fields.Selection([('9.5','low (9.5)'),('5.5','medium (5.5)'),('4','high (4)'),('2.5','very high (2.5)')],string='Spam Tag Level two' , help="Tagged spam will be marked as spam in your mail client and usually sorted in the spam directory",default='5.5')
     spam_tag =      fields.Selection([('7.0','low (7)'),('3','medium (3)'),('1.5','high (1.5)'),('0','very high (0)')]    ,string='Spam Tag Level' , help="Tagged spam will be marked as spam in your mail client",default='3')
-    transport = fields.Char('Transport', size=64,default="virtual:")
+    #transport = fields.Char('Transport', size=64,default="virtual:")
     vacation_subject = fields.Char('Subject', size=64,)
     vacation_text =  fields.Text('Text',help="Vacation message for autorespond")
     vacation_active =  fields.Boolean('Active',default=False)
@@ -87,23 +90,33 @@ class res_users(models.Model):
     vacation_to = fields.Date('To',help="Vacation ends")
     vacation_forward = fields.Char('Forward', size=64,help="Mailaddress to send messages during vacation")
     virus_active = fields.Boolean('Virus Check',default=True)
+    @api.one
+    @api.depends('company_id.quota')
+    def _maildir_get(self):
+        self.quota = company_id.quota
     quota = fields.Integer('Quota',)
 
     @api.one
-    @api.depends('company_id.domain','login')
+    @api.depends('company_id.domain','login','postfix_mail')
     def _maildir_get(self):
         self.maildir = "%s/%s/" % (self.domain,self.postfix_mail)
         self.alias_name = self.login
     maildir = fields.Char(compute="_maildir_get",string='Maildir',size=64,store=True)
 
     @api.one
-    @api.onchange('login')
+    @api.onchange('company_id.domain','login')
     def _email(self):
-        if self.partner_id:
-            if not email_re.match(self.login):
+        email_re = re.compile(r"""^([a-zA-Z0-9._%+-]+)@([a-zA-Z0-9.-]+\.[a-zA-Z]{2,6})$""", re.VERBOSE)
+        if self.login and not email_re.match(self.login):  # login is not an email address
+            self.postfix_mail = '%s@%s' % (self.login,self.domain)
+            if self.partner_id:
                 self.partner_id.email = '%s@%s' % (self.login,self.domain)
-            else:
+        elif self.login and email_re.match(self.login):    # login is an (external) email address, use only left part
+            self.postfix_mail = '%s@%s' % (email_re.match(self.login).groups()[0],self.company_id.domain)
+            if self.partner_id:
                 self.partner_id.email = self.login
+            #raise Warning(values.get('login') + ' ' + email_re.match(values.get('login')).groups()[0])
+                
 
     email = fields.Char(help="Your e-mail address, Company or External")
     email = fields.Char(invisible=False)
@@ -133,17 +146,17 @@ class res_users(models.Model):
         values['quota'] = company.default_quota
         return super(res_users,self).create(values)
    
-    @api.one
-    def write(self,values):
-        result = super(res_users, self).write(values)
-        email_re = re.compile(r"""^([a-zA-Z0-9._%+-]+)@([a-zA-Z0-9.-]+\.[a-zA-Z]{2,6})$""", re.VERBOSE)
-        if values.get('login') and not email_re.match(values.get('login')):  # login is not an email address
-            self.postfix_mail = '%s@%s' % (values.get('login'),self.domain)
-            self.partner_id.email = '%s@%s' % (values.get('login'),self.domain)
-        elif values.get('login') and email_re.match(values.get('login')):    # login is an (external) email address, use only left part
-            self.postfix_mail = '%s@%s' % (email_re.match(values.get('login')).groups()[0],self.company_id.domain)
-            self.partner_id.email = values.get('login')
-            #raise Warning(values.get('login') + ' ' + email_re.match(values.get('login')).groups()[0])
+    #~ @api.one
+    #~ def write(self,values):
+        #~ result = super(res_users, self).write(values)
+        #~ email_re = re.compile(r"""^([a-zA-Z0-9._%+-]+)@([a-zA-Z0-9.-]+\.[a-zA-Z]{2,6})$""", re.VERBOSE)
+        #~ if values.get('login') and not email_re.match(values.get('login')):  # login is not an email address
+            #~ self.postfix_mail = '%s@%s' % (values.get('login'),self.domain)
+            #~ self.partner_id.email = '%s@%s' % (values.get('login'),self.domain)
+        #~ elif values.get('login') and email_re.match(values.get('login')):    # login is an (external) email address, use only left part
+            #~ self.postfix_mail = '%s@%s' % (email_re.match(values.get('login')).groups()[0],self.company_id.domain)
+            #~ self.partner_id.email = values.get('login')
+            #~ #raise Warning(values.get('login') + ' ' + email_re.match(values.get('login')).groups()[0])
 
 class res_company(models.Model):
     _inherit = 'res.company'
