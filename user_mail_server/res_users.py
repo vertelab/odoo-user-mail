@@ -42,9 +42,10 @@ class res_users(models.Model):
             values['dovecot_password'] = sha512_crypt.encrypt(values.get('password'))
         return super(res_users, self).write(values)
 
-    @api.one
-    def unlink(self):
+    #~ @api.one
+    #~ def unlink(self):
         user_id = self.env['res.users'].search([('login','=',self.login)]).id
-        postfix_alias_id = self.env['postfix.alias'].search([('user_id', '=', user_id)]).unlink()
-        return super(res_users, self).unlink()
+        postfix_alias_id = self.env['postfix.alias'].search([('user_id', '=', self.id)]).unlink()
+        #~ self.postfix_alias_ids.unlink()
+        #~ return super(res_users, self).unlink()
 

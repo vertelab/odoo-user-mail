@@ -29,13 +29,13 @@ _logger = logging.getLogger(__name__)
 class postfix_vacation_notification(models.Model):
     _name = 'postfix.vacation_notification'
     #could not install because of the relation to user_id (postfix.alias has the same relation only one is allowed?)
-    #user_id = fields.Many2one('res.users','User', required=True,)
+    user_id = fields.Many2one('res.users','User',ondelete='cascade', required=True,)
     notified = fields.Char('Notified',size=64,select=1)
     date = fields.Date('Date',default=fields.Date.context_today)
     
 class postfix_alias(models.Model):
     _name = 'postfix.alias'
-    user_id = fields.Many2one('res.users', required=True)
+    user_id = fields.Many2one('res.users', ondelete='cascade',required=True)
     # concatenate with domain from res.company 
  #       'goto': fields.related('user_id', 'maildir', type='many2one', relation='res.users', string='Goto', store=True, readonly=True),
     active = fields.Boolean('Active',default=True)
@@ -104,9 +104,11 @@ class res_users(models.Model):
     maildir = fields.Char(compute="_maildir_get",string='Maildir',size=64,store=True)
 
     @api.one
-    @api.onchange('company_id.domain','login')
+    @api.depends('company_id.domain','login')
+    @api.onchange('login','company_id.domain')
     def _email(self):
         email_re = re.compile(r"""^([a-zA-Z0-9._%+-]+)@([a-zA-Z0-9.-]+\.[a-zA-Z]{2,6})$""", re.VERBOSE)
+        _logger.error(self.login)
         if self.login and not email_re.match(self.login):  # login is not an email address
             self.postfix_mail = '%s@%s' % (self.login,self.domain)
             if self.partner_id:
@@ -129,22 +131,21 @@ class res_users(models.Model):
                         'postfix_active','postfix_alias_ids','postfix_mail',
                         'quota',
                         'spam_active','spam_killevel','spam_tag2','spam_tag',
-                        'transport',
                         'vacation_subject','vacation_active','vacation_from',
                         'vacation_to','vacation_forward','vacation_text',
                         'virus_active',
                         ]
-    @api.model
-    def create(self,values):    # TODO: this does not create partner_id.email
-        company = self.env['res.company'].browse(values.get('company_id'))
-        if values.get('login') and not email_re.match(values.get('login')):  # login is not an email address
-            values['postfix_mail'] = '%s@%s' % (values.get('login'),company.domain)
-            values['email'] = '%s@%s' % (values.get('login'),company.domain)
-        elif values.get('login') and email_re.match(values.get('login')):    # login is an (external) email address, use only left part
-            values['postfix_mail'] = '%s@%s' % (email_re.match(values.get('login')).groups()[0],company.domain)
-            values['email'] = values.get('login')
-        values['quota'] = company.default_quota
-        return super(res_users,self).create(values)
+    #~ @api.model
+    #~ def create(self,values):    # TODO: this does not create partner_id.email
+        #~ company = self.env['res.company'].browse(values.get('company_id'))
+        #~ if values.get('login') and not email_re.match(values.get('login')):  # login is not an email address
+            #~ values['postfix_mail'] = '%s@%s' % (values.get('login'),company.domain)
+            #~ values['email'] = '%s@%s' % (values.get('login'),company.domain)
+        #~ elif values.get('login') and email_re.match(values.get('login')):    # login is an (external) email address, use only left part
+            #~ values['postfix_mail'] = '%s@%s' % (email_re.match(values.get('login')).groups()[0],company.domain)
+            #~ values['email'] = values.get('login')
+        #~ values['quota'] = company.default_quota
+        #~ return super(res_users,self).create(values)
    
     #~ @api.one
     #~ def write(self,values):
@@ -170,40 +171,32 @@ class res_company(models.Model):
     total_quota = fields.Integer(compute="_total_quota",string='All quota (MB)',help="Sum of all Users Quota in MB") 
 
     @api.one
+    @api.depends('domain')
     def _catchall(self):
         if self.domain:
             self.catchall = 'catchall' + '@' + self.domain
-
     catchall = fields.Char(compute=_catchall,string='Catchall',help="catchall mail address",) 
 
-    def _domain(self):
-        return self.env['ir.config_parameter'].get_param('mail.catchall.domain')
-    domain = fields.Char(string='Domain',help="the internet domain for mail",default=_domain,required=True)
+    @api.one
+    def _set_domain(self):
+        self.env['ir.config_parameter'].set_param('mail.catchall.domain',self.domain)
+    @api.one
+    def _get_domain(self):
+        self.domain = self.env['ir.config_parameter'].get_param('mail.catchall.domain')
+    domain = fields.Char(string='Domain',help="the internet domain for mail",compute='_get_domain',inverse='_set_domain',store=True,required=True)
+
+    @api.one
+    @api.depends('domain')
+    def _email(self):
+        if self.domain:
+            self.email = 'info@%s' % self.domain
+
 
     @api.one
     def _nbr_users(self):
         self.nbr_users = len(self.env['res.users'].search([('postfix_active','=',True)]))
-
-    nbr_users = fields.Integer(compute="_nbr_users",string="Nbr of users")  
+    nbr_users = fields.Integer(compute="_nbr_users",string="Nbr of users")
+    
     def _remote_id(self):
         return str(uuid.uuid4())
     remote_id = fields.Char(string='Remote ID', default=_remote_id, size=64)
-
- 
-    @api.one
-    def write(self,values):
-        comp = super(res_company, self).write(values)
-        if values.get('domain'):
-            self.write({'email': 'info@%s' % values.get('domain')})
-
-        if values.get('domain'):
-            self.env['ir.config_parameter'].set_param('mail.catchall.domain',values.get('domain'))
-            for u in self.user_ids:
-                u.maildir = "%s/%s/" % (values.get('domain'),u.login)
-                if u.postfix_mail == u.partner_id.email:
-                    u.partner_id.email = '%s@%s' % (u.login,values.get('domain'))
-                u.postfix_mail = '%s@%s' % (u.login,values.get('domain'))
-                for m in u.postfix_alias_ids:
-                    m.mail = '%s@%s' % (m.name,values.get('domain'))
-
-            
