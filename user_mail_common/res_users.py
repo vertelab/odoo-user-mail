@@ -44,6 +44,7 @@ class postfix_alias(models.Model):
     #~ def _mail(self):
         #~ self.mail   = "%s@%s" % (self.mail_domain,self.user_id.domain)
     @api.one
+    @api.depends('user_id.company_id.domain','name')
     @api.onchange('user_id.company_id.domain','name')
     def _onchange_mail(self):
         if self.name:
@@ -51,7 +52,7 @@ class postfix_alias(models.Model):
         else:
             self.mail = '@%s' % (self.user_id.company_id.domain)
             
-    mail    = fields.Char(string='Complete Mail Address',size=64, help="Mail as <user>@<domain>, if you are using a foreign domain, make sure that this domain are handled by the same mailserver", store=True)
+    mail    = fields.Char(string='Complete Mail Address', size=64, compute='_onchange_mail', help="Mail as <user>@<domain>, if you are using a foreign domain, make sure that this domain are handled by the same mailserver", store=True)
     name = fields.Char(string='Mailaddress',size=64, help="Mail without domain (left side of @), leave blank for a catcall for the domain")
 
     # @api.one
@@ -67,6 +68,9 @@ email_re = re.compile(r"""^([a-zA-Z0-9._%+-]+)@([a-zA-Z0-9.-]+\.[a-zA-Z]{2,6})$"
 class res_users(models.Model):
     _inherit = 'res.users' 
     
+    _sql_constraints = [('postfix_mail_uniq', 'unique (postfix_mail)', 'The postfix mail adress must be unique!'),
+        ('maildir_uniq', 'unique (maildir)', 'The maildir must be unique!')]
+    
     domain  = fields.Char(related="company_id.domain",string='Domain', size=64,store=True, readonly=True)
     dovecot_password = fields.Char()
     forward_active = fields.Boolean('Active',default=False)
@@ -74,7 +78,7 @@ class res_users(models.Model):
     forward_cp = fields.Boolean('Keep',help="Keep a local copy of forwarded messages")
     postfix_active = fields.Boolean('Active', default=False,)
     postfix_alias_ids = fields.One2many('postfix.alias', 'user_id', string='Alias', copy=False, ondelete="cascade", oldname="mail_alias")
-    postfix_mail = fields.Char(string="Real Mail Address")
+    postfix_mail = fields.Char(string="Real Mail Address", compute='_email', store=True)
     def _remote_id(self):
         return str(uuid.uuid4())
     remote_id = fields.Char(string='Remote ID', default=_remote_id, size=64)
@@ -161,6 +165,8 @@ class res_users(models.Model):
 
 class res_company(models.Model):
     _inherit = 'res.company'
+    
+    _sql_constraints = [('domain_uniq', 'unique (domain)', 'The company domain must be unique!')]
 
     default_quota = fields.Integer(string='Default Quota per User',help="Quota in MB per user that is default",default=200)
 

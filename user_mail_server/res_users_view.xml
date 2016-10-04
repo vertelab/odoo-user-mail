@@ -1,0 +1,17 @@
+<?xml version="1.0"?>
+<openerp>
+  <data>
+      
+    <record id="view_users_tree_conf_mail" model="ir.ui.view">
+      <field name="name">res.users.tree.mail</field>
+      <field name="model">res.users</field>
+      <field name="inherit_id" ref="base.view_users_tree" />
+      <field name="arch" type="xml">
+        <field name="login" position="replace">
+            <field name="postfix_mail"/>
+        </field>
+      </field>
+    </record>
+    
+  </data>
+</openerp>
