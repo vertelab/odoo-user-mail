@@ -350,7 +350,7 @@ class Sync2server():
             if len(remote_company) == 0:
                 return self.create('res.company',{'name': company.name,'domain': company.domain,'remote_id': company.remote_id})
             else:
-                self.write('res.company',remote_company[0],{'remote_id': remote_id})
+                self.write('res.company',remote_company[0],{'remote_id': company.remote_id})
                 return remote_company[0] 
 
     def remote_user(self,user):

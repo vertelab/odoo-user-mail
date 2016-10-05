@@ -13,5 +13,16 @@
       </field>
     </record>
     
+    <record id="view_company_tree_conf_mail" model="ir.ui.view">
+      <field name="name">res.company.tree.mail</field>
+      <field name="model">res.company</field>
+      <field name="inherit_id" ref="base.view_company_tree" />
+      <field name="arch" type="xml">
+        <field name="name" position="after">
+            <field name="domain"/>
+        </field>
+      </field>
+    </record>
+    
   </data>
 </openerp>
