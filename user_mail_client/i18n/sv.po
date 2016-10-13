@@ -144,7 +144,7 @@ msgstr "Detta är en epostkonfiguration för e-postklienter i mobiltelefoner, su
 #. module: user_mail_client
 #: view:website:user_mail_client.mail_config_document
 msgid "This is your credentials for webmail."
-msgstr "Detta är dina referenser för webbepost."
+msgstr "Detta är dina inloggningsuppgifter för webbmejl."
 
 #. module: user_mail_client
 #: view:website:user_mail_client.mail_config_document
@@ -159,7 +159,7 @@ msgstr "Användare"
 #. module: user_mail_client
 #: view:website:user_mail_client.mail_config_document
 msgid "Webmail"
-msgstr "Webbepost"
+msgstr "Webbmejl"
 
 #. module: user_mail_client
 #: field:user.mail.sync.wizard,gen_pw:0
@@ -199,7 +199,7 @@ msgstr "​STARTTLS"
 #. module: user_mail_client
 #: view:website:user_mail_client.mail_config_document
 msgid "​Server Name"
-msgstr "​Servername"
+msgstr "​Servernamn"
 
 #. module: user_mail_client
 #: view:website:user_mail_client.mail_config_document

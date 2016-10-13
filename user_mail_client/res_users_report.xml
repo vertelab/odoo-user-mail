@@ -2,7 +2,7 @@
 <openerp>
   <data>
     
-    <report id="mail_config" model="res.users" string="Mail configuration instructions" report_type="qweb-pdf" name="user_mail_client.mail_config_report" file="user_mail_client.mail_config_report" attachment_use="False" attachment="('Mailconf_'+(object.name or ''))+'.pdf'" />
+    <report id="mail_config" model="res.users" string="Mail configuration instructions" report_type="qweb-pdf" name="user_mail_client.mail_config_report" file="user_mail_client.mail_config_report" attachment="('Mail settings '+(object.name or ''))+'.pdf'"/>
 
     <template id="mail_config_report">
       <t t-call="report.html_container">
