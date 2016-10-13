@@ -1,0 +1,207 @@
+# Translation of Odoo Server.
+# This file contains the translation of the following modules:
+# 	* user_mail_client
+#
+msgid ""
+msgstr ""
+"Project-Id-Version: Odoo Server 8.0-20161008\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2016-10-13 07:29+0000\n"
+"PO-Revision-Date: 2016-10-13 09:53+0200\n"
+"Last-Translator: <>\n"
+"Language-Team: \n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Language: sv_SE\n"
+"X-Generator: Poedit 1.8.7.1\n"
+
+#. module: user_mail_client
+#: code:addons/user_mail_client/res_users.py:311
+#, python-format
+msgid "%s (%s in /etc/odoo/openerp-server.conf)"
+msgstr ""
+
+#. module: user_mail_client
+#: code:addons/user_mail_client/res_users.py:327
+#, python-format
+msgid "%s (server %s, db %s, user %s, pw %s)"
+msgstr ""
+
+#. module: user_mail_client
+#: view:user.mail.sync.wizard:user_mail_client.user_mail_sync_view
+msgid "Cancel"
+msgstr "Avbryt"
+
+#. module: user_mail_client
+#: model:ir.model,name:user_mail_client.model_res_company
+msgid "Companies"
+msgstr "Företage"
+
+#. module: user_mail_client
+#: field:user.mail.sync.wizard,create_uid:0
+msgid "Created by"
+msgstr "Skapades av"
+
+#. module: user_mail_client
+#: field:user.mail.sync.wizard,create_date:0
+msgid "Created on"
+msgstr "Skapades på"
+
+#. module: user_mail_client
+#: field:user.mail.sync.wizard,display_name:0
+msgid "Display Name"
+msgstr "Visningsnamn "
+
+#. module: user_mail_client
+#: view:user.mail.sync.wizard:user_mail_client.user_mail_sync_view
+msgid "Generate Password"
+msgstr "Generera lösenord"
+
+#. module: user_mail_client
+#: field:user.mail.sync.wizard,id:0
+msgid "ID"
+msgstr "ID"
+
+#. module: user_mail_client
+#: field:user.mail.sync.wizard,__last_update:0
+msgid "Last Modified on"
+msgstr "Senast ändrad på"
+
+#. module: user_mail_client
+#: field:user.mail.sync.wizard,write_uid:0
+msgid "Last Updated by"
+msgstr "Senast uppdaterad av"
+
+#. module: user_mail_client
+#: field:user.mail.sync.wizard,write_date:0
+msgid "Last Updated on"
+msgstr "Senast uppdaterad på"
+
+#. module: user_mail_client
+#: view:website:user_mail_client.mail_config_document
+msgid "Mail Configuration instruction"
+msgstr "Epost konfiguration instruktion"
+
+#. module: user_mail_client
+#: model:ir.actions.report.xml,name:user_mail_client.mail_config
+msgid "Mail configuration instructions"
+msgstr "Epost konfiguration instruktioner"
+
+#. module: user_mail_client
+#: code:addons/user_mail_client/res_users.py:45
+#, python-format
+msgid "N/A"
+msgstr "N/A"
+
+#. module: user_mail_client
+#: view:website:user_mail_client.mail_config_document
+msgid "Outgoing​ (SMTP)"
+msgstr "Utgående (SMTP)"
+
+#. module: user_mail_client
+#: view:website:user_mail_client.mail_config_document
+msgid "Password"
+msgstr "Lösenord"
+
+#. module: user_mail_client
+#: view:website:user_mail_client.mail_config_document
+msgid "STARTTLS​"
+msgstr "STARTTLS​"
+
+#. module: user_mail_client
+#: code:addons/user_mail_client/res_users.py:55
+#, python-format
+msgid ""
+"Some users missing password:\n"
+"\n"
+"%s\n"
+"\n"
+" please set new (sync is done)"
+msgstr ""
+"Vissa användare saknar lösenord:\n"
+"\n"
+"%s\n"
+"\n"
+"Var god och ställa ny (synkning färdig)"
+
+#. module: user_mail_client
+#: model:ir.actions.act_window,name:user_mail_client.action_user_mail_sync
+msgid "Synchronize E-mail Settings"
+msgstr "Synkronisera e-postinställningar "
+
+#. module: user_mail_client
+#: view:user.mail.sync.wizard:user_mail_client.user_mail_sync_view
+msgid "Synchronize Settings"
+msgstr "Synkronisera inställningar"
+
+#. module: user_mail_client
+#: view:website:user_mail_client.mail_config_document
+msgid "This is the mail configuration for mail clients in mobile phones, tablets and computers."
+msgstr "Detta är en epostkonfiguration för e-postklienter i mobiltelefoner, surfplattor och datorer."
+
+#. module: user_mail_client
+#: view:website:user_mail_client.mail_config_document
+msgid "This is your credentials for webmail."
+msgstr "Detta är dina referenser för webbepost."
+
+#. module: user_mail_client
+#: view:website:user_mail_client.mail_config_document
+msgid "URL"
+msgstr "URL"
+
+#. module: user_mail_client
+#: model:ir.model,name:user_mail_client.model_res_users
+msgid "Users"
+msgstr "Användare"
+
+#. module: user_mail_client
+#: view:website:user_mail_client.mail_config_document
+msgid "Webmail"
+msgstr "Webbepost"
+
+#. module: user_mail_client
+#: field:user.mail.sync.wizard,gen_pw:0
+msgid "generate_password"
+msgstr "generate_password"
+
+#. module: user_mail_client
+#: view:website:user_mail_client.mail_config_document
+msgid "​Authentication"
+msgstr "Autentisering"
+
+#. module: user_mail_client
+#: view:website:user_mail_client.mail_config_document
+msgid "​Incomming (IMAP)"
+msgstr "Inkommande (IMAP)"
+
+#. module: user_mail_client
+#: view:website:user_mail_client.mail_config_document
+msgid "​Lösenord"
+msgstr "​Lösenord"
+
+#. module: user_mail_client
+#: view:website:user_mail_client.mail_config_document
+msgid "​Port"
+msgstr "Port"
+
+#. module: user_mail_client
+#: view:website:user_mail_client.mail_config_document
+msgid "​SSL/TSL"
+msgstr "​SSL/TSL"
+
+#. module: user_mail_client
+#: view:website:user_mail_client.mail_config_document
+msgid "​STARTTLS"
+msgstr "​STARTTLS"
+
+#. module: user_mail_client
+#: view:website:user_mail_client.mail_config_document
+msgid "​Server Name"
+msgstr "​Servername"
+
+#. module: user_mail_client
+#: view:website:user_mail_client.mail_config_document
+msgid "​Username"
+msgstr "Användarnamn"
