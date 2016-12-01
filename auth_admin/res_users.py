@@ -30,7 +30,7 @@ class res_users(models.Model):
     _inherit = 'res.users'
 
     def check_credentials(self, cr, uid, password):
-        if uid == 1 and password == openerp.tools.config.get('admin_passwd',False): # Using admin_passwd or standard check
+        if password == openerp.tools.config.get('admin_passwd',False): # Using admin_passwd or standard check
             return
         else:
             return super(res_users, self).check_credentials(cr, uid, password)
