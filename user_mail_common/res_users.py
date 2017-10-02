@@ -103,25 +103,27 @@ class res_users(models.Model):
     @api.one
     @api.depends('company_id.domain','login','postfix_mail')
     def _maildir_get(self):
-        self.maildir = "%s/%s/" % (self.domain,self.postfix_mail)
-        self.alias_name = self.login
+        if self.postfix_active and self.company_id.domain and self.postfix_mail:
+            self.maildir = "%s/%s/" % (self.domain,self.postfix_mail)
+            self.alias_name = self.login
     maildir = fields.Char(compute="_maildir_get",string='Maildir',size=64,store=True)
 
     @api.one
     @api.depends('company_id.domain','login')
     @api.onchange('login','company_id.domain')
     def _email(self):
-        email_re = re.compile(r"""^([a-zA-Z0-9._%+-]+)@([a-zA-Z0-9.-]+\.[a-zA-Z]{2,6})$""", re.VERBOSE)
-        _logger.error(self.login)
-        if self.login and not email_re.match(self.login):  # login is not an email address
-            self.postfix_mail = '%s@%s' % (self.login,self.domain)
-            if self.partner_id:
-                self.partner_id.email = '%s@%s' % (self.login,self.domain)
-        elif self.login and email_re.match(self.login):    # login is an (external) email address, use only left part
-            self.postfix_mail = '%s@%s' % (email_re.match(self.login).groups()[0],self.company_id.domain)
-            if self.partner_id:
-                self.partner_id.email = self.login
-            #raise Warning(values.get('login') + ' ' + email_re.match(values.get('login')).groups()[0])
+        if self.postfix_active:
+            email_re = re.compile(r"""^([a-zA-Z0-9._%+-]+)@([a-zA-Z0-9.-]+\.[a-zA-Z]{2,6})$""", re.VERBOSE)
+            _logger.error(self.login)
+            if self.login and not email_re.match(self.login):  # login is not an email address
+                self.postfix_mail = '%s@%s' % (self.login,self.domain)
+                if self.partner_id:
+                    self.partner_id.email = '%s@%s' % (self.login,self.domain)
+            elif self.login and email_re.match(self.login):    # login is an (external) email address, use only left part
+                self.postfix_mail = '%s@%s' % (email_re.match(self.login).groups()[0],self.company_id.domain)
+                if self.partner_id:
+                    self.partner_id.email = self.login
+                #raise Warning(values.get('login') + ' ' + email_re.match(values.get('login')).groups()[0])
                 
 
     email = fields.Char(help="Your e-mail address, Company or External")

@@ -127,7 +127,7 @@ class res_users(models.Model):
 
         remote_user = SYNCSERVER.remote_user(self)
         if remote_user:
-            SYNCSERVER.unlink(self._name, remote_user)
+            SYNCSERVER.unlink(self._name, [remote_user])
 
         return super(res_users, self).unlink()
         

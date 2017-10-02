@@ -16,10 +16,21 @@
         <record model="ir.rule" id="res_users_email_rule">
             <field name="name">res_users: administrate own email</field>
             <field name="model_id" ref="model_postfix_alias"/>
-            <field name="domain_force">[('user_id','=',user.id)]</field>
+            <field name="domain_force">[('user_id', '=', user.id)]</field>
             <field name="groups" eval="[(4, ref('user_mail_common.group_own_email_settings'))]"/>
             <field name="perm_create" eval="False"/>
             <field name="perm_unlink" eval="False"/>
+            <field name="perm_read" eval="True"/>
+            <field name="perm_write" eval="True"/>
+        </record>
+
+        <record model="ir.rule" id="admin_email_rule">
+            <field name="name">erp_manager: administrate all email</field>
+            <field name="model_id" ref="model_postfix_alias"/>
+            <field name="domain_force">[(1, '=', 1)]</field>
+            <field name="groups" eval="[(4, ref('base.group_erp_manager'))]"/>
+            <field name="perm_create" eval="True"/>
+            <field name="perm_unlink" eval="True"/>
             <field name="perm_read" eval="True"/>
             <field name="perm_write" eval="True"/>
         </record>
