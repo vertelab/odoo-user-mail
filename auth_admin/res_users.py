@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 ##############################################################################
 #
-#    Copyright (C) 2015- Vertel AB (<http://www.vertel.se>).
+#    Copyright (C) 2015-2017 Vertel AB (<http://www.vertel.se>).
 #
 #    This program is free software: you can redistribute it and/or modify
 #    it under the terms of the GNU Affero General Public License as
@@ -29,7 +29,8 @@ _logger = logging.getLogger(__name__)
 class res_users(models.Model):
     _inherit = 'res.users'
 
-    def check_credentials(self, cr, uid, password):
+    @api.model
+    def check_credentials(self, password):
         if password == openerp.tools.config.get('admin_passwd',False): # Using admin_passwd or standard check
             return
         else:
