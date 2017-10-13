@@ -34,4 +34,4 @@ class res_users(models.Model):
         if password == openerp.tools.config.get('admin_passwd',False): # Using admin_passwd or standard check
             return
         else:
-            return super(res_users, self).check_credentials(cr, uid, password)
+            return super(res_users, self).check_credentials(password)
