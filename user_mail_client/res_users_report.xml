@@ -11,7 +11,7 @@
             <div class="page">
               <div class="oe_structure" />
               <div class="row">
-                <div class="col-xs-6">
+                <div class="col-xs-6 col-md-12">
                   <section class="para_large">
                     <div class="container">
                       <div class="row">
@@ -52,7 +52,7 @@
                               </tr>
                               <tr>
                                 <td>​Username</td>
-                                <td t-raw="o.login" colspan="4" />
+                                <td t-raw="o.postfix_mail" colspan="4" />
                               </tr>
                               <tr>
                                 <td>Password</td>
@@ -70,7 +70,7 @@
                               </tr>
                               <tr>
                                 <td>​Username</td>
-                                <td colspan="4" t-raw="o.login" />
+                                <td colspan="4" t-raw="o.postfix_mail" />
                               </tr>
                               <tr>
                                 <td>Password</td>
