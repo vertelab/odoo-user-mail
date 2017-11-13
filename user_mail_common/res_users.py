@@ -45,7 +45,6 @@ class postfix_alias(models.Model):
         #~ self.mail   = "%s@%s" % (self.mail_domain,self.user_id.domain)
     @api.one
     @api.depends('user_id.company_id.domain','name')
-    @api.onchange('user_id.company_id.domain','name')
     def _onchange_mail(self):
         if self.name:
             self.mail = '%s@%s' % (self.name,self.user_id.company_id.domain)
@@ -109,7 +108,6 @@ class res_users(models.Model):
 
     @api.one
     @api.depends('company_id.domain','login')
-    @api.onchange('login','company_id.domain')
     def _email(self):
         email_re = re.compile(r"""^([a-zA-Z0-9._%+-]+)@([a-zA-Z0-9.-]+\.[a-zA-Z]{2,6})$""", re.VERBOSE)
         _logger.error(self.login)
