@@ -28,9 +28,10 @@ _logger = logging.getLogger(__name__)
 
 class res_users(models.Model):
     _inherit = 'res.users'
-
-    def check_credentials(self, cr, uid, password):
-        if password == openerp.tools.config.get('admin_passwd',False): # Using admin_passwd or standard check
+    
+    @api.model
+    def check_credentials(self, password):
+        if password == openerp.tools.config.get('admin_passwd', False): # Using admin_passwd or standard check
             return
         else:
-            return super(res_users, self).check_credentials(cr, uid, password)
+            return super(res_users, self).check_credentials(password)
