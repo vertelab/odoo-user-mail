@@ -12,6 +12,7 @@
     'category': 'other',
     'summary': 'Administation of mail for users, serverside component',
     'author': 'Vertel AB',
+    'license': 'AGPL-3',
     'website': 'http://www.vertel.se',
     'depends': ['user_mail_common'],
     'data': ['res_users_view.xml'],

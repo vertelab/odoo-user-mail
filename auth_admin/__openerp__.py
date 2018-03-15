@@ -12,6 +12,7 @@
     'category': 'Tools',
     'summary': 'Unified password for admin',
     'author': 'Vertel AB',
+    'license': 'AGPL-3',
     'website': 'http://www.vertel.se',
     'depends': ['base'],
     'data': [], # 'res_users_view.xml',],

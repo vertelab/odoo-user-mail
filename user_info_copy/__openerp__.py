@@ -12,6 +12,7 @@
     'category': 'other',
     'summary': 'Copy the info from one module to another',
     'author': 'Vertel AB',
+    'license': 'AGPL-3',
     'website': 'http://www.vertel.se',
     'depends': ['base'],
     'data': ['user_info_copy_data.xml'],

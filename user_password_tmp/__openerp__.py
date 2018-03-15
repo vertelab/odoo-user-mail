@@ -12,6 +12,7 @@
     'category': 'other',
     'summary': 'Saves users password in clear text for a short time',
     'author': 'Vertel AB',
+    'license': 'AGPL-3',
     'website': 'http://www.vertel.se',
     'depends': ['base'],
     'data': [],

@@ -38,6 +38,7 @@ IOError: unsupported XML-RPC protocol
     
     """,
     'author': 'Vertel AB',
+    'license': 'AGPL-3',
     'website': 'http://www.vertel.se',
     'depends': ['user_password_tmp','fetchmail', 'user_mail_common'],
     'data': ['res_users_view.xml','res_users_data.xml','res_users_report.xml'],
