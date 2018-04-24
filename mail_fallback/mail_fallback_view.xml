@@ -1,0 +1,105 @@
+<?xml version="1.0"?>
+<openerp>
+    <data>
+
+
+            
+        <record model="ir.ui.view" id="mail_fallback_form">
+        <field name="name">mail.fallback.my_form</field>
+        <field name="model">mail.fallback</field>
+        <field name="arch" type="xml">
+            <form string="Mail Fallback">
+                <header>
+                    <field name="state" widget="statusbar" statusbar_visible="draft,open"/>
+                </header>
+                <sheet>
+                    <div class="oe_button_box oe_right">
+                    </div>
+                    <div class="oe_title">
+                        <label for="name" class="oe_edit_only"/>
+                        <h1>
+                            <field name="name" class="oe_inline"/>
+                        </h1>
+                    </div>
+                    <group>
+                        <group>
+                            <field name="author_id"/>
+                            <field name="message_id"/>
+                            <field name="mail_message"/>
+                            <field name="email_from"/>
+                        </group>
+                        <group>
+                            <field name="email_to"/>
+                            <field name="type"/>
+                            <field name="cc"/>
+                            <field name="to"/>
+<!--
+                            <field name="from"/>
+-->
+                            
+                            
+<!--
+                            <field name="currency_id" groups="base.group_multi_currency"/>
+-->
+                        </group>
+                    </group>
+                    <notebook>
+                        <page string="Body">
+                            <field name="body"/>
+                        
+                        </page>
+                    </notebook>
+                </sheet>    
+                                <div class="oe_chatter">
+            <field name="message_follower_ids" widget="mail_followers" groups="base.group_user" />
+            <field name="message_ids" widget="mail_thread" />
+          </div>            
+            </form>
+        </field>
+    </record>
+    
+    <record model="ir.ui.view" id="view_mail_fallback_tree">
+      <field name="name">mail.fallback.tree</field>
+      <field name="model">mail.fallback</field>
+      <field name="arch" type="xml">
+        <tree string="Mail Fallback" colors="blue:(state == 'draft');grey:(state != 'draft')">
+          <field name="name" />
+          <field name="author_id" />
+          <field name="email_from" />
+          <field name="email_to" />
+          <field name="state" invisible="1" />
+        </tree>
+      </field>
+    </record>
+    
+    <record model="ir.actions.act_window" id="action_mail_fallback">
+      <field name="name">Fallback Mail</field>
+      <field name="res_model">mail.fallback</field>
+      <field name="view_type">form</field>
+      <field name="view_mode">tree,form</field>
+      <field name="sequence" eval="99" />
+<!--
+      <field name="domain">[('employee_id.user_id', '=', uid)]</field>
+-->
+      <field name="view_id" ref="view_mail_fallback_tree" />
+      <field name="help" type="html">
+        <p class="oe_view_nocontent_create">Mail that could not be tied to any other model.</p>
+        <p>Look for it here.</p>
+      </field>
+    </record>
+
+ 
+    
+    <menuitem
+            parent="base.menu_email"
+            id="menu_mail_fallback"
+            action="action_mail_fallback"
+            name="Fallback Mail"
+            sequence="14"
+            groups="base.group_no_one"
+        />
+        
+        
+    </data> 
+</openerp>
+    
