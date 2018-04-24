@@ -12,6 +12,7 @@
     'category': 'other',
     'summary': 'This module gives memebers of group website_pubslisher rights that belongs to a normal website Editor',
     'author': 'Vertel AB',
+    'license': 'AGPL-3',
     'website': 'http://www.vertel.se',
     'depends': ['website', ],
     'data': ['website_editor_rights.xml'],
