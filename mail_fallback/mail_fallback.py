@@ -19,6 +19,7 @@
 ##############################################################################
 from openerp import models, fields, api, _
 import openerp.tools
+import re
 
 import logging
 _logger = logging.getLogger(__name__)
@@ -98,5 +99,25 @@ class mail_thread(models.TransientModel):
         """ Post a new message in an existing thread, returning the new
 """
         # Chech if email_from on project.issue are in res.partner
+        mail_message = self.pool.get('mail.message').browse(cr,uid,parent_id,context)
+        if mail_message:
+            mail_object = self.pool.get(mail_message.model).browse(cr,uid,mail_message.res_id,context)
+            if mail_object:
+                if 'email_from' in mail_object.fields_get_keys() and mail_object.email_from:
+                    if not ('partner_id' in mail_object.fields_get_keys() and mail_object.partner_id):
+                        m = re.search("(.*)<(.*@.*)>",mail_object.email_from)
+                        if '@' in m.group(1):
+                            email = m.group(1)
+                            name = m.group(1)
+                        else:
+                            name = m.group(1)
+                            email = m.group(2)
+                        if email and len(self.pool.get('res.partner').search(cr,uid,[('email','=',email)])) == 0:
+                            partner_id = self.pool.get('res.partner').create(cr,uid,{'name': name,'email': email})
+                            mail_object.write({
+                                'partner_id': partner_id,
+                                'message_follower_ids': [(4,partner_id,0)],
+                            })
+                
         _logger.warn(u'message_POST   dict %s route %s thread_id %s custom %s context %s %s ' % (thread_id, body, subject, type,subtype, parent_id))
-        return super(mail_thread,self).message_post(thread_id, body, subject, type,subtype, parent_id, attachments, context,content_subtype, kwargs)
+        return super(mail_thread,self).message_post(cr,uid,thread_id, body, subject, type,subtype, parent_id, attachments, context,content_subtype, **kwargs)
