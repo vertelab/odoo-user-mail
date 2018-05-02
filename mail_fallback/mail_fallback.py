@@ -112,6 +112,7 @@ class mail_thread(models.TransientModel):
                         else:
                             name = m.group(1)
                             email = m.group(2)
+                        _logger.warn('message_POST not partner email %s name %s' % (email,name))
                         if email and len(self.pool.get('res.partner').search(cr,uid,[('email','=',email)])) == 0: # Create partner and add as follower
                             partner_id = self.pool.get('res.partner').create(cr,uid,{'name': name,'email': email})
                             mail_object.write({
