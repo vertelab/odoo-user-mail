@@ -96,7 +96,7 @@ class mail_thread(models.TransientModel):
     def message_post(self, cr, uid, thread_id, body='', subject=None, type='notification',
                      subtype=None, parent_id=False, attachments=None, context=None,
                      content_subtype='html', **kwargs):
-        """ Post a new message in an existing thread, returning the new
+        """ Post a new message in an existing thread, to a non existing recipient. For example a new project.issue
 """
         # Chech if email_from on project.issue are in res.partner
         mail_message = self.pool.get('mail.message').browse(cr,uid,parent_id,context)
@@ -112,7 +112,7 @@ class mail_thread(models.TransientModel):
                         else:
                             name = m.group(1)
                             email = m.group(2)
-                        if email and len(self.pool.get('res.partner').search(cr,uid,[('email','=',email)])) == 0:
+                        if email and len(self.pool.get('res.partner').search(cr,uid,[('email','=',email)])) == 0: # Create partner and add as follower
                             partner_id = self.pool.get('res.partner').create(cr,uid,{'name': name,'email': email})
                             mail_object.write({
                                 'partner_id': partner_id,
