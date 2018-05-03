@@ -20,7 +20,7 @@
                         <h1>
                             <field name="name" class="oe_inline"/>
                         </h1>
-                        <small>message_id</small>
+                        <small><field name="message_id" class="oe_inline"/></small>
                     </div>
                     <group>
                         <group>
