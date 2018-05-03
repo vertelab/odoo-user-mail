@@ -10,7 +10,7 @@
         <field name="arch" type="xml">
             <form string="Mail Fallback">
                 <header>
-                    <field name="state" widget="statusbar" statusbar_visible="draft,open"/>
+                    <field name="state" widget="statusbar" xstatusbar_visible="draft,open"/>
                 </header>
                 <sheet>
                     <div class="oe_button_box oe_right">
@@ -20,27 +20,19 @@
                         <h1>
                             <field name="name" class="oe_inline"/>
                         </h1>
+                        <small>message_id</small>
                     </div>
                     <group>
                         <group>
                             <field name="author_id"/>
-                            <field name="message_id"/>
-                            <field name="mail_message"/>
+                            <field name="mail_message_id"/>
                             <field name="email_from"/>
                         </group>
                         <group>
-                            <field name="email_to"/>
+                            <field name="reply_to"/>
                             <field name="type"/>
-                            <field name="cc"/>
-                            <field name="to"/>
-<!--
-                            <field name="from"/>
--->
-                            
-                            
-<!--
-                            <field name="currency_id" groups="base.group_multi_currency"/>
--->
+                            <field name="subtype_id"/>
+                            <field name="date"/>
                         </group>
                     </group>
                     <notebook>
@@ -63,10 +55,11 @@
       <field name="model">mail.fallback</field>
       <field name="arch" type="xml">
         <tree string="Mail Fallback" colors="blue:(state == 'draft');grey:(state != 'draft')">
+          <field name="date" />
           <field name="name" />
           <field name="author_id" />
           <field name="email_from" />
-          <field name="email_to" />
+          <field name="reply_to" />
           <field name="state" invisible="1" />
         </tree>
       </field>

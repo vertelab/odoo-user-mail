@@ -14,7 +14,7 @@
     'author': 'Vertel AB',
     'website': 'http://www.vertel.se',
     'depends': ['mail'],
-    'data': ['mail_fallback_view.xml'], # 'res_users_view.xml',],
+    'data': ['mail_fallback_view.xml','security/ir.model.access.csv'], # 'res_users_view.xml',],
     'installable': True,
     'application': False,
 }

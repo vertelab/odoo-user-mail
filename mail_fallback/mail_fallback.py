@@ -36,14 +36,16 @@ class mail_fallback(models.Model):
     body = fields.Text()
     message_id = fields.Char()
     author_id = fields.Many2one(comodel_name="res.partner")
-    mail_message = fields.Many2one(comodel_name="mail.messsage")
+    mail_message_id = fields.Many2one(comodel_name="mail.message")
     #~ attachment_ids = fields.Many2many(comodel_name="ir.attachment")
     #~ from = fields.Char()
     cc = fields.Char()
     to = fields.Char()
-    type = fields.Char()
+    type = fields.Selection(selection=[('email','E-mail'),('comment','Comment'),('notification','Notification')])
+    subtype_id = fields.Many2one(comodel_name="mail.message.subtype")
     email_from = fields.Char()
-    email_to = fields.Char()
+    reply_to = fields.Char()
+    date = fields.Datetime()
     state = fields.Selection(selection=[('draft','Draft'),('active','Active'),('canceled','Canceled')])
 
  #~ dict {'body': u'\n<pre>llll\r\n\r\n\r\n\r\n\r\n\xf6k\xf6\xe4k\r\n\r\n\r\n\r\n\r\n\r\n</pre>\n', 
@@ -59,16 +61,38 @@ class mail_fallback(models.Model):
 
 
 
+    #~ @api.model
+    #~ def create(self,values):
+        #~ _logger.warn('values %s' % values)
+        #~ fallback = super(mail_fallback,self).create(values)
+        #~ _logger.warn('fallback %s' % fallback)
+        #~ mail = self.env['mail.message'].search([('model','=','mail.fallback'),('res_id','=',fallback.id)],limit=1)
+        #~ if mail:
+            #~ fallback.mail_message = mail.id
+            
+        #~ return fallback
+
+class mail_message(models.Model):
+    _inherit = 'mail.message'
     @api.model
     def create(self,values):
-        _logger.warn('values %s' % values)
-        fallback = super(mail_fallback,self).create(values)
-        _logger.warn('fallback %s' % fallback)
-        mail = self.env['mail.message'].search([('model','=','mail.fallback'),('res_id','=',fallback.id)],limit=1)
-        if mail:
-            fallback.mail_message = mail.id
-            
-        return fallback
+        _logger.warn('mail.message values %s' % values)
+        message = super(mail_message,self).create(values)
+        if message.model == 'mail.fallback':
+            fallback = self.env['mail.fallback'].browse(message.res_id)
+            fallback.write({
+                'mail_message_id': message.id,
+                'name': message.subject,
+                'message_id': message.message_id,
+                'author_id': message.author_id.id,
+                'email_from': message.email_from,
+                'type': message.type,
+                'subtype_id': message.subtype_id.id,
+                'date': message.date,
+                'reply_to': message.reply_to,
+                'body': message.body,
+                })
+        return message
 
 
 class mail_thread(models.TransientModel):

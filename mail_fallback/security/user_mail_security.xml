@@ -2,6 +2,7 @@
 <openerp>
 <!-- 	<data> -->
         <data noupdate="1">
+<!--
 		<record model="res.groups" id="group_own_email_settings">
 		    <field name="name">Administrate own email settings</field>
 		    <field name="category_id" ref="base.module_category_administration"/>
@@ -34,6 +35,7 @@
             <field name="perm_read" eval="True"/>
             <field name="perm_write" eval="True"/>
         </record>
+-->
 
 	</data>
 </openerp>
