@@ -122,27 +122,22 @@ class mail_thread(models.TransientModel):
                      content_subtype='html', **kwargs):
         """ Post a new message in an existing thread, to a non existing recipient. For example a new project.issue
 """
-        # Chech if email_from on project.issue are in res.partner
+        # Check if email_from on project.issue are in res.partner
         mail_message = self.pool.get('mail.message').browse(cr,uid,parent_id,context)
         if mail_message:
             mail_object = self.pool.get(mail_message.model).browse(cr,uid,mail_message.res_id,context)
             if mail_object:
-                if 'email_from' in mail_object.fields_get_keys() and mail_object.email_from:
-                    if not ('partner_id' in mail_object.fields_get_keys() and mail_object.partner_id):
-                        m = re.search("(.*)<(.*@.*)>",mail_object.email_from)
-                        if '@' in m.group(1):
-                            email = m.group(1)
-                            name = m.group(1)
-                        else:
-                            name = m.group(1)
-                            email = m.group(2)
-                        _logger.warn('message_POST not partner email %s name %s' % (email,name))
-                        if email and len(self.pool.get('res.partner').search(cr,uid,[('email','=',email)])) == 0: # Create partner and add as follower
-                            partner_id = self.pool.get('res.partner').create(cr,uid,{'name': name,'email': email})
-                            mail_object.write({
-                                'partner_id': partner_id,
-                                'message_follower_ids': [(4,partner_id,0)],
-                            })
-                
+                partner_obj = self.pool.get('res.partner')
+                emails = set(mail_object.message_ids.filtered(lambda r: not r.author_id).mapped('email_from'))
+                for email in emails:
+                    email = email.split(' ')
+                    partner_id = partner_obj.create(cr, uid, {'name': ' '.join(email[:-1]), 'email': email[-1][1:-1]}, context)
+                    mail_object.write({
+                            'partner_id': partner_id,
+                            'message_follower_ids': [(4, partner_id, 0)],
+                        })
         _logger.warn(u'message_POST   dict %s route %s thread_id %s custom %s context %s %s ' % (thread_id, body, subject, type,subtype, parent_id))
         return super(mail_thread,self).message_post(cr,uid,thread_id, body, subject, type,subtype, parent_id, attachments, context,content_subtype, **kwargs)
+
+
+    
