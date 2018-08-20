@@ -139,5 +139,17 @@ class mail_thread(models.TransientModel):
         _logger.warn(u'message_POST   dict %s route %s thread_id %s custom %s context %s %s ' % (thread_id, body, subject, type,subtype, parent_id))
         return super(mail_thread,self).message_post(cr,uid,thread_id, body, subject, type,subtype, parent_id, attachments, context,content_subtype, **kwargs)
 
+class mail_mail(models.Model):
+    _inherit = 'mail.mail'
 
-    
+    @api.multi
+    def send(self, auto_commit=False, raise_exception=False):
+        """Remove duplicate recipients."""
+        for message in self:
+            dupes = self.env['res.partner'].browse()
+            for partner in message.recipient_ids:
+                if partner not in dupes:
+                    dupes |= message.recipient_ids.filtered(lambda p: p.id != partner.id and p.email == partner.email)
+            if dupes:
+                message.recipient_ids -= dupes
+        return super(mail_mail, self).send(auto_commit=auto_commit, raise_exception=raise_exception)
