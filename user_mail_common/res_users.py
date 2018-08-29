@@ -32,11 +32,11 @@ class postfix_vacation_notification(models.Model):
     user_id = fields.Many2one('res.users','User',ondelete='cascade', required=True,)
     notified = fields.Char('Notified',size=64,select=1)
     date = fields.Date('Date',default=fields.Date.context_today)
-    
+
 class postfix_alias(models.Model):
     _name = 'postfix.alias'
     user_id = fields.Many2one('res.users', ondelete='cascade',required=True)
-    # concatenate with domain from res.company 
+    # concatenate with domain from res.company
  #       'goto': fields.related('user_id', 'maildir', type='many2one', relation='res.users', string='Goto', store=True, readonly=True),
     active = fields.Boolean('Active',default=True)
     #~ @api.one
@@ -50,7 +50,7 @@ class postfix_alias(models.Model):
             self.mail = '%s@%s' % (self.name,self.user_id.company_id.domain)
         else:
             self.mail = '@%s' % (self.user_id.company_id.domain)
-            
+
     mail    = fields.Char(string='Complete Mail Address', size=64, compute='_onchange_mail', help="Mail as <user>@<domain>, if you are using a foreign domain, make sure that this domain are handled by the same mailserver", store=True)
     name = fields.Char(string='Mailaddress',size=64, help="Mail without domain (left side of @), leave blank for a catcall for the domain")
 
@@ -65,11 +65,11 @@ class postfix_alias(models.Model):
 email_re = re.compile(r"""^([a-zA-Z0-9._%+-]+)@([a-zA-Z0-9.-]+\.[a-zA-Z]{2,6})$""", re.VERBOSE)
 
 class res_users(models.Model):
-    _inherit = 'res.users' 
-    
+    _inherit = 'res.users'
+
     _sql_constraints = [('postfix_mail_uniq', 'unique (postfix_mail)', 'The postfix mail adress must be unique!'),
         ('maildir_uniq', 'unique (maildir)', 'The maildir must be unique!')]
-    
+
     domain  = fields.Char(related="company_id.domain",string='Domain', size=64,store=True, readonly=True)
     dovecot_password = fields.Char()
     forward_active = fields.Boolean('Active',default=False)
@@ -80,7 +80,7 @@ class res_users(models.Model):
     postfix_mail = fields.Char(string="Real Mail Address", compute='_email', store=True)
     def _remote_id(self):
         return str(uuid.uuid4())
-    remote_id = fields.Char(string='Remote ID', default=_remote_id, size=64)
+    remote_id = fields.Char(string='Remote ID', default=_remote_id, size=64, copy=False)
     spam_active = fields.Boolean('Spam Check',default=True)
     spam_killevel = fields.Selection([('10','low (10)'),('6','medium (6)'),('4.5','high (4.5)'),('3','very high (3)')]  ,string='Spam Kill Level', help="Killed spam never reach your mail client",default='6')
     spam_tag2 =     fields.Selection([('9.5','low (9.5)'),('5.5','medium (5.5)'),('4','high (4)'),('2.5','very high (2.5)')],string='Spam Tag Level two' , help="Tagged spam will be marked as spam in your mail client and usually sorted in the spam directory",default='5.5')
@@ -120,14 +120,14 @@ class res_users(models.Model):
             if self.partner_id:
                 self.partner_id.email = self.login
             #raise Warning(values.get('login') + ' ' + email_re.match(values.get('login')).groups()[0])
-                
+
 
     email = fields.Char(help="Your e-mail address, Company or External")
     email = fields.Char(invisible=False)
     login = fields.Char(string="Email or login")
-    login = fields.Char(help="External e-mail or login. Your Company e-mail address are constructed from login")   
-    
-    USER_MAIL_FIELDS = ['name', 'login', 
+    login = fields.Char(help="External e-mail or login. Your Company e-mail address are constructed from login")
+
+    USER_MAIL_FIELDS = ['name', 'login',
                         'dovecot_password',
                         'forward_active','forward_address','forward_cp',
                         'postfix_active','postfix_alias_ids','postfix_mail',
@@ -148,7 +148,7 @@ class res_users(models.Model):
             #~ values['email'] = values.get('login')
         #~ values['quota'] = company.default_quota
         #~ return super(res_users,self).create(values)
-   
+
     #~ @api.one
     #~ def write(self,values):
         #~ result = super(res_users, self).write(values)
@@ -163,7 +163,7 @@ class res_users(models.Model):
 
 class res_company(models.Model):
     _inherit = 'res.company'
-    
+
     _sql_constraints = [('domain_uniq', 'unique (domain)', 'The company domain must be unique!')]
 
     default_quota = fields.Integer(string='Default Quota per User',help="Quota in MB per user that is default",default=200)
@@ -172,14 +172,14 @@ class res_company(models.Model):
     def _total_quota(self):
         self.total_quota = sum(self.user_ids.filtered(lambda r: r.active == True and r.postfix_active == True).mapped('quota'))
 
-    total_quota = fields.Integer(compute="_total_quota",string='All quota (MB)',help="Sum of all Users Quota in MB") 
+    total_quota = fields.Integer(compute="_total_quota",string='All quota (MB)',help="Sum of all Users Quota in MB")
 
     @api.one
     @api.depends('domain')
     def _catchall(self):
         if self.domain:
             self.catchall = 'catchall' + '@' + self.domain
-    catchall = fields.Char(compute=_catchall,string='Catchall',help="catchall mail address",) 
+    catchall = fields.Char(compute=_catchall,string='Catchall',help="catchall mail address",)
 
     @api.one
     def _set_domain(self):
@@ -200,7 +200,7 @@ class res_company(models.Model):
     def _nbr_users(self):
         self.nbr_users = len(self.env['res.users'].search([('postfix_active','=',True)]))
     nbr_users = fields.Integer(compute="_nbr_users",string="Nbr of users")
-    
+
     def _remote_id(self):
         return str(uuid.uuid4())
     remote_id = fields.Char(string='Remote ID', default=_remote_id, size=64)
