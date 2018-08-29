@@ -109,17 +109,18 @@ class res_users(models.Model):
     @api.one
     @api.depends('company_id.domain','login')
     def _email(self):
-        email_re = re.compile(r"""^([a-zA-Z0-9._%+-]+)@([a-zA-Z0-9.-]+\.[a-zA-Z]{2,6})$""", re.VERBOSE)
-        _logger.error(self.login)
-        if self.login and not email_re.match(self.login):  # login is not an email address
-            self.postfix_mail = '%s@%s' % (self.login,self.domain)
-            if self.partner_id:
-                self.partner_id.email = '%s@%s' % (self.login,self.domain)
-        elif self.login and email_re.match(self.login):    # login is an (external) email address, use only left part
-            self.postfix_mail = '%s@%s' % (email_re.match(self.login).groups()[0],self.company_id.domain)
-            if self.partner_id:
-                self.partner_id.email = self.login
-            #raise Warning(values.get('login') + ' ' + email_re.match(values.get('login')).groups()[0])
+        if self.postfix_active:
+            email_re = re.compile(r"""^([a-zA-Z0-9._%+-]+)@([a-zA-Z0-9.-]+\.[a-zA-Z]{2,6})$""", re.VERBOSE)
+            _logger.error(self.login)
+            if self.login and not email_re.match(self.login):  # login is not an email address
+                self.postfix_mail = '%s@%s' % (self.login,self.domain)
+                if self.partner_id:
+                    self.partner_id.email = '%s@%s' % (self.login,self.domain)
+            elif self.login and email_re.match(self.login):    # login is an (external) email address, use only left part
+                self.postfix_mail = '%s@%s' % (email_re.match(self.login).groups()[0],self.company_id.domain)
+                if self.partner_id:
+                    self.partner_id.email = self.login
+                #raise Warning(values.get('login') + ' ' + email_re.match(values.get('login')).groups()[0])
 
 
     email = fields.Char(help="Your e-mail address, Company or External")
