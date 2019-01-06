@@ -76,7 +76,7 @@ class mail_message(models.Model):
     _inherit = 'mail.message'
     @api.model
     def create(self,values):
-        _logger.warn('mail.message values %s' % values)
+        # ~ _logger.warn('mail.message values %s' % values)
         message = super(mail_message,self).create(values)
         if message.model == 'mail.fallback':
             fallback = self.env['mail.fallback'].browse(message.res_id)
@@ -95,17 +95,17 @@ class mail_message(models.Model):
         return message
 
 
-class mail_thread(models.TransientModel):
+class mail_thread(models.AbstractModel):
     _inherit = 'mail.thread'
 
     @api.model
     def message_new(self, msg_dict, custom_values=None):
-        _logger.warn('message_new values %s custom %s context %s ' % (msg_dict,custom_values,self.env.context))
+        # ~ _logger.warn('message_new values %s custom %s context %s ' % (msg_dict,custom_values,self.env.context))
         return super(mail_thread,self).message_new(msg_dict,custom_values)
     
     @api.model
     def message_route(self,message, message_dict, model=None, thread_id=None,custom_values=None):
-        _logger.warn(u'message_route message  dict %s model %s thread_id %s custom %s context %s ' % ( message_dict, model, thread_id,custom_values,self.env.context))
+        # ~ _logger.warn(u'message_route message  dict %s model %s thread_id %s custom %s context %s ' % ( message_dict, model, thread_id,custom_values,self.env.context))
         #~ _logger.warn(u'message_route message  dict %s model %s thread_id %s custom %s context %s ' % (message, message_dict, model, thread_id,custom_values,self.env.context))
         return super(mail_thread,self).message_route(message, message_dict, model, thread_id,custom_values)
 
@@ -113,7 +113,7 @@ class mail_thread(models.TransientModel):
     def message_route_verify(self, message, message_dict, route, update_author=True, assert_model=True, create_fallback=True, allow_private=False):
         """ Verify route validity. Check and rules:
         """
-        _logger.warn(u'message_route_verify   dict %s route %s thread_id %s custom %s context %s %s ' % ( message_dict, route, update_author,assert_model,create_fallback,allow_private))
+        # ~ _logger.warn(u'message_route_verify   dict %s route %s thread_id %s custom %s context %s %s ' % ( message_dict, route, update_author,assert_model,create_fallback,allow_private))
         return super(mail_thread,self).message_route_verify(message, message_dict, route, update_author, assert_model, create_fallback, allow_private)
 
     @api.cr_uid_ids_context
@@ -136,7 +136,7 @@ class mail_thread(models.TransientModel):
                             'partner_id': partner_id,
                             'message_follower_ids': [(4, partner_id, 0)],
                         })
-        _logger.warn(u'message_POST   dict %s route %s thread_id %s custom %s context %s %s ' % (thread_id, body, subject, type,subtype, parent_id))
+        # ~ _logger.warn(u'message_POST   dict %s route %s thread_id %s custom %s context %s %s ' % (thread_id, body, subject, type,subtype, parent_id))
         return super(mail_thread,self).message_post(cr,uid,thread_id, body, subject, type,subtype, parent_id, attachments, context,content_subtype, **kwargs)
 
 class mail_mail(models.Model):
