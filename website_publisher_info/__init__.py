@@ -1,1 +1,1 @@
-import website_publisher_info
+from . import website_publisher_info
