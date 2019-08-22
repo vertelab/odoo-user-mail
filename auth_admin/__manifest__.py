@@ -14,7 +14,7 @@
     'author': 'Vertel AB',
     'website': 'http://www.vertel.se',
     'depends': ['base'],
-    'data': [], # 'res_users_view.xml',],
+    'data': [],
     'installable': True,
     'application': False,
     'auto_install': True,
