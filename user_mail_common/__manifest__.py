@@ -1,14 +1,7 @@
 # -*- coding: utf-8 -*-
-##############################################################################
-#
-#
-#
-##############################################################################
-
-
 {
-    'name': 'User mail Common',
-    'version': '1.1',
+    'name': 'User Mail Common',
+    'version': '12.0.0.1',
     'category': 'other',
     'summary': 'Administation of mail for users',
     'author': 'Vertel AB',
@@ -17,6 +10,5 @@
     'data': ['security/user_mail_security.xml', 'security/ir.model.access.csv', 'res_users_view.xml'],
     'installable': True,
     'application': False,
-    #'auto_install': False,
 }
 # vim:expandtab:smartindent:tabstop=4:softtabstop=4:shiftwidth=4:

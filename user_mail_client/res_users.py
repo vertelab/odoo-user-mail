@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 ##############################################################################
 #
-#    Copyright (C) 2015- Vertel AB (<http://www.vertel.se>).
+#    Copyright (C) 2015 - 2019 Vertel AB (<http://www.vertel.se>).
 #
 #    This progrupdateam is free software: you can redistribute it and/or modify
 #    it under the terms of the GNU Affero General Public License as
@@ -18,11 +18,14 @@
 #
 ##############################################################################
 
-from openerp import models, fields, api, _
-import openerp.tools
-import xmlrpclib
-from openerp.exceptions import Warning
+from odoo import models, fields, api, _
+import odoo.tools
+from odoo.tools import safe_eval as eval
+#import xmlrpclib
+import xmlrpc.client
+from odoo.exceptions import Warning
 import os, string
+import random
 import logging
 _logger = logging.getLogger(__name__)
 import uuid
@@ -37,6 +40,7 @@ class sync_settings_wizard(models.TransientModel):
 
     def default_user_ids(self):
         return self.env['res.users'].browse(self._context.get('active_ids'))
+    
     @api.one
     def sync_settings(self):
         companies = set()
@@ -59,14 +63,35 @@ class sync_settings_wizard(models.TransientModel):
 class res_users(models.Model):
     _inherit = 'res.users' 
     
-    def _get_param(self,param,value):
+    def _get_param(self, param, value):
         if not self.env['ir.config_parameter'].get_param(param):
-            self.env['ir.config_parameter'].set_param(param,value)
+            self.env['ir.config_parameter'].set_param(param, value)
         return self.env['ir.config_parameter'].get_param(param)
     
     def generate_password(self):
-        alphabet = string.digits + string.letters + '+_-!@#$%&*()'
-        return ''.join(alphabet[ord(os.urandom(1)) % len(alphabet)] for i in range(int(self._get_param('pw_length',13))))
+        length = int(self._get_param('pw_length', 13))
+        rules = eval(self._get_param('pw_rules', str({
+            'lower': 4,
+            'upper': 3,
+            'digits': 2,
+            'special': 1,
+        })))
+        char_types = list(rules.keys())
+        chars = {
+            'lower': string.ascii_lowercase,
+            'upper': string.ascii_uppercase,
+            'digits': string.digits,
+            'special': '+_-!@#$%&*()',
+        }
+        password = []
+        for char_type in char_types:
+            for i in range(rules[char_type]):
+                password.append(random.choice(chars[char_type]))
+        while len(password) < length:
+            char_type = random.choice(char_types)
+            password.append(random.choice(chars[char_type]))
+        random.shuffle(password)
+        return ''.join(password)
 
     def generate_dovecot_sha512(self, pw):
         return sha512_crypt.encrypt(pw)
@@ -127,16 +152,16 @@ class res_users(models.Model):
 
         remote_user = SYNCSERVER.remote_user(self)
         if remote_user:
-            SYNCSERVER.unlink(self._name, remote_user)
+            SYNCSERVER.unlink(self._name, [remote_user])
 
         return super(res_users, self).unlink()
         
     @api.one
     def testxmlrpc(self):
-        #~ common = xmlrpclib.ServerProxy('http://localhost:8069/xmlrpc/2/common')
+        #~ common = xmlrpc.client.ServerProxy('http://localhost:8069/xmlrpc/2/common')
         #~ info = common.version()
         #~ uid = common.authenticate('mail_server', 'admin', 'admin', {})
-        #~ model = xmlrpclib.ServerProxy('http://localhost:8069/xmlrpc/2/object',allow_none=True)
+        #~ model = xmlrpc.client.ServerProxy('http://localhost:8069/xmlrpc/2/object',allow_none=True)
       
         #~ res = model.execute_kw('mail_server', uid, 'admin','res.company', 'search', [[['remote_id','=',None]]])
         #~ raise Warning(res,info,uid)
@@ -272,7 +297,7 @@ class res_company(models.Model):
 
         try:
             smtp = self.env.ref('base.ir_mail_server_localhost0')
-        except Exception, e:
+        except Exception as e:
             pass    
 
         if smtp:
@@ -305,10 +330,10 @@ class res_company(models.Model):
                 company.write({'domain': company.domain})
       
 
-def get_config(param,msg):
-    value = openerp.tools.config.get(param,False)
+def get_config(param, msg):
+    value = odoo.tools.config.get(param, False)
     if not value:
-        raise Warning(_("%s (%s in /etc/odoo/openerp-server.conf)" % (msg,param)))
+        raise Warning(_("%s (%s in /etc/odoo/odoo.conf)" % (msg, param)))
     return value
 
 class Sync2server():
@@ -320,24 +345,24 @@ class Sync2server():
         self.passwd_passwd = get_config('passwd_passwd','Password is missing')
         _logger.info('Sync2server server %s database %s user %s' % (self.passwd_server,self.passwd_dbname,self.passwd_user))
         try:
-            self.sock_common = xmlrpclib.ServerProxy('%s:%s/xmlrpc/2/common' % (self.passwd_server, self.passwd_port))
+            self.sock_common = xmlrpc.client.ServerProxy('%s:%s/xmlrpc/2/common' % (self.passwd_server, self.passwd_port))
             self.uid = self.sock_common.authenticate(self.passwd_dbname, self.passwd_user, self.passwd_passwd,{})
-            self.sock = xmlrpclib.ServerProxy('%s:%s/xmlrpc/2/object' % (self.passwd_server, self.passwd_port), allow_none=True)
+            self.sock = xmlrpc.client.ServerProxy('%s:%s/xmlrpc/2/object' % (self.passwd_server, self.passwd_port), allow_none=True)
         except xmlrpclib.Error as err:
             raise Warning(_("%s (server %s, db %s, user %s, pw %s)" % (err, self.passwd_server, self.passwd_dbname, self.passwd_user, self.passwd_passwd)))
             
-    def search(self,model,domain):
+    def search(self, model, domain):
         return self.sock.execute_kw(self.passwd_dbname, self.uid, self.passwd_passwd,model, 'search', [domain])
 
-    def write(self,model,id,values):    
+    def write(self, model, id, values):    
         return self.sock.execute_kw(self.passwd_dbname, self.uid, self.passwd_passwd, model, 'write', [[id], values])
 
-    def create(self,model,values):
+    def create(self, model, values):
         _logger.warn('\n\n\nmodel: %s\nvalues: %s\n\n\n' % (model, values))
-        return self.sock.execute_kw(self.passwd_dbname, self.uid, self.passwd_passwd,model,'create', [values])
+        return self.sock.execute_kw(self.passwd_dbname, self.uid, self.passwd_passwd, model, 'create', [values])
 
-    def unlink(self,model,ids):
-        return self.sock.execute_kw(self.passwd_dbname, self.uid, self.passwd_passwd, model, 'unlink',[ids])
+    def unlink(self, model, ids):
+        return self.sock.execute_kw(self.passwd_dbname, self.uid, self.passwd_passwd, model, 'unlink', [ids])
 
     def remote_company(self,company):
         if not company.remote_id:
