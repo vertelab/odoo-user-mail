@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<template>
+
+    <!-- 
+        wall main template
+        Template used to display the communication history in the wall.
+        -->
+    <t t-extend="mail.wall">
+        <t t-jquery="h2" t-operation="append">
+            <button class="oe_me_mark_as_read">Mark All As Read</button>
+        </t>
+    </t>
+
+</template>

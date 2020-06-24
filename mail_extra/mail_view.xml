@@ -1,0 +1,10 @@
+<?xml version="1.0"?>
+<openerp>
+    <data>
+        <template id="assets_backend" name="mail_extra assets" inherit_id="mail.assets_backend">
+            <xpath expr="//script[@src='/mail/static/src/js/mail.js']" position="after">
+                <script type="text/javascript" src="/mail_extra/static/src/js/mail.js"></script>
+            </xpath>
+        </template>
+    </data>
+</openerp>
