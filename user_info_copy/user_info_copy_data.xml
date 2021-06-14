@@ -1,16 +1,13 @@
-<openerp>
-	<data>
-
-		<record id="copy_action" model="ir.actions.server">
-			<field name="name">Set User Mail Data</field>
-			<field name="model_id" ref="base.model_res_users"/>
-			<field name="state">code</field>
-			<field name="condition" eval="True"/>
-			<field name="sequence">5</field>
-			<field name="code">self._set_all_models(cr, uid, context.get('active_ids', []), context=context)</field>
-		</record>
-
-		<function model="res.users" name="add_to_more_button"/>
-
-	</data>
-</openerp>
+<odoo>
+  <data>
+    <record id="copy_action" model="ir.actions.server">
+      <field name="name">Set User Mail Data</field>
+      <field name="model_id" ref="base.model_res_users"/>
+      <field name="state">code</field>
+      <field name="condition" eval="True"/>
+      <field name="sequence">5</field>
+      <field name="code">self._set_all_models(cr, uid, context.get('active_ids', []), context=context)</field>
+    </record>
+    <function model="res.users" name="add_to_more_button"/>
+  </data>
+</odoo>

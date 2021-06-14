@@ -8,7 +8,7 @@
 
 {
     'name': 'Website Publisher Info',
-    'version': '1.1',
+    'version': '14.0.1.1.0',
     'category': 'other',
     'summary': 'Information about the website for a website publisher',
     'author': 'Vertel AB',

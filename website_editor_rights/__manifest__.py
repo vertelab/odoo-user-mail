@@ -8,7 +8,7 @@
 
 {
     'name': 'Website Editor Rights',
-    'version': '1.1',
+    'version': '14.0.1.1.0',
     'category': 'other',
     'summary': 'This module gives memebers of group website_pubslisher rights that belongs to a normal website Editor',
     'author': 'Vertel AB',

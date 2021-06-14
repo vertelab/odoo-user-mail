@@ -8,13 +8,13 @@
 
 {
     'name': 'User mail client',
-    'version': '1.3',
+    'version': '14.0.1.3.0',
     'category': 'other',
     'summary': 'Administation of mail for users on client side',
     'description': """
     Client side configuration of mail accounts
     
-    use this in /etc/odoo/openerp-server.conf:
+    use this in /etc/odoo/odoo.conf:
 # mail_server
 passwd_server = localhost
 passwd_dbname = mail_server

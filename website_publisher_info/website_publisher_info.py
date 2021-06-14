@@ -19,28 +19,27 @@
 #
 ##############################################################################
 
-from openerp import models, fields, api, _
-from openerp.exceptions import except_orm, Warning, RedirectWarning
-from openerp import http
-from openerp.http import request
-from openerp import SUPERUSER_ID
 from datetime import datetime
-from openerp.modules import get_module_resource, get_module_path
+import logging
+
+from odoo import models, fields, api, _
+from odoo.exceptions import UserError
+from odoo import http
+from odoo.http import request
 import werkzeug
 
-import logging
 _logger = logging.getLogger(__name__)
+
 
 class website_publisher_info(http.Controller):
 
     @http.route(['/website/publisher_info'], type='http', auth="public", website=True)
     def publisher_info(self, **post):
         me = request.env['res.users'].browse(request.context['uid'])
-        values = {
-            'me': me,
-        }
+        values = {'me': me}
         return request.website.render("website_publisher_info.publisher_info_template", values)
 
     @http.route(['/website/publisher_info/<model("ir.module.module"):module>'], type='http', auth="public", website=True)
     def publisher_info_module(self, module=None, **post):
         return request.website.render("website_publisher_info.publisher_info_module", {'module': module})
+

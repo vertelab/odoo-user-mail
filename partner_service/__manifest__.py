@@ -8,7 +8,7 @@
 
 {
     'name': 'Partner service',
-    'version': '1.0',
+    'version': '14.0.1.0.0',
     'category': 'other',
     'summary': 'Administation of services for partners',
     'author': 'Vertel AB',

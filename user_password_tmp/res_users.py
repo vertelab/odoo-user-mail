@@ -19,7 +19,7 @@
 ##############################################################################
 
 from odoo import models, fields, api, _
-from odoo.exceptions import Warning
+from odoo.exceptions import UserError
 import logging
 _logger = logging.getLogger(__name__)
 
@@ -27,29 +27,30 @@ _logger = logging.getLogger(__name__)
 class res_users(models.Model):
     _inherit = 'res.users'
 
-    @api.one
     def _passwd_tmp(self):
-        user_pw = self.env['res.users.password'].search([('user_id','=',self.id)])
-        self.passwd_tmp = user_pw.passwd_tmp and user_pw.passwd_tmp or _('N/A')
-    passwd_tmp = fields.Char(compute='_passwd_tmp',string='Password')
+        for rec in self:
+            user_pw = rec.env['res.users.password'].search(
+                [('user_id','=',rec.id)])
+            rec.passwd_tmp = user_pw.passwd_tmp and user_pw.passwd_tmp or _('N/A')
+        passwd_tmp = fields.Char(compute='_passwd_tmp', string='Password')
 
-    @api.one
-    def write(self,values):
-        passwd = values.get('password') or values.get('new_password')
-        if passwd:
-            self.env['res.users.password'].update_pw(self.id, passwd)
+    def write(self, values):
+        for rec in self:
+            passwd = values.get('password') or values.get('new_password')
+            if passwd:
+                rec.env['res.users.password'].update_pw(rec.id, passwd)
         return super(res_users, self).write(values)
 
 
 class users_password(models.TransientModel):
     _name = "res.users.password"
 
-    user_id = fields.Many2one(comodel_name='res.users',string="User")
+    user_id = fields.Many2one(comodel_name='res.users', string="User")
     passwd_tmp = fields.Char('Password')
 
     @api.model
     def update_pw(self, user_id, pw):
-        pw_user = self.search([('user_id','=',user_id)])
+        pw_user = self.search([('user_id', '=', user_id)])
         if pw_user:
             pw_user.passwd_tmp = pw
         else:

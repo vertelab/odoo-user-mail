@@ -4,7 +4,7 @@
 Unified password for admin
 ==========================
 
-Using admin_passwd from /etc/odoo/openerp-server.conf as password for admin
+Using admin_passwd from /etc/odoo/odoo.conf as password for admin
 
 
 Credits

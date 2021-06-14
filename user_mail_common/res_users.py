@@ -19,7 +19,7 @@
 ##############################################################################
 
 from odoo import models, fields, api, _
-from odoo.exceptions import Warning, ValidationError
+from odoo.exceptions import UserError, ValidationError
 from odoo import tools
 import uuid
 import re
@@ -42,13 +42,13 @@ class postfix_alias(models.Model):
     mail    = fields.Char(string='Complete Mail Address', size=64, compute='_onchange_mail', help="Mail as <user>@<domain>, if you are using a foreign domain, make sure that this domain are handled by the same mailserver", store=True)
     name = fields.Char(string='Mailaddress', size=64, help="Mail without domain (left side of @), leave blank for a catcall for the domain")
     
-    @api.one
     @api.depends('user_id.company_id.domain', 'name')
     def _onchange_mail(self):
-        if self.name:
-            self.mail = '%s@%s' % (self.name,self.user_id.company_id.domain)
-        else:
-            self.mail = '@%s' % (self.user_id.company_id.domain)
+        for rec in self:
+            if rec.name:
+                rec.mail = '%s@%s' % (rec.name, rec.user_id.company_id.domain)
+            else:
+                rec.mail = '@%s' % (rec.user_id.company_id.domain)
 
 email_re = re.compile(r"""^([a-zA-Z0-9._%+-]+)@([a-zA-Z0-9.-]+\.[a-zA-Z]{2,6})$""", re.VERBOSE)
 
@@ -123,25 +123,28 @@ class res_users(models.Model):
                         'virus_active',
                         ]
     
-    @api.one
     @api.depends('company_id.domain', 'login')
     def _email(self):
-        if self.postfix_active and self.login:
-            email_re = re.compile(r"^[^@]+@[^@]+\.[^@]+$", re.VERBOSE)
-            if not email_re.match(self.login):  # login is not an email address
-                self.postfix_mail = '%s@%s' % (self.login, self.domain)
-            elif email_re.match(self.login):    # login is an (external) email address, use only left part
-                self.postfix_mail = '%s@%s' % (email_re.match(self.login).groups()[0],self.company_id.domain)
+        for rec in self:
+            if rec.postfix_active and rec.login:
+                email_re = re.compile(r"^[^@]+@[^@]+\.[^@]+$", re.VERBOSE)
+                # login is not an email address.
+                if not email_re.match(rec.login):
+                    rec.postfix_mail = f'{rec.login}@{rec.domain}'
+                # login is an (external) email address, use only left part
+                elif email_re.match(rec.login):
+                    user = email_re.match(rec.login).groups()[0]
+                    rec.postfix_mail = f'{user}@{rec.company_id.domain}'
     
-    @api.one
     @api.depends('company_id.domain', 'login', 'postfix_mail')
     def _maildir_get(self):
-        if self.postfix_active and self.domain and self.postfix_mail:
-            self.maildir = "%s/%s/" % (self.domain, self.postfix_mail)
-            self.alias_name = self.login
-        else:
-            self.maildir = None
-            self.alias_name = None
+        for rec in self:
+            if rec.postfix_active and rec.domain and rec.postfix_mail:
+                rec.maildir = f'{rec.domain}/{rec.postfix_mail}/'
+                rec.alias_name = rec.login
+            else:
+                rec.maildir = None
+                rec.alias_name = None
 
 class res_company(models.Model):
     _inherit = 'res.company'
@@ -157,30 +160,35 @@ class res_company(models.Model):
     domain = fields.Char(string='Domain', help="the internet domain for mail", compute='_get_domain', inverse='_set_domain', store=True, required=True)
     nbr_users = fields.Integer(compute="_nbr_users", string="Nbr of users")
     
-    @api.one
     def _set_domain(self):
-        self.env['ir.config_parameter'].set_param('mail.catchall.domain',self.domain)
+        for rec in self:
+            rec.env['ir.config_parameter'].set_param(
+                'mail.catchall.domain', rec.domain)
     
-    @api.one
     def _get_domain(self):
-        self.domain = self.env['ir.config_parameter'].get_param('mail.catchall.domain')
+        for rec in self:
+            rec.domain = rec.env['ir.config_parameter'].get_param(
+                'mail.catchall.domain')
     
-    @api.one
     @api.depends('domain')
     def _catchall(self):
-        if self.domain:
-            self.catchall = 'catchall' + '@' + self.domain
+        for rec in self:
+            if rec.domain:
+                rec.catchall = f'catchall@{rec.domain}'
     
-    @api.one
     def _total_quota(self):
-        self.total_quota = sum(self.user_ids.filtered(lambda r: r.active == True and r.postfix_active == True).mapped('quota'))
+        for rec in self:
+            rec.total_quota = sum(rec.user_ids.filtered(
+                lambda r: r.active == True and r.postfix_active == True).mapped('quota'))
     
-    @api.one
     @api.depends('domain')
     def _email(self):
-        if self.domain:
-            self.email = 'info@%s' % self.domain
+        for rec in self:
+            if rec.domain:
+                rec.email = f'info@{rec.domain}'
     
-    @api.one
     def _nbr_users(self):
-        self.nbr_users = self.env['res.users'].search_count([('postfix_active','=',True)])
+        for rec in self:
+            rec.nbr_users = rec.env['res.users'].search_count(
+                [('postfix_active','=',True)])
+

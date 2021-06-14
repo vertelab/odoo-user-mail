@@ -23,7 +23,7 @@ import odoo.tools
 from odoo.tools import safe_eval as eval
 #import xmlrpclib
 import xmlrpc.client
-from odoo.exceptions import Warning
+from odoo.exceptions import UserError
 import os, string
 import random
 import logging
@@ -41,22 +41,22 @@ class sync_settings_wizard(models.TransientModel):
     def default_user_ids(self):
         return self.env['res.users'].browse(self._context.get('active_ids'))
     
-    @api.one
     def sync_settings(self):
         companies = set()
         nopw = list()
-        for user in self.default_user_ids():
-            if self.gen_pw == False and not user.dovecot_password and user.passwd_tmp == _('N/A'):
-                nopw.append(user)
-            user.sync_settings()
-            if self.gen_pw:
-                user.write({'new_password': user.generate_password()})
-            companies.add(user.company_id)
-        for c in companies:
-            c.sync_settings()
+        for rec in self:
+            for user in rec.default_user_ids():
+                if rec.gen_pw == False and not user.dovecot_password and user.passwd_tmp == _('N/A'):
+                    nopw.append(user)
+                user.sync_settings()
+                if rec.gen_pw:
+                    user.write({'new_password': user.generate_password()})
+                companies.add(user.company_id)
+            for c in companies:
+                c.sync_settings()
 
         if len(nopw) > 0:
-            raise Warning(_('Some users missing password:\n\n%s\n\n please set new (sync is done)') % ',\n'.join([u.login for u in nopw]) )
+            raise UserError(_('Some users missing password:\n\n%s\n\n please set new (sync is done)') % ',\n'.join([u.login for u in nopw]) )
 
         return {}
 
@@ -70,12 +70,14 @@ class res_users(models.Model):
     
     def generate_password(self):
         length = int(self._get_param('pw_length', 13))
-        rules = eval(self._get_param('pw_rules', str({
-            'lower': 4,
-            'upper': 3,
-            'digits': 2,
-            'special': 1,
-        })))
+        rules = eval(
+            self._get_param('pw_rules',
+                            str({
+                                'lower': 4,
+                                'upper': 3,
+                                'digits': 2,
+                                'special': 1,
+                            })))
         char_types = list(rules.keys())
         chars = {
             'lower': string.ascii_lowercase,
@@ -99,94 +101,96 @@ class res_users(models.Model):
     def generateUUID(self):
         return str(uuid.uuid4())
 
-    @api.one
-    def sync_settings(self, generate_password=False):  
-        SYNCSERVER = Sync2server(self)
-        record = {f:self.read()[0][f] for f in self.USER_MAIL_FIELDS}
-        record['postfix_alias_ids'] = [(0,0,{'name': m.name, 'mail':m.mail,'active':m.active}) for m in self.postfix_alias_ids]
+    def sync_settings(self, generate_password=False):
+        for rec in self:
+            SYNCSERVER = Sync2server(rec)
+            record = {f:rec.read()[0][f] for f in rec.USER_MAIL_FIELDS}
+            record['postfix_alias_ids'] = [
+                (0, 0, {'name': m.name, 'mail': m.mail, 'active': m.active})
+                for m in rec.postfix_alias_ids]
 
-        remote_company = SYNCSERVER.remote_company(self.company_id)
-        if remote_company:
-            record['company_ids'] = [(6,_,[remote_company])]
-            record['company_id'] = remote_company
-        else:
-            raise Warning('Update company first')
+            remote_company = SYNCSERVER.remote_company(rec.company_id)
+            if remote_company:
+                record['company_ids'] = [(6, _, [remote_company])]
+                record['company_id'] = remote_company
+            else:
+                raise UserError('Update company first')
 
-        remote_user_id = SYNCSERVER.remote_user(self)
-        if remote_user_id:
-            SYNCSERVER.unlink('postfix.alias', SYNCSERVER.search('postfix.alias',[['user_id','=',remote_user_id]]))  # Check postfix_alias_ids
-            SYNCSERVER.write(self._name, remote_user_id, record)
-        else:
-            record['remote_id'] = self.remote_id
-            SYNCSERVER.create(self._name, record)
-    
-    @api.one
-    def write(self,values):
-        passwd = values.get('password') or values.get('new_password')
-        if passwd:
-            values['dovecot_password'] = self.generate_dovecot_sha512(passwd)            
-            SYNCSERVER = Sync2server(self)
-            remote_user_id = SYNCSERVER.remote_user(self)
+            remote_user_id = SYNCSERVER.remote_user(rec)
             if remote_user_id:
-                _logger.info("VALUES IN WRITE :::::::::: %s" % values)
-                SYNCSERVER.write(self._name,remote_user_id, values)
+                # Check postfix_alias_ids
+                SYNCSERVER.unlink('postfix.alias',
+                                  SYNCSERVER.search(
+                                      'postfix.alias',
+                                      [['user_id', '=', remote_user_id]]))
+                SYNCSERVER.write(rec._name, remote_user_id, record)
+            else:
+                record['remote_id'] = rec.remote_id
+                SYNCSERVER.create(rec._name, record)
+
+    def write(self, values):
+        passwd = values.get('password') or values.get('new_password')
+        for rec in self:
+            if passwd:
+                values['dovecot_password'] = rec.generate_dovecot_sha512(passwd)
+                SYNCSERVER = Sync2server(rec)
+                remote_user_id = SYNCSERVER.remote_user(rec)
+                if remote_user_id:
+                    _logger.info(f"VALUES IN WRITE :::::::::: {values}")
+                    SYNCSERVER.write(rec._name,remote_user_id, values)
         return super(res_users, self).write(values)
 
-    #~ @api.model
-    #~ def create(self, values):
-        #~ ctx = self.env.context.copy()
-        #~ ctx.update({'no_reset_password' : False})
-        #~ user = super(res_users, self.with_context(ctx)).create(values)           
-        #~ #user = super(res_users, self).create(values)
-        #~ return user
-
-    @api.one
     def unlink(self):
-        SYNCSERVER = Sync2server(self)
+        for rec in self:
+            SYNCSERVER = Sync2server(rec)
 
-        user_id = self.env['res.users'].search([('login','=',self.login)]).id
-        postfix_alias_id = self.env['postfix.alias'].search([('user_id', '=', user_id)]).unlink()
-        #only needed if deleting a user with recently changed password
-        self.env['change.password.wizard'].search([('user_ids', '=', self.id)]).unlink()
-        self.env['change.password.user'].search([('user_id', '=', self.id)]).unlink()
+            user_id = rec.env['res.users'].search(
+                [('login', '=', rec.login)]).id
+            postfix_alias_id = rec.env['postfix.alias'].search(
+                [('user_id', '=', user_id)]).unlink()
+            # Only needed if deleting a user with recently changed password.
+            rec.env['change.password.wizard'].search(
+                [('user_ids', '=', rec.id)]).unlink()
+            rec.env['change.password.user'].search(
+                [('user_id', '=', rec.id)]).unlink()
 
-        remote_user = SYNCSERVER.remote_user(self)
-        if remote_user:
-            SYNCSERVER.unlink(self._name, [remote_user])
+            remote_user = SYNCSERVER.remote_user(rec)
+            if remote_user:
+                SYNCSERVER.unlink(rec._name, [remote_user])
 
         return super(res_users, self).unlink()
         
-    @api.one
     def testxmlrpc(self):
-        #~ common = xmlrpc.client.ServerProxy('http://localhost:8069/xmlrpc/2/common')
-        #~ info = common.version()
-        #~ uid = common.authenticate('mail_server', 'admin', 'admin', {})
-        #~ model = xmlrpc.client.ServerProxy('http://localhost:8069/xmlrpc/2/object',allow_none=True)
+        for rec in self:
+            #~ common = xmlrpc.client.ServerProxy('http://localhost:8069/xmlrpc/2/common')
+            #~ info = common.version()
+            #~ uid = common.authenticate('mail_server', 'admin', 'admin', {})
+            #~ model = xmlrpc.client.ServerProxy('http://localhost:8069/xmlrpc/2/object',allow_none=True)
       
-        #~ res = model.execute_kw('mail_server', uid, 'admin','res.company', 'search', [[['remote_id','=',None]]])
-        #~ raise Warning(res,info,uid)
-        #~ #_logger.error(res)
+            #~ res = model.execute_kw('mail_server', uid, 'admin','res.company', 'search', [[['remote_id','=',None]]])
+            #~ raise UserError(res,info,uid)
+            #~ #_logger.error(res)
         
         
         
-        SYNCSERVER = Sync2server(self)
-        #~ record = {f:self.read()[0][f] for f in self.USER_MAIL_FIELDS}
-        #~ record['postfix_alias_ids'] = [(0,0,{'name': m.name, 'mail':m.mail,'active':m.active}) for m in self.postfix_alias_ids]
+            SYNCSERVER = Sync2server(rec)
+            #~ record = {f: rec.read()[0][f] for f in rec.USER_MAIL_FIELDS}
+            #~ record['postfix_alias_ids'] = [(0, 0, {'name': m.name, 'mail': m.mail, 'active': m.active}) for m in self.postfix_alias_ids]
         
-        #~ res = SYNCSERVER.sock.execute_kw(SYNCSERVER.passwd_dbnameSYNCSERVER.passwd_dbname, SYNCSERVER.uid, SYNCSERVER.passwd_passwd,'res.users', 'search', [[['id','=',1]]])
-        res = SYNCSERVER.sock.execute_kw('mail_server',1, 'admin','res.users', 'search', [['id','=',1]])
-        _logger.error(res)
+            #~ res = SYNCSERVER.sock.execute_kw(SYNCSERVER.passwd_dbnameSYNCSERVER.passwd_dbname, SYNCSERVER.uid, SYNCSERVER.passwd_passwd, 'res.users', 'search', [[['id','=',1]]])
+            res = SYNCSERVER.sock.execute_kw('mail_server', 1, 'admin', 'res.users', 'search', [['id', '=', 1]])
+            _logger.error(res)
         
-        remote_company = SYNCSERVER.search('res.company',[['remote_id','=',None]])          
+            remote_company = SYNCSERVER.search('res.company', [['remote_id', '=', None]])
 
-        remote_company = SYNCSERVER.remote_company(self.company_id)
+            remote_company = SYNCSERVER.remote_company(rec.company_id)
         
-        #raise Warning(uid,info)
+            #raise UserError(uid,info)
 
 class res_company(models.Model):
     _inherit = 'res.company'
   
-    def _get_param(self,param,value):
+    def _get_param(self, param, value):
         if not self.env['ir.config_parameter'].get_param(param):
             self.env['ir.config_parameter'].set_param(param,value)
         return self.env['ir.config_parameter'].get_param(param)
@@ -194,31 +198,33 @@ class res_company(models.Model):
     def generateUUID(self):
         return str(uuid.uuid4())
                 
-    @api.one
-    def write(self,values):
-        if not self.remote_id:
-            values['remote_id'] = self.generateUUID()
-        comp = super(res_company, self).write(values)
-        if values.get('domain',False):
-            #~ _logger.warn("RECORD IN WRITE :::::::::::: %s" % values)
-            #~ _logger.warn("COMP ::::::::::: %s" % comp)
-            self.sync_settings()
+    def write(self, values):
+        for rec in self:
+            if not rec.remote_id:
+                values['remote_id'] = rec.generateUUID()
+                comp = super(res_company, rec).write(values)
+            if values.get('domain',False):
+                #~ _logger.warn(f"RECORD IN WRITE :::::::::::: {values}")
+                #~ _logger.warn(f"COMP ::::::::::: {comp}")
+                rec.sync_settings()
 
-            if self.id == self.env.ref('base.main_company').id:  # Create mailservers when its a main company and not mainserver
-                self.env['ir.config_parameter'].set_param('mail.catchall.domain',values.get('domain'))
-                password = self._createcatchall()[0]
-                if password:
-                    self._smtpserver(password)
-                    self._imapserver(password)
+                # Create mailservers when its a main company and not mainserver
+                if rec.id == rec.env.ref('base.main_company').id:
+                    rec.env['ir.config_parameter'].set_param(
+                        'mail.catchall.domain', values.get('domain'))
+                    password = rec._createcatchall()[0]
+                    if password:
+                        rec._smtpserver(password)
+                        rec._imapserver(password)
 
-    @api.one
     def unlink(self):
-        SYNCSERVER = Sync2server(self)
+        for rec in self:
+            SYNCSERVER = Sync2server(rec)
 
-        remote_company = SYNCSERVER.remote_company(self)
+            remote_company = SYNCSERVER.remote_company(rec)
 
-        if remote_company:
-            SYNCSERVER.unlink(self._name, remote_company) 
+            if remote_company:
+                SYNCSERVER.unlink(rec._name, remote_company)
              
         super(res_company, self).unlink()
 
@@ -228,7 +234,7 @@ class res_company(models.Model):
         SYNCSERVER = Sync2server(self)
 
         values['remote_id'] = self.generateUUID()
-        company = super(res_company, self).create(values)  
+        company = super(res_company, self).create(values)
 
         if company:
             remote_company_id = company.sync_settings()
@@ -241,46 +247,47 @@ class res_company(models.Model):
           
         return company
 
-    @api.one
-    def sync_settings(self):  
-        SYNCSERVER = Sync2server(self) 
+    def sync_settings(self):
+        for rec in self:
+            SYNCSERVER = Sync2server(rec)
 
-        record = {f:self.read()[0][f] for f in  ['name','domain','catchall','default_quota', 'email', 'remote_id']}
-        if self.remote_id:
-            remote_company_id = SYNCSERVER.remote_company(self)
+            record = {f: rec.read()[0][f] for f in
+                      ['name', 'domain', 'catchall', 'default_quota', 'email', 'remote_id']}
+            if rec.remote_id:
+                remote_company_id = SYNCSERVER.remote_company(rec)
         
-        if self.remote_id and remote_company_id:
-            SYNCSERVER.write(self._name, remote_company_id, record)
-            return remote_company_id
-        else:
-            return SYNCSERVER.create(self._name, record)
+            if rec.remote_id and remote_company_id:
+                SYNCSERVER.write(rec._name, remote_company_id, record)
+                return remote_company_id
+            else:
+                return SYNCSERVER.create(rec._name, record)
         
-    @api.one
     def _createcatchall(self):
-        SYNCSERVER = Sync2server(self)
-        if not SYNCSERVER.search('res.users', [['postfix_mail', '=', self.catchall]]):
-            new_pw = self.env['res.users'].generate_password()
+        for rec in self:
+            SYNCSERVER = Sync2server(rec)
+            if not SYNCSERVER.search('res.users', [['postfix_mail', '=', rec.catchall]]):
+                new_pw = rec.env['res.users'].generate_password()
 
-            record = {
-                'new_password': new_pw,
-                'name': 'Catchall', 
-                'login': self.catchall,
-                'postfix_active': True, 
-                'email': self.catchall,
-                'postfix_mail': self.catchall,
-                'postfix_alias_ids': [(0,0,{'name': '','active':True})],
-                'dovecot_password': self.env['res.users'].generate_dovecot_sha512(new_pw)
-            }
+                record = {
+                    'new_password': new_pw,
+                    'name': 'Catchall',
+                    'login': rec.catchall,
+                    'postfix_active': True,
+                    'email': rec.catchall,
+                    'postfix_mail': rec.catchall,
+                    'postfix_alias_ids': [(0,0,{'name': '','active':True})],
+                    'dovecot_password': rec.env['res.users'].generate_dovecot_sha512(new_pw)
+                }
 
-            remote_company = SYNCSERVER.remote_company(self)
+                remote_company = SYNCSERVER.remote_company(rec)
 
-            if remote_company:
-                record['company_ids'] = [(6,_,[remote_company])]
-                record['company_id'] = remote_company
+                if remote_company:
+                    record['company_ids'] = [(6, _, [remote_company])]
+                    record['company_id'] = remote_company
 
-            SYNCSERVER.create('res.users', record)            
+                SYNCSERVER.create('res.users', record)
 
-            return new_pw
+                return new_pw
 
     def _smtpserver(self,password):
         record = {
@@ -333,7 +340,7 @@ class res_company(models.Model):
 def get_config(param, msg):
     value = odoo.tools.config.get(param, False)
     if not value:
-        raise Warning(_("%s (%s in /etc/odoo/odoo.conf)" % (msg, param)))
+        raise UserError(_("%s (%s in /etc/odoo/odoo.conf)" % (msg, param)))
     return value
 
 class Sync2server():
@@ -349,7 +356,7 @@ class Sync2server():
             self.uid = self.sock_common.authenticate(self.passwd_dbname, self.passwd_user, self.passwd_passwd,{})
             self.sock = xmlrpc.client.ServerProxy('%s:%s/xmlrpc/2/object' % (self.passwd_server, self.passwd_port), allow_none=True)
         except xmlrpclib.Error as err:
-            raise Warning(_("%s (server %s, db %s, user %s, pw %s)" % (err, self.passwd_server, self.passwd_dbname, self.passwd_user, self.passwd_passwd)))
+            raise UserError(_("%s (server %s, db %s, user %s, pw %s)" % (err, self.passwd_server, self.passwd_dbname, self.passwd_user, self.passwd_passwd)))
             
     def search(self, model, domain):
         return self.sock.execute_kw(self.passwd_dbname, self.uid, self.passwd_passwd,model, 'search', [domain])
@@ -366,7 +373,7 @@ class Sync2server():
 
     def remote_company(self,company):
         if not company.remote_id:
-            raise Warning('no remote id')
+            raise UserError('no remote id')
         remote_company = self.search('res.company',[['remote_id','=',company.remote_id]])          
         if remote_company:
             return remote_company[0]

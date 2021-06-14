@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 {
     'name': 'User Mail Common',
-    'version': '12.0.0.1',
+    'version': '14.0.1.0.0',
     'category': 'other',
     'summary': 'Administation of mail for users',
     'author': 'Vertel AB',

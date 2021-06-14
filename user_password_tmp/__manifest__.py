@@ -8,7 +8,7 @@
 
 {
     'name': 'User Password Tmp',
-    'version': '1.1',
+    'version': '14.0.1.1.0',
     'category': 'other',
     'summary': 'Saves users password in clear text for a short time',
     'author': 'Vertel AB',

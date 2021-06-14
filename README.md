@@ -9,7 +9,7 @@ Note that user_mail_common contains fields and functions that both user_mail_cli
 The intended purpose user_mail modules is only for dovecot/postfix. Not for regular Odoo usage.
 
 
--------/etc/odoo/openerp-server.conf-------
+-------/etc/odoo/odoo.conf-------
 
 [options]
 ; This is the configuration that allows user_mail module to operate:
@@ -165,10 +165,5 @@ user_query = SELECT 5000 as uid, 5000 as gid, '/var/lib/vmail/domains/' || maild
 # Query to get a list of all usernames.
 #iterate_query = SELECT user_email AS user FROM res_users
 iterate_query = SELECT postfix_mail AS user FROM res_users
-
-
-
-
 ```
-
 

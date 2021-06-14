@@ -18,9 +18,11 @@
 #
 ##############################################################################
 
-from openerp import models, fields, api, _
-from openerp.exceptions import Warning
 import logging
+
+from odoo import models, fields, api, _
+from odoo.exceptions import UserError
+
 _logger = logging.getLogger(__name__)
 
 
@@ -47,9 +49,9 @@ class res_users(models.Model):
     forward_cp_copy = fields.Boolean('Keep Copy')
     virus_active_copy = fields.Boolean('Virus Check Copy')
     spam_active_copy = fields.Boolean('Spam Check Copy')
-    spam_killevel_copy = fields.Selection([('10','low (10)'),('6','medium (6)'),('4.5','high (4.5)'),('3','very high (3)')]  ,string='Spam Kill Level Copy')
-    spam_tag2_copy = fields.Selection([('9.5','low (9.5)'),('5.5','medium (5.5)'),('4','high (4)'),('2.5','very high (2.5)')],string='Spam Tag Level two Copy')
-    spam_tag_copy = fields.Selection([('7.0','low (7)'),('3','medium (3)'),('1.5','high (1.5)'),('0','very high (0)')]    ,string='Spam Tag Level Copy')
+    spam_killevel_copy = fields.Selection([('10', 'low (10)'), ('6', 'medium (6)'), ('4.5', 'high (4.5)'), ('3', 'very high (3)')]  ,string='Spam Kill Level Copy')
+    spam_tag2_copy = fields.Selection([('9.5', 'low (9.5)'), ('5.5', 'medium (5.5)'), ('4', 'high (4)'), ('2.5', 'very high (2.5)')], string='Spam Tag Level two Copy')
+    spam_tag_copy = fields.Selection([('7.0', 'low (7)'), ('3', 'medium (3)'),('1.5', 'high (1.5)'),('0', 'very high (0)')], string='Spam Tag Level Copy')
     maildir_copy = fields.Char('Maildir Copy')
     transport_copy = fields.Char('Transport Copy')
     domain_copy  = fields.Char('Domain Copy')

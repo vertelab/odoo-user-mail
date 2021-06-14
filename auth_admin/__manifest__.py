@@ -8,7 +8,7 @@
 
 {
     'name': 'Auth Admin',
-    'version': '1.0',
+    'version': '14.0.1.0.0',
     'category': 'Tools',
     'summary': 'Unified password for admin',
     'author': 'Vertel AB',
