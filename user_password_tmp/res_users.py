@@ -43,6 +43,7 @@ class res_users(models.Model):
 
 class users_password(models.TransientModel):
     _name = "res.users.password"
+    _description = "RES Users Password"
 
     user_id = fields.Many2one(comodel_name='res.users',string="User")
     passwd_tmp = fields.Char('Password')

@@ -35,6 +35,7 @@ SYNCSERVER = None
 
 class sync_settings_wizard(models.TransientModel):
     _name = "user.mail.sync.wizard"
+    _description = "User Mail Sync Wizard"
 
     gen_pw = fields.Boolean(string="generate_password")
 

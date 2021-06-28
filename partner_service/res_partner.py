@@ -36,6 +36,7 @@ class res_partner(models.Model):
     
 class res_partner_service(models.Model):
     _name = "res.partner.service"
+    _description = "RES Partner Service"
     
     partner_id = fields.Many2one('res.partner')
     service_id = fields.Many2one('service.service')
@@ -53,6 +54,7 @@ class res_partner_service(models.Model):
 
 class service(models.Model):
     _name = "service.service"
+    _description = "Service"
     
     name = fields.Char()
     server_ids = fields.One2many(comodel_name='service.server',inverse_name="service_id")
@@ -67,6 +69,7 @@ class service(models.Model):
 
 class service_server(models.Model):
     _name = "service.server"
+    _description = "Service Server"
     
     name = fields.Char()
     hostname = fields.Char()
