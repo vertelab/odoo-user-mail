@@ -26,6 +26,7 @@ _logger = logging.getLogger(__name__)
 
 class postfix_alias_copy(models.Model):
     _name = "postfix.alias.copy"
+    _description = "Postfix Alias Copy"
 
     user_id_copy = fields.Many2one('res.users')
     mail_copy = fields.Char('Mail Copy')

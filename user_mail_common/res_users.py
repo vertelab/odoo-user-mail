@@ -29,6 +29,7 @@ _logger = logging.getLogger(__name__)
 
 class postfix_vacation_notification(models.Model):
     _name = 'postfix.vacation_notification'
+    _description = "Postfix Vacation Notfication"
     
     user_id = fields.Many2one('res.users', 'User', ondelete='cascade', required=True,)
     notified = fields.Char('Notified', size=64, select=1)
@@ -36,6 +37,7 @@ class postfix_vacation_notification(models.Model):
 
 class postfix_alias(models.Model):
     _name = 'postfix.alias'
+    _description = "Postfix Alias"
     
     user_id = fields.Many2one('res.users', ondelete='cascade',required=True)
     active = fields.Boolean('Active',default=True)
