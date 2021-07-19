@@ -18,12 +18,11 @@
         </form>
       </field>
     </record>
-    <act_window id="action_user_mail_sync"
-            name="Synchronize E-mail Settings"
-            src_model="res.users"
-            res_model="user.mail.sync.wizard"
-            view_type="form" view_mode="form"
-            key2="client_action_multi" target="new"
-            groups="user_mail_common.group_own_email_settings"/>
+    <record model="ir.actions.acti_window.view" id="action_user_mail_sync">
+      
+    </record>
+<!--
+    <act_window id="action_user_mail_sync" name="Synchronize E-mail Settings" src_model="res.users" res_model="user.mail.sync.wizard" view_type="form" view_mode="form" key2="client_action_multi" target="new" groups="user_mail_common.group_own_email_settings" />
+-->
   </data>
 </odoo>

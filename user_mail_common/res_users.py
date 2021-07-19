@@ -46,9 +46,9 @@ class postfix_alias(models.Model):
     def _onchange_mail(self):
         for rec in self:
             if rec.name:
-                rec.mail = '%s@%s' % (rec.name, rec.user_id.company_id.domain)
+                rec.mail = f'{rec.name}@{rec.user_id.company_id.domain}'
             else:
-                rec.mail = '@%s' % (rec.user_id.company_id.domain)
+                rec.mail = f'@{rec.user_id.company_id.domain}'
 
 email_re = re.compile(r"""^([a-zA-Z0-9._%+-]+)@([a-zA-Z0-9.-]+\.[a-zA-Z]{2,6})$""", re.VERBOSE)
 
@@ -141,10 +141,10 @@ class res_users(models.Model):
         for rec in self:
             if rec.postfix_active and rec.domain and rec.postfix_mail:
                 rec.maildir = f'{rec.domain}/{rec.postfix_mail}/'
-                rec.alias_name = rec.login
+                #rec.alias_name = rec.login
             else:
                 rec.maildir = None
-                rec.alias_name = None
+                #rec.alias_name = None
 
 class res_company(models.Model):
     _inherit = 'res.company'
