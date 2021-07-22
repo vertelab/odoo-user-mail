@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 ##############################################################################
 #
-#    OpenERP, Open Source Management Solution, third party addon
+#    odoo, Open Source Management Solution, third party addon
 #    Copyright (C) 2004-2015 Vertel AB (<http://vertel.se>).
 #
 #    This program is free software: you can redistribute it and/or modify
@@ -19,13 +19,13 @@
 #
 ##############################################################################
 
-from openerp import models, fields, api, _
-from openerp.exceptions import except_orm, Warning, RedirectWarning
-from openerp import http
-from openerp.http import request
-from openerp import SUPERUSER_ID
+from odoo import models, fields, api, _
+from odoo.exceptions import except_orm, Warning, RedirectWarning
+from odoo import http
+from odoo.http import request
+from odoo import SUPERUSER_ID
 from datetime import datetime
-from openerp.modules import get_module_resource, get_module_path
+from odoo.modules import get_module_resource, get_module_path
 import werkzeug
 
 import logging

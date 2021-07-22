@@ -19,8 +19,8 @@
 ##############################################################################
 
 
-from openerp import models, fields, api, _
-import openerp.tools
+from odoo import models, fields, api, _
+import odoo.tools
 
 import logging
 _logger = logging.getLogger(__name__)
@@ -29,13 +29,14 @@ _logger = logging.getLogger(__name__)
 class res_partner(models.Model):
     _inherit = 'res.partner'
 
-#    passwd_server = openerp.tools.config.get('passwd_server',False)
+#    passwd_server = odoo.tools.config.get('passwd_server',False)
 #    _logger.warning('Passwd_server %s' % passwd_server)
     service_ids = fields.Many2many('res.partner.service','res_partner_service_rel','partner_id','service_id',string="Service")
     
     
 class res_partner_service(models.Model):
     _name = "res.partner.service"
+    _description = "RES Partner Service"
     
     partner_id = fields.Many2one('res.partner')
     service_id = fields.Many2one('service.service')
@@ -53,6 +54,7 @@ class res_partner_service(models.Model):
 
 class service(models.Model):
     _name = "service.service"
+    _description = "Service"
     
     name = fields.Char()
     server_ids = fields.One2many(comodel_name='service.server',inverse_name="service_id")
@@ -67,6 +69,7 @@ class service(models.Model):
 
 class service_server(models.Model):
     _name = "service.server"
+    _description = "Service Server"
     
     name = fields.Char()
     hostname = fields.Char()
