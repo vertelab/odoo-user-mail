@@ -1,5 +1,5 @@
 <?xml version="1.0"?>
-<openerp>
+<odoo>
     <data>
 
         <!-- publisher info -->
@@ -38,5 +38,5 @@
         </record>
 
     </data>
-</openerp>
+</odoo>
 

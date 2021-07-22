@@ -1,4 +1,4 @@
-<openerp>
+<odoo>
 	<data>
 
 		<record id="copy_action" model="ir.actions.server">
@@ -12,4 +12,4 @@
 		<function model="res.users" name="add_to_more_button"/>
 
 	</data>
-</openerp>
+</odoo>

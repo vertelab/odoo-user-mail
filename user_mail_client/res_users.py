@@ -42,7 +42,6 @@ class sync_settings_wizard(models.TransientModel):
     def default_user_ids(self):
         return self.env['res.users'].browse(self._context.get('active_ids'))
     
-    @api.one
     def sync_settings(self):
         companies = set()
         nopw = list()
@@ -100,8 +99,7 @@ class res_users(models.Model):
     def generateUUID(self):
         return str(uuid.uuid4())
 
-    @api.one
-    def sync_settings(self, generate_password=False):  
+    def sync_settings(self, generate_password=False):
         SYNCSERVER = Sync2server(self)
         record = {f:self.read()[0][f] for f in self.USER_MAIL_FIELDS}
         record['postfix_alias_ids'] = [(0,0,{'name': m.name, 'mail':m.mail,'active':m.active}) for m in self.postfix_alias_ids]
@@ -121,7 +119,6 @@ class res_users(models.Model):
             record['remote_id'] = self.remote_id
             SYNCSERVER.create(self._name, record)
     
-    @api.one
     def write(self,values):
         passwd = values.get('password') or values.get('new_password')
         if passwd:
@@ -141,7 +138,6 @@ class res_users(models.Model):
         #~ #user = super(res_users, self).create(values)
         #~ return user
 
-    @api.one
     def unlink(self):
         SYNCSERVER = Sync2server(self)
 
@@ -157,7 +153,6 @@ class res_users(models.Model):
 
         return super(res_users, self).unlink()
         
-    @api.one
     def testxmlrpc(self):
         #~ common = xmlrpc.client.ServerProxy('http://localhost:8069/xmlrpc/2/common')
         #~ info = common.version()
@@ -195,7 +190,6 @@ class res_company(models.Model):
     def generateUUID(self):
         return str(uuid.uuid4())
                 
-    @api.one
     def write(self,values):
         if not self.remote_id:
             values['remote_id'] = self.generateUUID()
@@ -212,7 +206,6 @@ class res_company(models.Model):
                     self._smtpserver(password)
                     self._imapserver(password)
 
-    @api.one
     def unlink(self):
         SYNCSERVER = Sync2server(self)
 
@@ -242,8 +235,7 @@ class res_company(models.Model):
           
         return company
 
-    @api.one
-    def sync_settings(self):  
+    def sync_settings(self):
         SYNCSERVER = Sync2server(self) 
 
         record = {f:self.read()[0][f] for f in  ['name','domain','catchall','default_quota', 'email', 'remote_id']}
@@ -256,7 +248,6 @@ class res_company(models.Model):
         else:
             return SYNCSERVER.create(self._name, record)
         
-    @api.one
     def _createcatchall(self):
         SYNCSERVER = Sync2server(self)
         if not SYNCSERVER.search('res.users', [['postfix_mail', '=', self.catchall]]):
