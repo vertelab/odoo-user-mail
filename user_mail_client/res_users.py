@@ -21,7 +21,10 @@
 from odoo import models, fields, api, _
 import odoo.tools
 from odoo.tools import safe_eval as eval
-#import xmlrpclib
+try:
+    from xmlrpc import client as xmlrpclib
+except ImportError:
+    import xmlrpclib
 import xmlrpc.client
 from odoo.exceptions import Warning
 import os, string
@@ -32,6 +35,7 @@ import uuid
 from passlib.hash import sha512_crypt
 
 SYNCSERVER = None
+
 
 class sync_settings_wizard(models.TransientModel):
     _name = "user.mail.sync.wizard"
@@ -330,17 +334,17 @@ def get_config(param, msg):
 
 class Sync2server():
     def __init__(self, model):
-        self.passwd_server = get_config('passwd_server','Server uri is missing!')
-        self.passwd_port = get_config('passwd_port','Server port is missing!')
-        self.passwd_dbname = get_config('passwd_dbname','Databasename is missing')
-        self.passwd_user   = get_config('passwd_user','Username is missing')
-        self.passwd_passwd = get_config('passwd_passwd','Password is missing')
-        _logger.info('Sync2server server %s database %s user %s' % (self.passwd_server,self.passwd_dbname,self.passwd_user))
+        self.passwd_server = get_config('passwd_server', 'Server uri is missing!')
+        self.passwd_port = get_config('passwd_port', 'Server port is missing!')
+        self.passwd_dbname = get_config('passwd_dbname', 'Databasename is missing')
+        self.passwd_user = get_config('passwd_user', 'Username is missing')
+        self.passwd_passwd = get_config('passwd_passwd', 'Password is missing')
+        _logger.info('Sync2server server %s database %s user %s' % (self.passwd_server, self.passwd_dbname, self.passwd_user))
         try:
             self.sock_common = xmlrpc.client.ServerProxy('%s:%s/xmlrpc/2/common' % (self.passwd_server, self.passwd_port))
-            self.uid = self.sock_common.authenticate(self.passwd_dbname, self.passwd_user, self.passwd_passwd,{})
+            self.uid = self.sock_common.authenticate(self.passwd_dbname, self.passwd_user, self.passwd_passwd, {})
             self.sock = xmlrpc.client.ServerProxy('%s:%s/xmlrpc/2/object' % (self.passwd_server, self.passwd_port), allow_none=True)
-        except xmlrpclib.Error as err:
+        except xmlrpclib.Fault as err:
             raise Warning(_("%s (server %s, db %s, user %s, pw %s)" % (err, self.passwd_server, self.passwd_dbname, self.passwd_user, self.passwd_passwd)))
             
     def search(self, model, domain):
