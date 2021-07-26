@@ -33,7 +33,7 @@ class postfix_vacation_notification(models.Model):
     _description = "Postfix Vacation Notfication"
     
     user_id = fields.Many2one('res.users', 'User', ondelete='cascade', required=True,)
-    notified = fields.Char('Notified', size=64, select=1)
+    notified = fields.Char('Notified', size=64, index=True)
     date = fields.Date('Date', default=fields.Date.context_today)
 
 

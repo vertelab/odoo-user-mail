@@ -64,6 +64,7 @@ class sync_settings_wizard(models.TransientModel):
 
         return {}
 
+
 class res_users(models.Model):
     _inherit = 'res.users' 
     
@@ -105,25 +106,25 @@ class res_users(models.Model):
 
     def sync_settings(self, generate_password=False):
         SYNCSERVER = Sync2server(self)
-        record = {f:self.read()[0][f] for f in self.USER_MAIL_FIELDS}
-        record['postfix_alias_ids'] = [(0,0,{'name': m.name, 'mail':m.mail,'active':m.active}) for m in self.postfix_alias_ids]
+        record = {f: self.read()[0][f] for f in self.USER_MAIL_FIELDS}
+        record['postfix_alias_ids'] = [(0, 0, {'name': m.name, 'mail': m.mail, 'active': m.active}) for m in self.postfix_alias_ids]
 
         remote_company = SYNCSERVER.remote_company(self.company_id)
         if remote_company:
-            record['company_ids'] = [(6,_,[remote_company])]
+            record['company_ids'] = [(6, _, [remote_company])]
             record['company_id'] = remote_company
         else:
             raise Warning('Update company first')
 
         remote_user_id = SYNCSERVER.remote_user(self)
         if remote_user_id:
-            SYNCSERVER.unlink('postfix.alias', SYNCSERVER.search('postfix.alias',[['user_id','=',remote_user_id]]))  # Check postfix_alias_ids
+            SYNCSERVER.unlink('postfix.alias', SYNCSERVER.search('postfix.alias', [['user_id', '=', remote_user_id]]))  # Check postfix_alias_ids
             SYNCSERVER.write(self._name, remote_user_id, record)
         else:
             record['remote_id'] = self.remote_id
             SYNCSERVER.create(self._name, record)
     
-    def write(self,values):
+    def write(self, values):
         passwd = values.get('password') or values.get('new_password')
         if passwd:
             values['dovecot_password'] = self.generate_dovecot_sha512(passwd)            
@@ -131,7 +132,7 @@ class res_users(models.Model):
             remote_user_id = SYNCSERVER.remote_user(self)
             if remote_user_id:
                 _logger.info("VALUES IN WRITE :::::::::: %s" % values)
-                SYNCSERVER.write(self._name,remote_user_id, values)
+                SYNCSERVER.write(self._name, remote_user_id, values)
         return super(res_users, self).write(values)
 
     #~ @api.model
@@ -145,7 +146,7 @@ class res_users(models.Model):
     def unlink(self):
         SYNCSERVER = Sync2server(self)
 
-        user_id = self.env['res.users'].search([('login','=',self.login)]).id
+        user_id = self.env['res.users'].search([('login', '=', self.login)]).id
         postfix_alias_id = self.env['postfix.alias'].search([('user_id', '=', user_id)]).unlink()
         #only needed if deleting a user with recently changed password
         self.env['change.password.wizard'].search([('user_ids', '=', self.id)]).unlink()
@@ -174,27 +175,28 @@ class res_users(models.Model):
         #~ record['postfix_alias_ids'] = [(0,0,{'name': m.name, 'mail':m.mail,'active':m.active}) for m in self.postfix_alias_ids]
         
         #~ res = SYNCSERVER.sock.execute_kw(SYNCSERVER.passwd_dbnameSYNCSERVER.passwd_dbname, SYNCSERVER.uid, SYNCSERVER.passwd_passwd,'res.users', 'search', [[['id','=',1]]])
-        res = SYNCSERVER.sock.execute_kw('mail_server',1, 'admin','res.users', 'search', [['id','=',1]])
+        res = SYNCSERVER.sock.execute_kw('mail_server', 1, 'admin', 'res.users', 'search', [['id', '=', 1]])
         _logger.error(res)
         
-        remote_company = SYNCSERVER.search('res.company',[['remote_id','=',None]])          
+        remote_company = SYNCSERVER.search('res.company', [['remote_id', '=', None]])
 
         remote_company = SYNCSERVER.remote_company(self.company_id)
         
         #raise Warning(uid,info)
 
+
 class res_company(models.Model):
     _inherit = 'res.company'
   
-    def _get_param(self,param,value):
+    def _get_param(self, param, value):
         if not self.env['ir.config_parameter'].get_param(param):
-            self.env['ir.config_parameter'].set_param(param,value)
+            self.env['ir.config_parameter'].set_param(param, value)
         return self.env['ir.config_parameter'].get_param(param)
 
     def generateUUID(self):
         return str(uuid.uuid4())
                 
-    def write(self,values):
+    def write(self, values):
         if not self.remote_id:
             values['remote_id'] = self.generateUUID()
         comp = super(res_company, self).write(values)
@@ -204,7 +206,7 @@ class res_company(models.Model):
             self.sync_settings()
 
             if self.id == self.env.ref('base.main_company').id:  # Create mailservers when its a main company and not mainserver
-                self.env['ir.config_parameter'].set_param('mail.catchall.domain',values.get('domain'))
+                self.env['ir.config_parameter'].set_param('mail.catchall.domain', values.get('domain'))
                 password = self._createcatchall()[0]
                 if password:
                     self._smtpserver(password)
@@ -222,7 +224,7 @@ class res_company(models.Model):
 
 
     @api.model
-    def create(self,values):
+    def create(self, values):
         SYNCSERVER = Sync2server(self)
 
         values['remote_id'] = self.generateUUID()
@@ -231,8 +233,8 @@ class res_company(models.Model):
         if company:
             remote_company_id = company.sync_settings()
 
-            if values.get('domain',False) and self.id == self.env.ref('base.main_company').id:  # Create mailservers when its a main company and not mainserver
-                self.env['ir.config_parameter'].set_param('mail.catchall.domain',values.get('domain'))    
+            if values.get('domain', False) and self.id == self.env.ref('base.main_company').id:  # Create mailservers when its a main company and not mainserver
+                self.env['ir.config_parameter'].set_param('mail.catchall.domain', values.get('domain'))
                 password = company._createcatchall()[0]
                 self._smtpserver(password)
                 self._imapserver(password)        
@@ -353,11 +355,11 @@ class Sync2server():
     def search(self, model, domain):
         return self.sock.execute_kw(self.passwd_dbname, self.uid, self.passwd_passwd, model, 'search', [domain])
 
-    def write(self, model, id, values):    
-        return self.sock.execute_kw(self.passwd_dbname, self.uid, self.passwd_passwd, model, 'write', [[id], values])
+    def write(self, model, rec_id, values):
+        return self.sock.execute_kw(self.passwd_dbname, self.uid, self.passwd_passwd, model, 'write', [[rec_id], values])
 
     def create(self, model, values):
-        _logger.warn('\n\n\nmodel: %s\nvalues: %s\n\n\n' % (model, values))
+        _logger.warning('\n\n\nmodel: %s\nvalues: %s\n\n\n' % (model, values))
         return self.sock.execute_kw(self.passwd_dbname, self.uid, self.passwd_passwd, model, 'create', [values])
 
     def unlink(self, model, ids):
