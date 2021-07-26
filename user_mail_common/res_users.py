@@ -141,8 +141,8 @@ class res_users(models.Model):
                 if not email_re.match(this.login):  # login is not an email address
                     this.postfix_mail = '%s@%s' % (this.login, this.domain)
                 elif email_re.match(this.login):    # login is an (external) email address, use only left part
-                    print('test email', email_re.match(this.login))
-                    print('group', email_re.match(this.login).groups())
+                    _logger.info('test email', email_re.match(this.login))
+                    _logger.info('group', email_re.match(this.login).groups())
                     this.postfix_mail = '%s@%s' % (email_re.match(this.login).groups()[0], this.company_id.domain)
 
     @api.depends('company_id.domain', 'login', 'postfix_mail')
