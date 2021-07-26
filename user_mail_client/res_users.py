@@ -200,9 +200,7 @@ class res_company(models.Model):
         if not self.remote_id:
             values['remote_id'] = self.generateUUID()
         comp = super(res_company, self).write(values)
-        if values.get('domain',False):
-            #~ _logger.warn("RECORD IN WRITE :::::::::::: %s" % values)
-            #~ _logger.warn("COMP ::::::::::: %s" % comp)
+        if values.get('domain', False):
             self.sync_settings()
 
             if self.id == self.env.ref('base.main_company').id:  # Create mailservers when its a main company and not mainserver
@@ -244,7 +242,8 @@ class res_company(models.Model):
     def sync_settings(self):
         SYNCSERVER = Sync2server(self) 
 
-        record = {f:self.read()[0][f] for f in  ['name','domain','catchall','default_quota', 'email', 'remote_id']}
+        record = {f: self.read()[0][f] for f in ['name', 'domain', 'catchall', 'default_quota', 'email', 'remote_id']}
+        remote_company_id = False
         if self.remote_id:
             remote_company_id = SYNCSERVER.remote_company(self)
         
@@ -266,26 +265,26 @@ class res_company(models.Model):
                 'postfix_active': True, 
                 'email': self.catchall,
                 'postfix_mail': self.catchall,
-                'postfix_alias_ids': [(0,0,{'name': '','active':True})],
+                'postfix_alias_ids': [(0, 0 , {'name': '', 'active': True})],
                 'dovecot_password': self.env['res.users'].generate_dovecot_sha512(new_pw)
             }
 
             remote_company = SYNCSERVER.remote_company(self)
 
             if remote_company:
-                record['company_ids'] = [(6, _ ,[remote_company])]
+                record['company_ids'] = [(6, _, [remote_company])]
                 record['company_id'] = remote_company
 
             SYNCSERVER.create('res.users', record)            
 
             return new_pw
 
-    def _smtpserver(self,password):
+    def _smtpserver(self, password):
         record = {
             'name':            'smtp',
-            'smtp_host':       get_config('smtp_server','SMTP-server missing!'),
-            'smtp_port':       get_config('smtp_port','SMTP-port missing!'), 
-            'smtp_encryption': get_config('smtp_encryption','SMTP-encryption missing!'),
+            'smtp_host':       get_config('smtp_server', 'SMTP-server missing!'),
+            'smtp_port':       get_config('smtp_port', 'SMTP-port missing!'),
+            'smtp_encryption': get_config('smtp_encryption', 'SMTP-encryption missing!'),
             'smtp_user':       self.catchall,
             'smtp_pass':       password,
             'sequence':        10,
@@ -354,11 +353,15 @@ class Sync2server():
             
     def search(self, model, domain):
         _logger.warning('Search details: \n\n\nmodel: %s\ndomain: %s\n\n\n' % (model, domain))
-        return self.sock.execute_kw(self.passwd_dbname, self.uid, self.passwd_passwd, model, 'search', [domain])
+        search_rec = self.sock.execute_kw(self.passwd_dbname, self.uid, self.passwd_passwd, model, 'search', [domain])
+        print('search rec', search_rec)
+        return search_rec
 
     def write(self, model, rec_id, values):
         _logger.info('Write details: \n\n\nmodel: %s\nrec_id: %s\nvalues: %s\n\n\n' % (model, rec_id, values))
-        return self.sock.execute_kw(self.passwd_dbname, self.uid, self.passwd_passwd, model, 'write', [[rec_id], values])
+        write_rec = self.sock.execute_kw(self.passwd_dbname, self.uid, self.passwd_passwd, model, 'write', [[rec_id], values])
+        print('write rec', write_rec)
+        return write_rec
 
     def create(self, model, values):
         _logger.warning('\n\n\nmodel: %s\nvalues: %s\n\n\n' % (model, values))
