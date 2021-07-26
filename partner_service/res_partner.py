@@ -44,11 +44,11 @@ class res_partner_service(models.Model):
     bind_record = fields.Text()
     odoo_database = fields.Char()
     odoo_nbrusers = fields.Integer()
-    state      = fields.Selection([('draft','Draft'),('sent','Sent'),('cancel','Cancelled'),], string='Status', index=True, readonly=False, default='draft',
-                    track_visibility='onchange', copy=False,
-                    help=" * The 'Draft' status is used when the password is editable.\n"
-                         " * The 'Sent' status is used when the password has been sent to the user.\n"
-                         " * The'Cancelled'status is used when the password has been cancelled.\n")    
+    state = fields.Selection([('draft', 'Draft'), ('sent', 'Sent'), ('cancel', 'Cancelled')], string='Status',
+                             index=True, readonly=False, default='draft', track_visibility='onchange', copy=False,
+                             help=" * The 'Draft' status is used when the password is editable.\n"
+                                  " * The 'Sent' status is used when the password has been sent to the user.\n"
+                                  " * The'Cancelled'status is used when the password has been cancelled.\n")
 #    type = fields.Selection(compu
 
 
@@ -61,11 +61,13 @@ class service(models.Model):
     command_status = fields.Text()
     command_enable = fields.Text()
     command_disable = fields.Text()
-    state = fields.Selection([('disable','Disabled'),('enable','Enabled'),('error','Error')])
+    state = fields.Selection([('disable', 'Disabled'), ('enable', 'Enabled'), ('error', 'Error')])
     apache_site_template = fields.Text()
     bind_record_template = fields.Text()
-    type = fields.Selection([('mail','Mail'),('drupal','Drupal'),('odoo','Odoo')])
-    partner_ids = fields.Many2many('res.partner.service','res_partner_service_rel','partner_id','service_id',string="Partners")
+    type = fields.Selection([('mail', 'Mail'), ('drupal', 'Drupal'), ('odoo', 'Odoo')])
+    partner_ids = fields.Many2many('res.partner.service', 'res_partner_service_rel', 'partner_id', 'service_id',
+                                   string="Partners")
+
 
 class service_server(models.Model):
     _name = "service.server"
@@ -77,10 +79,4 @@ class service_server(models.Model):
     command_start = fields.Text()
     command_stop = fields.Text()
     service_id = fields.Many2one('service.service')
-    state = fields.Selection([('stop','Stopped'),('start','Started'),('error','Error')])
-
-
-    
-
-    
-    
+    state = fields.Selection([('stop', 'Stopped'), ('start', 'Started'), ('error', 'Error')])
