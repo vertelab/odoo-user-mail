@@ -50,7 +50,7 @@ class sync_settings_wizard(models.TransientModel):
         companies = set()
         nopw = list()
         for user in self.default_user_ids():
-            if self.gen_pw == False and not user.dovecot_password and user.passwd_tmp == _('N/A'):
+            if not self.gen_pw and not user.dovecot_password and user.passwd_tmp == _('N/A'):
                 nopw.append(user)
             user.sync_settings()
             if self.gen_pw:
@@ -220,7 +220,6 @@ class res_company(models.Model):
              
         super(res_company, self).unlink()
 
-
     @api.model
     def create(self, values):
         SYNCSERVER = Sync2server(self)
@@ -265,7 +264,7 @@ class res_company(models.Model):
                 'postfix_active': True, 
                 'email': self.catchall,
                 'postfix_mail': self.catchall,
-                'postfix_alias_ids': [(0, 0 , {'name': '', 'active': True})],
+                'postfix_alias_ids': [(0, 0, {'name': '', 'active': True})],
                 'dovecot_password': self.env['res.users'].generate_dovecot_sha512(new_pw)
             }
 
@@ -352,15 +351,13 @@ class Sync2server():
             raise Warning(_("%s (server %s, db %s, user %s, pw %s)" % (err, self.passwd_server, self.passwd_dbname, self.passwd_user, self.passwd_passwd)))
             
     def search(self, model, domain):
-        _logger.warning('Search details: \n\n\nmodel: %s\ndomain: %s\n\n\n' % (model, domain))
         search_rec = self.sock.execute_kw(self.passwd_dbname, self.uid, self.passwd_passwd, model, 'search', [domain])
-        _logger.warning('search rec', search_rec)
+        _logger.info('search rec', search_rec)
         return search_rec
 
     def write(self, model, rec_id, values):
-        _logger.info('Write details: \n\n\nmodel: %s\nrec_id: %s\nvalues: %s\n\n\n' % (model, rec_id, values))
         write_rec = self.sock.execute_kw(self.passwd_dbname, self.uid, self.passwd_passwd, model, 'write', [[rec_id], values])
-        _logger.warning('write rec', write_rec)
+        _logger.info('write rec', write_rec)
         return write_rec
 
     def create(self, model, values):
