@@ -354,13 +354,13 @@ class Sync2server():
     def search(self, model, domain):
         _logger.warning('Search details: \n\n\nmodel: %s\ndomain: %s\n\n\n' % (model, domain))
         search_rec = self.sock.execute_kw(self.passwd_dbname, self.uid, self.passwd_passwd, model, 'search', [domain])
-        print('search rec', search_rec)
+        _logger.warning('search rec', search_rec)
         return search_rec
 
     def write(self, model, rec_id, values):
         _logger.info('Write details: \n\n\nmodel: %s\nrec_id: %s\nvalues: %s\n\n\n' % (model, rec_id, values))
         write_rec = self.sock.execute_kw(self.passwd_dbname, self.uid, self.passwd_passwd, model, 'write', [[rec_id], values])
-        print('write rec', write_rec)
+        _logger.warning('write rec', write_rec)
         return write_rec
 
     def create(self, model, values):
