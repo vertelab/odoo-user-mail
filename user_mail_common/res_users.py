@@ -141,6 +141,8 @@ class res_users(models.Model):
                 if not email_re.match(this.login):  # login is not an email address
                     this.postfix_mail = '%s@%s' % (this.login, this.domain)
                 elif email_re.match(this.login):    # login is an (external) email address, use only left part
+                    print('test email', email_re.match(this.login))
+                    print('group', email_re.match(this.login).groups())
                     this.postfix_mail = '%s@%s' % (email_re.match(this.login).groups()[0], this.company_id.domain)
 
     @api.depends('company_id.domain', 'login', 'postfix_mail')
@@ -184,7 +186,7 @@ class res_company(models.Model):
                 rec.catchall = False
     
     def _total_quota(self):
-        self.total_quota = sum(self.user_ids.filtered(lambda r: r.active == True and r.postfix_active == True).mapped('quota'))
+        self.total_quota = sum(self.user_ids.filtered(lambda r: r.active is True and r.postfix_active == True).mapped('quota'))
     
     @api.depends('domain')
     def _email(self):
