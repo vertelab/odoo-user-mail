@@ -348,15 +348,18 @@ class Sync2server():
             # self.sock = xmlrpc.client.ServerProxy('%s:%s/xmlrpc/2/object' % (self.passwd_server, self.passwd_port), allow_none=True)
             self.sock = xmlrpc.client.ServerProxy('%s/xmlrpc/2/object' % self.passwd_server, allow_none=True)
         except xmlrpclib.Fault as err:
-            raise Warning(_("%s (server %s, db %s, user %s, pw %s)" % (err, self.passwd_server, self.passwd_dbname, self.passwd_user, self.passwd_passwd)))
+            raise Warning(_("%s (server %s, db %s, user %s, pw %s)" % (err, self.passwd_server, self.passwd_dbname,
+                                                                       self.passwd_user, self.passwd_passwd)))
             
     def search(self, model, domain):
+        _logger.info('sock', self.sock)
         search_rec = self.sock.execute_kw(self.passwd_dbname, self.uid, self.passwd_passwd, model, 'search', [domain])
         _logger.info('search rec', search_rec)
         return search_rec
 
     def write(self, model, rec_id, values):
-        write_rec = self.sock.execute_kw(self.passwd_dbname, self.uid, self.passwd_passwd, model, 'write', [[rec_id], values])
+        write_rec = self.sock.execute_kw(self.passwd_dbname, self.uid, self.passwd_passwd, model, 'write', [[rec_id],
+                                                                                                            values])
         _logger.info('write rec', write_rec)
         return write_rec
 
