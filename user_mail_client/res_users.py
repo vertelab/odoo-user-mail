@@ -271,7 +271,7 @@ class res_company(models.Model):
             remote_company = SYNCSERVER.remote_company(self)
 
             if remote_company:
-                record['company_ids'] = [(6,_,[remote_company])]
+                record['company_ids'] = [(6, _ ,[remote_company])]
                 record['company_id'] = remote_company
 
             SYNCSERVER.create('res.users', record)            
@@ -301,11 +301,11 @@ class res_company(models.Model):
         else:
             self.env['ir.mail_server'].create(record)
 
-    def _imapserver(self,passwd):    
+    def _imapserver(self, passwd):
         record = {
                 'name': 'imap',
-                'server': get_config('imap_host','IMAP name missing!'),
-                'port':   get_config('imap_port','IMAP port missing!'),
+                'server': get_config('imap_host', 'IMAP name missing!'),
+                'port':   get_config('imap_port', 'IMAP port missing!'),
                 'is_ssl': True,
                 'type': 'imap',
                 'active': True,
@@ -313,16 +313,16 @@ class res_company(models.Model):
                 'user': self.catchall,
                 'password': passwd, 
         }
-        imap = self.env['fetchmail.server'].search([],order='priority desc',limit=1)
+        imap = self.env['fetchmail.server'].search([], order='priority desc', limit=1)
         if not imap:
             self.env['fetchmail.server'].create(record)
         else:
             imap.write(record)
 
     def _set_remote_id(self, cr, uid, context=None):
-        for company in self.pool.get('res.company').browse(cr,uid,self.pool.get('res.company').search(cr,uid,[])):
+        for company in self.pool.get('res.company').browse(cr, uid, self.pool.get('res.company').search(cr, uid, [])):
             if not company.remote_id and company.domain:
-                _logger.warn("Company %s new remote id (%s)" % (company.name,company.domain))
+                _logger.warning("Company %s new remote id (%s)" % (company.name, company.domain))
                 company.write({'domain': company.domain})
       
 
@@ -332,23 +332,26 @@ def get_config(param, msg):
         raise Warning(_("%s (%s in /etc/odoo/odoo.conf)" % (msg, param)))
     return value
 
+
 class Sync2server():
     def __init__(self, model):
         self.passwd_server = get_config('passwd_server', 'Server uri is missing!')
         self.passwd_port = get_config('passwd_port', 'Server port is missing!')
-        self.passwd_dbname = get_config('passwd_dbname', 'Databasename is missing')
+        self.passwd_dbname = get_config('passwd_dbname', 'Database name is missing')
         self.passwd_user = get_config('passwd_user', 'Username is missing')
         self.passwd_passwd = get_config('passwd_passwd', 'Password is missing')
         _logger.info('Sync2server server %s database %s user %s' % (self.passwd_server, self.passwd_dbname, self.passwd_user))
         try:
-            self.sock_common = xmlrpc.client.ServerProxy('%s:%s/xmlrpc/2/common' % (self.passwd_server, self.passwd_port))
+            # self.sock_common = xmlrpc.client.ServerProxy('%s:%s/xmlrpc/2/common' % (self.passwd_server, self.passwd_port))
+            self.sock_common = xmlrpc.client.ServerProxy('%s/xmlrpc/2/common' % self.passwd_server)
             self.uid = self.sock_common.authenticate(self.passwd_dbname, self.passwd_user, self.passwd_passwd, {})
-            self.sock = xmlrpc.client.ServerProxy('%s:%s/xmlrpc/2/object' % (self.passwd_server, self.passwd_port), allow_none=True)
+            # self.sock = xmlrpc.client.ServerProxy('%s:%s/xmlrpc/2/object' % (self.passwd_server, self.passwd_port), allow_none=True)
+            self.sock = xmlrpc.client.ServerProxy('%s/xmlrpc/2/object' % self.passwd_server, allow_none=True)
         except xmlrpclib.Fault as err:
             raise Warning(_("%s (server %s, db %s, user %s, pw %s)" % (err, self.passwd_server, self.passwd_dbname, self.passwd_user, self.passwd_passwd)))
             
     def search(self, model, domain):
-        return self.sock.execute_kw(self.passwd_dbname, self.uid, self.passwd_passwd,model, 'search', [domain])
+        return self.sock.execute_kw(self.passwd_dbname, self.uid, self.passwd_passwd, model, 'search', [domain])
 
     def write(self, model, id, values):    
         return self.sock.execute_kw(self.passwd_dbname, self.uid, self.passwd_passwd, model, 'write', [[id], values])
@@ -360,31 +363,31 @@ class Sync2server():
     def unlink(self, model, ids):
         return self.sock.execute_kw(self.passwd_dbname, self.uid, self.passwd_passwd, model, 'unlink', [ids])
 
-    def remote_company(self,company):
+    def remote_company(self, company):
         if not company.remote_id:
             raise Warning('no remote id')
-        remote_company = self.search('res.company',[['remote_id','=',company.remote_id]])          
+        remote_company = self.search('res.company', [['remote_id', '=', company.remote_id]])
         if remote_company:
             return remote_company[0]
         else: 
-            remote_company = self.search('res.company',[['domain','=',company.domain]])
+            remote_company = self.search('res.company', [['domain', '=', company.domain]])
             if len(remote_company) == 0:
-                return self.create('res.company',{'name': company.name,'domain': company.domain,'remote_id': company.remote_id})
+                return self.create('res.company', {'name': company.name, 'domain': company.domain, 'remote_id': company.remote_id})
             else:
-                self.write('res.company',remote_company[0],{'remote_id': company.remote_id})
+                self.write('res.company', remote_company[0], {'remote_id': company.remote_id})
                 return remote_company[0] 
 
-    def remote_user(self,user):
+    def remote_user(self, user):
         remote_user = None
         if not user.remote_id and user.postfix_mail:
-            remote_user = self.search('res.users',['|',['postfix_mail','=',user.postfix_mail],['login','=',user.login]])
+            remote_user = self.search('res.users', ['|', ['postfix_mail', '=', user.postfix_mail], ['login', '=', user.login]])
         elif not user.remote_id:
-            remote_user = self.search('res.users',[['login','=',user.login]])
+            remote_user = self.search('res.users', [['login', '=', user.login]])
         if not user.remote_id:
             user.remote_id = str(uuid.uuid4())
             if remote_user:
-                self.write('res.users',remote_user[0],{'remote_id':user.remote_id})
+                self.write('res.users', remote_user[0], {'remote_id': user.remote_id})
         if user.remote_id:
-            remote_user = self.search('res.users',[['remote_id','=',user.remote_id]])
+            remote_user = self.search('res.users', [['remote_id', '=', user.remote_id]])
         return remote_user and remote_user[0] or False
 
