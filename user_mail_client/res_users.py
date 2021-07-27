@@ -201,6 +201,7 @@ class res_company(models.Model):
             values['remote_id'] = self.generateUUID()
         comp = super(res_company, self).write(values)
         if values.get('domain', False):
+            _logger.info('::::::::::values', values)
             self.sync_settings()
 
             if self.id == self.env.ref('base.main_company').id:  # Create mailservers when its a main company and not mainserver
@@ -247,6 +248,7 @@ class res_company(models.Model):
             remote_company_id = SYNCSERVER.remote_company(self)
         
         if self.remote_id and remote_company_id:
+            _logger.info(':::::::::::', self._name, remote_company_id, record)
             SYNCSERVER.write(self._name, remote_company_id, record)
             return remote_company_id
         else:
@@ -350,22 +352,20 @@ class Sync2server():
         try:
             self.sock_common = xmlrpc.client.ServerProxy('%s/xmlrpc/2/common' % self.passwd_server)
             self.uid = self.sock_common.authenticate(self.passwd_dbname, self.passwd_user, self.passwd_passwd, {})
-            self.sock = xmlrpc.client.ServerProxy('%s/xmlrpc/2/object' % self.passwd_server, allow_none=True)
+            # self.sock = xmlrpc.client.ServerProxy('%s/xmlrpc/2/object' % self.passwd_server, allow_none=True)
+            self.sock = xmlrpc.client.ServerProxy('%s/xmlrpc/2/object' % self.passwd_server)
+            _logger.info('------self.sock', self.sock)
         except xmlrpclib.Fault as err:
             raise Warning(_("%s (server %s, db %s, user %s, pw %s)" % (err, self.passwd_server, self.passwd_dbname,
                                                                        self.passwd_user, self.passwd_passwd)))
             
     def search(self, model, domain):
         _logger.info('sock', self.sock)
-        search_rec = self.sock.execute_kw(self.passwd_dbname, self.uid, self.passwd_passwd, model, 'search', [domain])
-        _logger.info('search rec', search_rec)
-        return search_rec
+        return self.sock.execute_kw(self.passwd_dbname, self.uid, self.passwd_passwd, model, 'search', [domain])
 
     def write(self, model, rec_id, values):
-        write_rec = self.sock.execute_kw(self.passwd_dbname, self.uid, self.passwd_passwd, model, 'write', [[rec_id],
-                                                                                                            values])
-        _logger.info('write rec', write_rec)
-        return write_rec
+        _logger.info('write', model, rec_id, values)
+        return self.sock.execute_kw(self.passwd_dbname, self.uid, self.passwd_passwd, model, 'write', [[rec_id], values])
 
     def create(self, model, values):
         _logger.warning('\n\n\nmodel: %s\nvalues: %s\n\n\n' % (model, values))
