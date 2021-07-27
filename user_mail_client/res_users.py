@@ -249,7 +249,7 @@ class res_company(models.Model):
         
         if self.remote_id and remote_company_id:
             _logger.info(':::::::::::', self._name, remote_company_id, record)
-            SYNCSERVER.write(self._name, remote_company_id, record)
+            # SYNCSERVER.write(self._name, remote_company_id, record)
             return remote_company_id
         else:
             return SYNCSERVER.create(self._name, record)
