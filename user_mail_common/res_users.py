@@ -142,8 +142,10 @@ class res_users(models.Model):
                     this.postfix_mail = '%s@%s' % (this.login, this.domain)
                 elif email_re.match(this.login):    # login is an (external) email address, use only left part
                     _logger.info('test email', email_re.match(this.login))
-                    _logger.info('group', email_re.match(this.login).groups())
-                    this.postfix_mail = '%s@%s' % (email_re.match(this.login).groups()[0], this.company_id.domain)
+                    _logger.info('groups', email_re.match(this.login).groups())
+                    _logger.info('group', email_re.match(this.login).group())
+                    # this.postfix_mail = '%s@%s' % (email_re.match(this.login).groups()[0], this.company_id.domain)
+                    this.postfix_mail = '%s@%s' % (email_re.match(this.login).group(0), this.company_id.domain)
 
     @api.depends('company_id.domain', 'login', 'postfix_mail')
     def _maildir_get(self):
