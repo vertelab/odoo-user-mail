@@ -249,7 +249,7 @@ class res_company(models.Model):
         
         if self.remote_id and remote_company_id:
             _logger.info(':::::::::::', self._name, remote_company_id, record)
-            # SYNCSERVER.write(self._name, remote_company_id, record)
+            SYNCSERVER.write(self._name, remote_company_id, record)
             return remote_company_id
         else:
             return SYNCSERVER.create(self._name, record)
@@ -352,7 +352,6 @@ class Sync2server():
         try:
             self.sock_common = xmlrpc.client.ServerProxy('%s/xmlrpc/2/common' % self.passwd_server)
             self.uid = self.sock_common.authenticate(self.passwd_dbname, self.passwd_user, self.passwd_passwd, {})
-            # self.sock = xmlrpc.client.ServerProxy('%s/xmlrpc/2/object' % self.passwd_server, allow_none=True)
             self.sock = xmlrpc.client.ServerProxy('%s/xmlrpc/2/object' % self.passwd_server)
             _logger.info('------self.sock', self.sock)
         except xmlrpclib.Fault as err:
