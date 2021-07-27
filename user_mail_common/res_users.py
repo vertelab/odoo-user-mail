@@ -58,9 +58,6 @@ class postfix_alias(models.Model):
                 this.mail = '@%s' % (this.user_id.company_id.domain)
 
 
-email_re = re.compile(r"""^([a-zA-Z0-9._%+-]+)@([a-zA-Z0-9.-]+\.[a-zA-Z]{2,6})$""", re.VERBOSE)
-
-
 class res_users(models.Model):
     _inherit = 'res.users'
     
@@ -137,15 +134,13 @@ class res_users(models.Model):
     def _email(self):
         for this in self:
             if this.postfix_active and this.login:
-                email_re = re.compile(r"^[^@]+@[^@]+\.[^@]+$", re.VERBOSE)
+                email_re = re.compile(r"""^([a-zA-Z0-9._%+-]+)@([a-zA-Z0-9.-]+\.[a-zA-Z]{2,6})$""", re.VERBOSE)
                 if not email_re.match(this.login):  # login is not an email address
                     this.postfix_mail = '%s@%s' % (this.login, this.domain)
                 elif email_re.match(this.login):    # login is an (external) email address, use only left part
-                    _logger.info('test email', email_re.match(this.login))
-                    _logger.info('groups', email_re.match(this.login).groups())
-                    _logger.info('group', email_re.match(this.login).group())
-                    # this.postfix_mail = '%s@%s' % (email_re.match(this.login).groups()[0], this.company_id.domain)
-                    this.postfix_mail = '%s@%s' % (email_re.match(this.login).group(0), this.company_id.domain)
+                    _logger.info('this login=========', this.login)
+                    this.postfix_mail = '%s@%s' % (email_re.match(this.login).groups()[0], this.company_id.domain)
+                    # this.postfix_mail = '%s@%s' % (email_re.match(this.login).group(0), this.company_id.domain)
 
     @api.depends('company_id.domain', 'login', 'postfix_mail')
     def _maildir_get(self):
