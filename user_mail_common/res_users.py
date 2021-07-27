@@ -61,8 +61,8 @@ class postfix_alias(models.Model):
 class res_users(models.Model):
     _inherit = 'res.users'
     
-    _sql_constraints = [('postfix_mail_uniq', 'unique (postfix_mail)', 'The postfix mail adress must be unique!'),
-        ('maildir_uniq', 'unique (maildir)', 'The maildir must be unique!')]
+    _sql_constraints = [('postfix_mail_uniq', 'unique (postfix_mail)', 'The postfix mail address must be unique!'),
+                        ('maildir_uniq', 'unique (maildir)', 'The maildir must be unique!')]
     
     def _remote_id(self):
         return str(uuid.uuid4())
@@ -70,7 +70,7 @@ class res_users(models.Model):
     domain = fields.Char(related="company_id.domain", string='Domain', size=64, store=True, readonly=True)
     dovecot_password = fields.Char()
     forward_active = fields.Boolean('Active', default=False)
-    forward_address = fields.Text('Forward address', help='Comma separated list of mail addresses' )
+    forward_address = fields.Text('Forward address', help='Comma separated list of mail addresses')
     forward_cp = fields.Boolean('Keep', help="Keep a local copy of forwarded messages")
     postfix_active = fields.Boolean('Active', default=False,)
     postfix_alias_ids = fields.One2many('postfix.alias', 'user_id', string='Alias', copy=False, ondelete="cascade",
@@ -138,9 +138,7 @@ class res_users(models.Model):
                 if not email_re.match(this.login):  # login is not an email address
                     this.postfix_mail = '%s@%s' % (this.login, this.domain)
                 elif email_re.match(this.login):    # login is an (external) email address, use only left part
-                    _logger.info('this login=========', this.login)
                     this.postfix_mail = '%s@%s' % (email_re.match(this.login).groups()[0], this.company_id.domain)
-                    # this.postfix_mail = '%s@%s' % (email_re.match(this.login).group(0), this.company_id.domain)
 
     @api.depends('company_id.domain', 'login', 'postfix_mail')
     def _maildir_get(self):
@@ -161,9 +159,10 @@ class res_company(models.Model):
         return str(uuid.uuid4())
     
     remote_id = fields.Char(string='Remote ID', default=_remote_id, size=64)
-    default_quota = fields.Integer(string='Default Quota per User',help="Quota in MB per user that is default",default=200)
-    total_quota = fields.Integer(compute="_total_quota",string='All quota (MB)',help="Sum of all Users Quota in MB")
-    catchall = fields.Char(compute='_catchall', string='Catchall', help="catchall mail address",)
+    default_quota = fields.Integer(string='Default Quota per User', help="Quota in MB per user that is default",
+                                   default=200)
+    total_quota = fields.Integer(compute="_total_quota", string='All quota (MB)', help="Sum of all Users Quota in MB")
+    catchall = fields.Char(compute='_catchall', string='Catchall', help="catchall mail address")
     domain = fields.Char(string='Domain', help="the internet domain for mail", compute='_get_domain',
                          inverse='_set_domain', store=True, required=True)
     nbr_users = fields.Integer(compute="_nbr_users", string="Nbr of users")
@@ -183,7 +182,7 @@ class res_company(models.Model):
                 rec.catchall = False
     
     def _total_quota(self):
-        self.total_quota = sum(self.user_ids.filtered(lambda r: r.active is True and r.postfix_active == True).mapped('quota'))
+        self.total_quota = sum(self.user_ids.filtered(lambda r: r.active is True and r.postfix_active is True).mapped('quota'))
     
     @api.depends('domain')
     def _email(self):
@@ -194,4 +193,4 @@ class res_company(models.Model):
                 rec.email = False
     
     def _nbr_users(self):
-        self.nbr_users = self.env['res.users'].search_count([('postfix_active', '=', True)])
+        self.nbr_users = self.env['res.users'].sudo().search_count([('postfix_active', '=', True)])

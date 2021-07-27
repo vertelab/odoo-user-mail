@@ -44,7 +44,7 @@ class sync_settings_wizard(models.TransientModel):
     gen_pw = fields.Boolean(string="generate_password")
 
     def default_user_ids(self):
-        return self.env['res.users'].browse(self._context.get('active_ids'))
+        return self.env['res.users'].sudo().browse(self._context.get('active_ids'))
     
     def sync_settings(self):
         companies = set()
@@ -146,7 +146,7 @@ class res_users(models.Model):
     def unlink(self):
         SYNCSERVER = Sync2server(self)
 
-        user_id = self.env['res.users'].search([('login', '=', self.login)]).id
+        user_id = self.env['res.users'].sudo().search([('login', '=', self.login)]).id
         postfix_alias_id = self.env['postfix.alias'].search([('user_id', '=', user_id)]).unlink()
         #only needed if deleting a user with recently changed password
         self.env['change.password.wizard'].search([('user_ids', '=', self.id)]).unlink()
@@ -255,7 +255,7 @@ class res_company(models.Model):
     def _createcatchall(self):
         SYNCSERVER = Sync2server(self)
         if not SYNCSERVER.search('res.users', [['postfix_mail', '=', self.catchall]]):
-            new_pw = self.env['res.users'].generate_password()
+            new_pw = self.env['res.users'].sudo().generate_password()
 
             record = {
                 'new_password': new_pw,
@@ -265,7 +265,7 @@ class res_company(models.Model):
                 'email': self.catchall,
                 'postfix_mail': self.catchall,
                 'postfix_alias_ids': [(0, 0, {'name': '', 'active': True})],
-                'dovecot_password': self.env['res.users'].generate_dovecot_sha512(new_pw)
+                'dovecot_password': self.env['res.users'].sudo().generate_dovecot_sha512(new_pw)
             }
 
             remote_company = SYNCSERVER.remote_company(self)
@@ -319,8 +319,14 @@ class res_company(models.Model):
         else:
             imap.write(record)
 
-    def _set_remote_id(self, cr, uid, context=None):
-        for company in self.pool.get('res.company').browse(cr, uid, self.pool.get('res.company').search(cr, uid, [])):
+    # def _set_remote_id(self, cr, uid, context=None):
+    #     for company in self.env['res.company'].browse(cr, uid, self.pool.get('res.company').search(cr, uid, [])):
+    #         if not company.remote_id and company.domain:
+    #             _logger.warning("Company %s new remote id (%s)" % (company.name, company.domain))
+    #             company.write({'domain': company.domain})
+
+    def _set_remote_id(self):
+        for company in self.env['res.company'].search([]):
             if not company.remote_id and company.domain:
                 _logger.warning("Company %s new remote id (%s)" % (company.name, company.domain))
                 company.write({'domain': company.domain})
@@ -342,10 +348,8 @@ class Sync2server():
         self.passwd_passwd = get_config('passwd_passwd', 'Password is missing')
         _logger.info('Sync2server server %s database %s user %s' % (self.passwd_server, self.passwd_dbname, self.passwd_user))
         try:
-            # self.sock_common = xmlrpc.client.ServerProxy('%s:%s/xmlrpc/2/common' % (self.passwd_server, self.passwd_port))
             self.sock_common = xmlrpc.client.ServerProxy('%s/xmlrpc/2/common' % self.passwd_server)
             self.uid = self.sock_common.authenticate(self.passwd_dbname, self.passwd_user, self.passwd_passwd, {})
-            # self.sock = xmlrpc.client.ServerProxy('%s:%s/xmlrpc/2/object' % (self.passwd_server, self.passwd_port), allow_none=True)
             self.sock = xmlrpc.client.ServerProxy('%s/xmlrpc/2/object' % self.passwd_server, allow_none=True)
         except xmlrpclib.Fault as err:
             raise Warning(_("%s (server %s, db %s, user %s, pw %s)" % (err, self.passwd_server, self.passwd_dbname,
