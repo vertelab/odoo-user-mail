@@ -76,7 +76,8 @@ class res_users(models.Model):
     postfix_alias_ids = fields.One2many('postfix.alias', 'user_id', string='Alias', copy=False, ondelete="cascade",
                                         oldname="mail_alias")
     postfix_mail = fields.Char(string="Real Mail Address", compute='_email', store=True)
-    remote_id = fields.Char(string='Remote ID', default=_remote_id, size=64, copy=False)
+    # remote_id = fields.Char(string='Remote ID', default=_remote_id, size=64, copy=False)
+    remote_id = fields.Char(string='Remote ID', size=64, copy=False)
     spam_active = fields.Boolean('Spam Check', default=True)
     spam_killevel = fields.Selection(
         [
