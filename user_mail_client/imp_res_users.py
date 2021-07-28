@@ -133,7 +133,7 @@ class res_users(models.Model):
         record['postfix_alias_ids'] = [(0, 0, {'name': m.name, 'mail': m.mail, 'active': m.active}) for m in
                                        self.postfix_alias_ids]
 
-        remote_company = self.env['res.company'].remote_company(self.company_id)
+        remote_company = self.env['res.company'].remote_company(user.company_id)
         if remote_company:
             record['company_ids'] = [(6, _, [remote_company.id])]
             record['company_id'] = remote_company.id
