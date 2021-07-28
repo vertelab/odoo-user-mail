@@ -128,7 +128,8 @@ class res_users(models.Model):
                 remote_user.write({'remote_id': user.remote_id})
             _logger.info(':::::::::3%s', remote_user)
         if user.remote_id:
-            remote_user = self.env['res.users'].search([('remote_id', '=', user.remote_id)])
+            user.remote_id = False
+            # remote_user = self.env['res.users'].search([('remote_id', '=', user.remote_id)])
             _logger.info(':::::::::4%s', remote_user)
         _logger.info(':::::::::5555%s', remote_user)
         return remote_user
