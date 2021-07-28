@@ -222,6 +222,7 @@ class res_company(models.Model):
                 if password:
                     self._smtpserver(password)
                     self._imapserver(password)
+        return comp
 
     def unlink(self):
         remote_company = self.remote_company(self)
