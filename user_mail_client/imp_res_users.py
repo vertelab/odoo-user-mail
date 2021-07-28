@@ -115,28 +115,23 @@ class res_users(models.Model):
         return str(uuid.uuid4())
 
     def remote_user(self, user):
-        remote_user = self.env['res.users'].search([])
-        for rec in remote_user:
-            rec.write({'remote_id': False})
+        remote_user = None
+        if not user.remote_id and user.postfix_mail:
+            remote_user = self.env['res.users'].search([('postfix_mail', '=', user.postfix_mail), ('login', '=', user.login)])
+            _logger.info(':::::::::1%s', remote_user)
+        elif not user.remote_id:
+            remote_user = self.env['res.users'].search([('login', '=', user.login)])
+            _logger.info(':::::::::2%s', remote_user)
+        if not user.remote_id:
+            user.remote_id = str(uuid.uuid4())
+            if remote_user:
+                remote_user.write({'remote_id': user.remote_id})
+            _logger.info(':::::::::3%s', remote_user)
+        if user.remote_id:
+            remote_user = self.env['res.users'].search([('remote_id', '=', user.remote_id)])
+            _logger.info(':::::::::4%s', remote_user)
+        _logger.info(':::::::::5555%s', remote_user)
         return remote_user
-
-        # remote_user = None
-        # if not user.remote_id and user.postfix_mail:
-        #     remote_user = self.env['res.users'].search([('postfix_mail', '=', user.postfix_mail), ('login', '=', user.login)])
-        #     _logger.info(':::::::::1%s', remote_user)
-        # elif not user.remote_id:
-        #     remote_user = self.env['res.users'].search([('login', '=', user.login)])
-        #     _logger.info(':::::::::2%s', remote_user)
-        # if not user.remote_id:
-        #     user.remote_id = str(uuid.uuid4())
-        #     if remote_user:
-        #         remote_user.write({'remote_id': user.remote_id})
-        #     _logger.info(':::::::::3%s', remote_user)
-        # if user.remote_id:
-        #     remote_user = self.env['res.users'].search([('remote_id', '=', user.remote_id)])
-        #     _logger.info(':::::::::4%s', remote_user)
-        # _logger.info(':::::::::5555%s', remote_user)
-        # return remote_user
 
     def user_sync_settings(self, user):
         record = {f: user.read()[0][f] for f in user.USER_MAIL_FIELDS}
