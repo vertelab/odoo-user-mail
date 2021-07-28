@@ -135,14 +135,14 @@ class res_users(models.Model):
 
         remote_company = self.env['res.company'].remote_company(self.company_id)
         if remote_company:
-            record['company_ids'] = [(6, _, [remote_company])]
-            record['company_id'] = remote_company
+            record['company_ids'] = [(6, _, [remote_company.id])]
+            record['company_id'] = remote_company.id
         else:
             raise Warning('Update company first')
 
         remote_user_id = self.remote_user(self)
         if remote_user_id:
-            self.env['postfix.alias'].search([('user_id', '=', remote_user_id)]).unlink()
+            self.env['postfix.alias'].search([('user_id', '=', remote_user_id.id)]).unlink()
             remote_user_id.write(record)
         else:
             record['remote_id'] = self.remote_id
@@ -213,7 +213,7 @@ class res_company(models.Model):
         comp = super(res_company, self).write(values)
         if values.get('domain', False):
             _logger.info('::::::::::values', values)
-            self.sync_settings()
+            self.company_sync_settings()
 
             if self.id == self.env.ref(
                     'base.main_company').id:  # Create mailservers when its a main company and not mainserver
