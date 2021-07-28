@@ -129,7 +129,7 @@ class res_users(models.Model):
         return remote_user
 
     def user_sync_settings(self, user):
-        record = {f: self.read()[0][f] for f in self.USER_MAIL_FIELDS}
+        record = {f: user.read()[0][f] for f in user.USER_MAIL_FIELDS}
         record['postfix_alias_ids'] = [(0, 0, {'name': m.name, 'mail': m.mail, 'active': m.active}) for m in
                                        self.postfix_alias_ids]
 
