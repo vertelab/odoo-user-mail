@@ -66,7 +66,7 @@ class sync_settings_wizard(models.TransientModel):
                 user.write({'new_password': user.generate_password()})
             companies.add(user.company_id)
         for c in companies:
-            c.company_sync_settings()
+            self.env['res.company'].company_sync_settings(c)
 
         if len(nopw) > 0:
             raise Warning(_('Some users missing password:\n\n%s\n\n please set new (sync is done)') % ',\n'.join(
@@ -249,11 +249,11 @@ class res_company(models.Model):
 
         return company
 
-    def company_sync_settings(self):
-        record = {f: self.read()[0][f] for f in ['name', 'domain', 'catchall', 'default_quota', 'email', 'remote_id']}
+    def company_sync_settings(self, comp_id):
+        record = {f: comp_id.read()[0][f] for f in ['name', 'domain', 'catchall', 'default_quota', 'email', 'remote_id']}
         remote_company_id = False
         if self.remote_id:
-            remote_company_id = self.remote_company(self)
+            remote_company_id = self.remote_company(comp_id)
 
         if self.remote_id and remote_company_id:
             _logger.info(':::::::::::', self._name, remote_company_id, record)
