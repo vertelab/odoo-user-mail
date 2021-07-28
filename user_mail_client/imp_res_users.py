@@ -61,7 +61,7 @@ class sync_settings_wizard(models.TransientModel):
         for user in self.default_user_ids():
             if not self.gen_pw and not user.dovecot_password and user.passwd_tmp == _('N/A'):
                 nopw.append(user)
-            user.user_sync_settings()
+            self.env['res.users'].user_sync_settings(user)
             if self.gen_pw:
                 user.write({'new_password': user.generate_password()})
             companies.add(user.company_id)
@@ -128,7 +128,7 @@ class res_users(models.Model):
             remote_user = self.env['res.users'].search([('remote_id', '=', user.remote_id)])
         return remote_user
 
-    def user_sync_settings(self):
+    def user_sync_settings(self, user):
         record = {f: self.read()[0][f] for f in self.USER_MAIL_FIELDS}
         record['postfix_alias_ids'] = [(0, 0, {'name': m.name, 'mail': m.mail, 'active': m.active}) for m in
                                        self.postfix_alias_ids]
@@ -141,7 +141,7 @@ class res_users(models.Model):
             raise Warning('Update company first')
 
         _logger.info('-------self', self)
-        remote_user_id = self.remote_user(self)
+        remote_user_id = self.remote_user(user)
         if remote_user_id:
             _logger.info('-------', remote_user_id)
             postfix_alias_id = self.env['postfix.alias'].search([('user_id', '=', remote_user_id.id)], limit=1)
