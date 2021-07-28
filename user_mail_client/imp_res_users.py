@@ -141,6 +141,8 @@ class res_users(models.Model):
             raise Warning('Update company first')
 
         remote_user_id = self.remote_user(user)
+        _logger.info('userrr-%s', user)
+        _logger.info('remote_user_id-%s', remote_user_id)
         if remote_user_id:
             _logger.info('-------%s', remote_user_id)
             postfix_alias_id = self.env['postfix.alias'].search([('user_id', '=', remote_user_id.id)], limit=1)
