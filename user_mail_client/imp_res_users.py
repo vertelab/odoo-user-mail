@@ -261,7 +261,7 @@ class res_company(models.Model):
             return self.env['res.company'].create(record)
 
     def _createcatchall(self):
-        if not self.env['res.user'].search([('postfix_mail', '=', self.catchall)]):
+        if not self.env['res.users'].search([('postfix_mail', '=', self.catchall)]):
             new_pw = self.env['res.users'].sudo().generate_password()
 
             record = {
