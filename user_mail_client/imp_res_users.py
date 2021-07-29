@@ -157,7 +157,7 @@ class res_users(models.Model):
             remote_user_id = self.remote_user(self)
             if remote_user_id:
                 _logger.info("VALUES IN WRITE :::::::::: %s" % values)
-                remote_user_id.write(values)
+                # remote_user_id.write(values)
         return super(res_users, self).write(values)
 
     def unlink(self):
