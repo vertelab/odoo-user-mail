@@ -214,7 +214,7 @@ class res_company(models.Model):
             values['remote_id'] = self.generateUUID()
         comp = super(res_company, self).write(values)
         if values.get('domain', False):
-            _logger.info('::::::::::values', self)
+            _logger.info('::::::::::values - %s', self)
             self.company_sync_settings(self)
 
             if self.id == self.env.ref('base.main_company').id:  # Create mailservers when its a main company and not mainserver
@@ -253,11 +253,13 @@ class res_company(models.Model):
         if comp_id.remote_id:
             remote_company_id = self.remote_company(comp_id)
 
-        if comp_id.remote_id and remote_company_id:
-            remote_company_id.write(record)
-            return remote_company_id
-        else:
-            return self.env['res.company'].create(record)
+        _logger.info('::::::::::comp_id - %s', comp_id.remote_id)
+        _logger.info('::::::::::remote_company_id - %s', remote_company_id)
+        # if comp_id.remote_id and remote_company_id:
+        #     remote_company_id.write(record)
+        #     return remote_company_id
+        # else:
+        #     return self.env['res.company'].create(record)
 
     def _createcatchall(self):
         if not self.env['res.user'].search([('postfix_mail', '=', self.catchall)]):
