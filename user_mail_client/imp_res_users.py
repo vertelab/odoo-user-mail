@@ -261,7 +261,8 @@ class res_company(models.Model):
         if self.remote_id:
             remote_company_id = self.remote_company(comp_id)
 
-        _logger.info(':::::::::2%s', self.remote_id)
+        _logger.info(':::::::::comp_id %s', comp_id)
+        _logger.info(':::::::::remote_id %s', comp_id.remote_id)
         _logger.info(':::::::::::%s, ---- %s, +++++++', (self.remote_id, remote_company_id))
         if self.remote_id and remote_company_id:
             _logger.info(':::::::::::%s, ---- %s, +++++++ %s', (self._name, remote_company_id, record))
