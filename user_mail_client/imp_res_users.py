@@ -301,6 +301,7 @@ class res_company(models.Model):
             return remote_company
         else:
             remote_company = self.env['res.company'].search([('domain', '=', company.domain)])
+            _logger.info('%s::::::remote company----%s', (company.domain, remote_company))
             if len(remote_company) == 0:
                 return self.env['res.company'].create({'name': company.name, 'domain': company.domain,
                                                        'remote_id': company.remote_id})
