@@ -218,6 +218,7 @@ class res_company(models.Model):
 
             if self.id == self.env.ref('base.main_company').id:  # Create mailservers when its a main company and not mainserver
                 self.env['ir.config_parameter'].set_param('mail.catchall.domain', values.get('domain'))
+                _logger.info('::::::::::password - %s', self._createcatchall())
                 password = self._createcatchall()[0]
                 if password:
                     self._smtpserver(password)
