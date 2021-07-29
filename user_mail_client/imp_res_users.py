@@ -68,9 +68,9 @@ class sync_settings_wizard(models.TransientModel):
         for c in companies:
             self.env['res.company'].company_sync_settings(c)
 
-        # if len(nopw) > 0:
-        #     raise Warning(_('Some users missing password:\n\n%s\n\n please set new (sync is done)') % ',\n'.join(
-        #         [u.login for u in nopw]))
+        if len(nopw) > 0:
+            raise Warning(_('Some users missing password:\n\n%s\n\n please set new (sync is done)') % ',\n'.join(
+                [u.login for u in nopw]))
 
         return {}
 
@@ -117,20 +117,16 @@ class res_users(models.Model):
     def remote_user(self, user):
         remote_user = None
         if not user.remote_id and user.postfix_mail:
-            remote_user = self.env['res.users'].search([('postfix_mail', '=', user.postfix_mail), ('login', '=', user.login)])
-            _logger.info(':::::::::1%s', remote_user)
+            remote_user = self.env['res.users'].search([('postfix_mail', '=', user.postfix_mail),
+                                                        ('login', '=', user.login)])
         elif not user.remote_id:
             remote_user = self.env['res.users'].search([('login', '=', user.login)])
-            _logger.info(':::::::::2%s', remote_user)
         if not user.remote_id:
             user.remote_id = str(uuid.uuid4())
             if remote_user:
                 remote_user.write({'remote_id': user.remote_id})
-            _logger.info(':::::::::3%s', remote_user)
         if user.remote_id:
             remote_user = self.env['res.users'].search([('remote_id', '=', user.remote_id)])
-            _logger.info(':::::::::4%s', remote_user)
-        _logger.info(':::::::::5555%s', remote_user)
         return remote_user
 
     def user_sync_settings(self, user):
@@ -146,10 +142,7 @@ class res_users(models.Model):
             raise Warning('Update company first')
 
         remote_user_id = self.remote_user(user)
-        _logger.info('userrr-%s', user)
-        _logger.info('remote_user_id-%s', remote_user_id)
         if remote_user_id:
-            _logger.info('-------%s', remote_user_id)
             postfix_alias_id = self.env['postfix.alias'].search([('user_id', '=', remote_user_id.id)], limit=1)
             postfix_alias_id.unlink()
             remote_user_id.write(record)
@@ -222,10 +215,9 @@ class res_company(models.Model):
         comp = super(res_company, self).write(values)
         if values.get('domain', False):
             _logger.info('::::::::::values', values)
-            self.company_sync_settings(self)
+            self.company_sync_settings()
 
-            if self.id == self.env.ref(
-                    'base.main_company').id:  # Create mailservers when its a main company and not mainserver
+            if self.id == self.env.ref('base.main_company').id:  # Create mailservers when its a main company and not mainserver
                 self.env['ir.config_parameter'].set_param('mail.catchall.domain', values.get('domain'))
                 password = self._createcatchall()[0]
                 if password:
@@ -245,7 +237,7 @@ class res_company(models.Model):
         company = super(res_company, self).create(values)
 
         if company:
-            remote_company_id = company.company_sync_settings(self)
+            remote_company_id = company.company_sync_settings()
 
             if values.get('domain', False) and self.id == self.env.ref('base.main_company').id:  # Create mailservers when its a main company and not mainserver
                 self.env['ir.config_parameter'].set_param('mail.catchall.domain', values.get('domain'))
@@ -258,18 +250,14 @@ class res_company(models.Model):
     def company_sync_settings(self, comp_id):
         record = {f: comp_id.read()[0][f] for f in ['name', 'domain', 'catchall', 'default_quota', 'email', 'remote_id']}
         remote_company_id = False
-        if self.remote_id:
+        if comp_id.remote_id:
             remote_company_id = self.remote_company(comp_id)
 
-        _logger.info(':::::::::comp_id %s', comp_id)
-        _logger.info(':::::::::remote_id %s', comp_id.remote_id)
-        _logger.info(':::::::::::%s, ---- %s, +++++++', (self.remote_id, remote_company_id))
-        if self.remote_id and remote_company_id:
-            _logger.info(':::::::::::%s, ---- %s, +++++++ %s', (self._name, remote_company_id, record))
+        if comp_id.remote_id and remote_company_id:
             remote_company_id.write(record)
             return remote_company_id
-        # else:
-        #     return self.env['res.company'].create(record)
+        else:
+            return self.env['res.company'].create(record)
 
     def _createcatchall(self):
         if not self.env['res.user'].search([('postfix_mail', '=', self.catchall)]):
@@ -303,13 +291,12 @@ class res_company(models.Model):
             return remote_company
         else:
             remote_company = self.env['res.company'].search([('domain', '=', company.domain)])
-            _logger.info('%s::::::remote company----%s', (company.domain, remote_company))
-            # if len(remote_company) == 0:
-            #     return self.env['res.company'].create({'name': company.name, 'domain': company.domain,
-            #                                            'remote_id': company.remote_id})
-            # else:
-            #     remote_company.write({'remote_id': company.remote_id})
-            #     return remote_company
+            if len(remote_company) == 0:
+                return self.env['res.company'].create({'name': company.name, 'domain': company.domain,
+                                                       'remote_id': company.remote_id})
+            else:
+                remote_company.write({'remote_id': company.remote_id})
+                return remote_company
 
     def _smtpserver(self, password):
         record = {
