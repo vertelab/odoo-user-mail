@@ -212,10 +212,9 @@ class res_company(models.Model):
     def write(self, values):
         if not self.remote_id:
             values['remote_id'] = self.generateUUID()
-        comp = super(res_company, self).write(values)
         if values.get('domain', False):
             _logger.info('::::::::::values - %s', self)
-            self.company_sync_settings(self)
+            # self.company_sync_settings(self)
 
             if self.id == self.env.ref('base.main_company').id:  # Create mailservers when its a main company and not mainserver
                 self.env['ir.config_parameter'].set_param('mail.catchall.domain', values.get('domain'))
@@ -223,7 +222,7 @@ class res_company(models.Model):
                 if password:
                     self._smtpserver(password)
                     self._imapserver(password)
-        return comp
+        return super(res_company, self).write(values)
 
     def unlink(self):
         remote_company = self.remote_company(self)
@@ -237,7 +236,7 @@ class res_company(models.Model):
         company = super(res_company, self).create(values)
 
         if company:
-            remote_company_id = company.company_sync_settings()
+            # remote_company_id = company.company_sync_settings()
 
             if values.get('domain', False) and self.id == self.env.ref('base.main_company').id:  # Create mailservers when its a main company and not mainserver
                 self.env['ir.config_parameter'].set_param('mail.catchall.domain', values.get('domain'))
@@ -255,11 +254,11 @@ class res_company(models.Model):
 
         _logger.info('::::::::::comp_id - %s', comp_id.remote_id)
         _logger.info('::::::::::remote_company_id - %s', remote_company_id)
-        # if comp_id.remote_id and remote_company_id:
-        #     remote_company_id.write(record)
-        #     return remote_company_id
-        # else:
-        #     return self.env['res.company'].create(record)
+        if comp_id.remote_id and remote_company_id:
+            remote_company_id.write(record)
+            return remote_company_id
+        else:
+            return self.env['res.company'].create(record)
 
     def _createcatchall(self):
         if not self.env['res.user'].search([('postfix_mail', '=', self.catchall)]):
