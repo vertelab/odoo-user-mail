@@ -214,8 +214,8 @@ class res_company(models.Model):
             values['remote_id'] = self.generateUUID()
         comp = super(res_company, self).write(values)
         if values.get('domain', False):
-            _logger.info('::::::::::values', values)
-            self.company_sync_settings()
+            _logger.info('::::::::::values', self)
+            self.company_sync_settings(self)
 
             if self.id == self.env.ref('base.main_company').id:  # Create mailservers when its a main company and not mainserver
                 self.env['ir.config_parameter'].set_param('mail.catchall.domain', values.get('domain'))
