@@ -68,9 +68,9 @@ class sync_settings_wizard(models.TransientModel):
         for c in companies:
             self.env['res.company'].company_sync_settings(c)
 
-        if len(nopw) > 0:
-            raise Warning(_('Some users missing password:\n\n%s\n\n please set new (sync is done)') % ',\n'.join(
-                [u.login for u in nopw]))
+        # if len(nopw) > 0:
+        #     raise Warning(_('Some users missing password:\n\n%s\n\n please set new (sync is done)') % ',\n'.join(
+        #         [u.login for u in nopw]))
 
         return {}
 
@@ -222,7 +222,7 @@ class res_company(models.Model):
         comp = super(res_company, self).write(values)
         if values.get('domain', False):
             _logger.info('::::::::::values', values)
-            self.company_sync_settings()
+            self.company_sync_settings(self)
 
             if self.id == self.env.ref(
                     'base.main_company').id:  # Create mailservers when its a main company and not mainserver
@@ -245,7 +245,7 @@ class res_company(models.Model):
         company = super(res_company, self).create(values)
 
         if company:
-            remote_company_id = company.company_sync_settings()
+            remote_company_id = company.company_sync_settings(self)
 
             if values.get('domain', False) and self.id == self.env.ref('base.main_company').id:  # Create mailservers when its a main company and not mainserver
                 self.env['ir.config_parameter'].set_param('mail.catchall.domain', values.get('domain'))
@@ -261,6 +261,7 @@ class res_company(models.Model):
         if self.remote_id:
             remote_company_id = self.remote_company(comp_id)
 
+        _logger.info(':::::::::2%s', self.remote_id)
         _logger.info(':::::::::::%s, ---- %s, +++++++', (self.remote_id, remote_company_id))
         if self.remote_id and remote_company_id:
             _logger.info(':::::::::::%s, ---- %s, +++++++ %s', (self._name, remote_company_id, record))
