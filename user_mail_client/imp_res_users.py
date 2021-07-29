@@ -252,8 +252,6 @@ class res_company(models.Model):
         if comp_id.remote_id:
             remote_company_id = self.remote_company(comp_id)
 
-        _logger.info('::::::::::comp_id - %s', comp_id.remote_id)
-        _logger.info('::::::::::remote_company_id - %s', remote_company_id)
         if comp_id.remote_id and remote_company_id:
             remote_company_id.write(record)
             return remote_company_id
@@ -262,6 +260,7 @@ class res_company(models.Model):
 
     def _createcatchall(self):
         if not self.env['res.users'].search([('postfix_mail', '=', self.catchall)]):
+            _logger.info('::::::::::remote_company_id')
             new_pw = self.env['res.users'].sudo().generate_password()
 
             record = {
