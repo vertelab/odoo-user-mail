@@ -266,8 +266,8 @@ class res_company(models.Model):
             _logger.info(':::::::::::%s, ---- %s, +++++++ %s', (self._name, remote_company_id, record))
             remote_company_id.write(record)
             return remote_company_id
-        else:
-            return self.env['res.company'].create(record)
+        # else:
+        #     return self.env['res.company'].create(record)
 
     def _createcatchall(self):
         if not self.env['res.user'].search([('postfix_mail', '=', self.catchall)]):
