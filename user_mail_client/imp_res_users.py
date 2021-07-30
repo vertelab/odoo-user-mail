@@ -213,12 +213,10 @@ class res_company(models.Model):
         if not self.remote_id:
             values['remote_id'] = self.generateUUID()
         if values.get('domain', False):
-            _logger.info('::::::::::values - %s', self)
             # self.company_sync_settings(self)
 
             if self.id == self.env.ref('base.main_company').id:  # Create mailservers when its a main company and not mainserver
                 self.env['ir.config_parameter'].set_param('mail.catchall.domain', values.get('domain'))
-                _logger.info('::::::::::password - %s', self._createcatchall())
                 password = self._createcatchall()
                 if password:
                     self._smtpserver(password[0])
@@ -261,7 +259,6 @@ class res_company(models.Model):
 
     def _createcatchall(self):
         if not self.env['res.users'].search([('postfix_mail', '=', self.catchall)]):
-            _logger.info('::::::::::remote_company_id')
             new_pw = self.env['res.users'].sudo().generate_password()
 
             record = {
