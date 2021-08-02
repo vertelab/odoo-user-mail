@@ -27,7 +27,7 @@ try:
 except ImportError:
     import xmlrpclib
 import xmlrpc.client
-from odoo.exceptions import Warning
+from odoo.exceptions import UserError
 import os, string
 import random
 import logging
@@ -42,7 +42,7 @@ SYNCSERVER = None
 def get_config(param, msg):
     value = odoo.tools.config.get(param, False)
     if not value:
-        raise Warning(_("%s (%s in /etc/odoo/odoo.conf)" % (msg, param)))
+        raise UserError(_("%s (%s in /etc/odoo/odoo.conf)" % (msg, param)))
     return value
 
 
@@ -69,7 +69,7 @@ class sync_settings_wizard(models.TransientModel):
             self.env['res.company'].company_sync_settings(c)
 
         if len(nopw) > 0:
-            raise Warning(_('Some users missing password:\n\n%s\n\n please set new (sync is done)') % ',\n'.join(
+            raise UserError(_('Some users missing password:\n\n%s\n\n please set new (sync is done)') % ',\n'.join(
                 [u.login for u in nopw]))
 
         return {}
@@ -139,7 +139,7 @@ class res_users(models.Model):
             record['company_ids'] = [(6, _, [remote_company.id])]
             record['company_id'] = remote_company.id
         else:
-            raise Warning('Update company first')
+            raise UserError('Update company first')
 
         remote_user_id = self.remote_user(user)
         if remote_user_id:
@@ -157,7 +157,6 @@ class res_users(models.Model):
             remote_user_id = self.remote_user(self)
             if remote_user_id:
                 _logger.info("VALUES IN WRITE :::::::::: %s" % values)
-                # remote_user_id.write(values)
         return super(res_users, self).write(values)
 
     def unlink(self):
@@ -172,30 +171,6 @@ class res_users(models.Model):
             remote_user.unlink()
 
         return super(res_users, self).unlink()
-
-    # def testxmlrpc(self):
-    #     # ~ common = xmlrpc.client.ServerProxy('http://localhost:8069/xmlrpc/2/common')
-    #     # ~ info = common.version()
-    #     # ~ uid = common.authenticate('mail_server', 'admin', 'admin', {})
-    #     # ~ model = xmlrpc.client.ServerProxy('http://localhost:8069/xmlrpc/2/object',allow_none=True)
-    #
-    #     # ~ res = model.execute_kw('mail_server', uid, 'admin','res.company', 'search', [[['remote_id','=',None]]])
-    #     # ~ raise Warning(res,info,uid)
-    #     # ~ #_logger.error(res)
-    #
-    #     SYNCSERVER = Sync2server(self)
-    #     # ~ record = {f:self.read()[0][f] for f in self.USER_MAIL_FIELDS}
-    #     # ~ record['postfix_alias_ids'] = [(0,0,{'name': m.name, 'mail':m.mail,'active':m.active}) for m in self.postfix_alias_ids]
-    #
-    #     # ~ res = SYNCSERVER.sock.execute_kw(SYNCSERVER.passwd_dbnameSYNCSERVER.passwd_dbname, SYNCSERVER.uid, SYNCSERVER.passwd_passwd,'res.users', 'search', [[['id','=',1]]])
-    #     res = SYNCSERVER.sock.execute_kw('mail_server', 1, 'admin', 'res.users', 'search', [['id', '=', 1]])
-    #     _logger.error(res)
-    #
-    #     remote_company = SYNCSERVER.search('res.company', [['remote_id', '=', None]])
-    #
-    #     remote_company = SYNCSERVER.remote_company(self.company_id)
-    #
-    #     # raise Warning(uid,info)
 
 
 class res_company(models.Model):
@@ -213,8 +188,6 @@ class res_company(models.Model):
         if not self.remote_id:
             values['remote_id'] = self.generateUUID()
         if values.get('domain', False):
-            # self.company_sync_settings(self)
-
             if self.id == self.env.ref('base.main_company').id:  # Create mailservers when its a main company and not mainserver
                 self.env['ir.config_parameter'].set_param('mail.catchall.domain', values.get('domain'))
                 password = self._createcatchall()
@@ -283,7 +256,7 @@ class res_company(models.Model):
 
     def remote_company(self, company):
         if not company.remote_id:
-            raise Warning('no remote id')
+            raise UserError('no remote id')
         remote_company = self.env['res.company'].search([('remote_id', '=', company.remote_id)])
         if remote_company:
             return remote_company
