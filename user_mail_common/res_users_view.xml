@@ -1,5 +1,5 @@
 <?xml version="1.0"?>
-<openerp>
+<odoo>
   <data>
     <!-- Force update of groups' user view.
          When updating (not new install), as `share` module is not loaded yet, shared groups
@@ -53,7 +53,7 @@
           <notebook position="inside">
             <page string="E-mail settings">
               <group colspan="4" col="4">
-                <field name="postfix_active" col="2" colspan="4" />
+                <field name="postfix_active" col="2" colspan="4" string="Postfix Active"/>
 
                 <newline />
                 <group attrs="{'invisible': [('postfix_active','=',False)]}" colspan="4" col="4">
@@ -131,4 +131,4 @@
     </record>
     
   </data>
-</openerp>
+</odoo>
