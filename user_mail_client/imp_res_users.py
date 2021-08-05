@@ -160,15 +160,16 @@ class res_users(models.Model):
         return super(res_users, self).write(values)
 
     def unlink(self):
-        user_id = self.env['res.users'].sudo().search([('login', '=', self.login)]).id
-        self.env['postfix.alias'].search([('user_id', '=', user_id)]).unlink()
-        # only needed if deleting a user with recently changed password
-        self.env['change.password.wizard'].search([('user_ids', '=', self.id)]).unlink()
-        self.env['change.password.user'].search([('user_id', '=', self.id)]).unlink()
+        for user in self:
+            user_id = self.env['res.users'].sudo().search([('login', '=', user.login)]).id
+            self.env['postfix.alias'].search([('user_id', '=', user_id)]).unlink()
+            # only needed if deleting a user with recently changed password
+            self.env['change.password.wizard'].search([('user_ids', '=', user.id)]).unlink()
+            self.env['change.password.user'].search([('user_id', '=', user.id)]).unlink()
 
-        remote_user = self.remote_user(self)
-        if remote_user:
-            remote_user.unlink()
+            remote_user = self.remote_user(user)
+            if remote_user:
+                remote_user.unlink()
 
         return super(res_users, self).unlink()
 
