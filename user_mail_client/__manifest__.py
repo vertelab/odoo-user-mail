@@ -8,7 +8,7 @@
 
 {
     'name': 'User mail client',
-    'version': '1.3',
+    'version': '1.4',
     'category': 'other',
     'summary': 'Administation of mail for users on client side',
     'description': """
@@ -35,7 +35,7 @@ imap_port = 8069
     raise IOError, "unsupported XML-RPC protocol"
 IOError: unsupported XML-RPC protocol
     
-    
+    v1.4 - Fixed sigleton error of res_users when deleting user.
     """,
     'author': 'Vertel AB',
     'website': 'http://www.vertel.se',
