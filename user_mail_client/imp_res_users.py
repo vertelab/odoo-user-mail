@@ -161,6 +161,7 @@ class res_users(models.Model):
 
     def unlink(self):
         for user in self:
+            _logger.info('::::', user)
             user_id = self.env['res.users'].sudo().search([('login', '=', user.login)]).id
             self.env['postfix.alias'].search([('user_id', '=', user_id)]).unlink()
             # only needed if deleting a user with recently changed password
