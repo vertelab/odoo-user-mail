@@ -168,9 +168,9 @@ class res_users(models.Model):
             self.env['change.password.wizard'].search([('user_ids', '=', user.id)]).unlink()
             self.env['change.password.user'].search([('user_id', '=', user.id)]).unlink()
 
-            remote_user = self.remote_user(user)
-            if remote_user:
-                remote_user.unlink()
+            # remote_user = self.remote_user(user)
+            # if remote_user:
+            #     remote_user.unlink()
 
         return super(res_users, self).unlink()
 
