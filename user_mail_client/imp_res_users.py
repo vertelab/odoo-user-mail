@@ -195,20 +195,12 @@ class res_company(models.Model):
                     self._imapserver(password[0])
         return super(res_company, self).write(values)
 
-    # def unlink(self):
-    #     remote_company = self.remote_company(self)
-    #     if remote_company:
-    #         remote_company.unlink()
-    #     super(res_company, self).unlink()
-
     @api.model
     def create(self, values):
         values['remote_id'] = self.generateUUID()
         company = super(res_company, self).create(values)
 
         if company:
-            # remote_company_id = company.company_sync_settings()
-
             if values.get('domain', False) and self.id == self.env.ref('base.main_company').id:  # Create mailservers when its a main company and not mainserver
                 self.env['ir.config_parameter'].set_param('mail.catchall.domain', values.get('domain'))
                 password = company._createcatchall()[0]
