@@ -164,13 +164,10 @@ class res_users(models.Model):
             _logger.info(':::: %s' % user)
             user_id = self.env['res.users'].sudo().search([('login', '=', user.login)]).id
             self.env['postfix.alias'].search([('user_id', '=', user_id)]).unlink()
+
             # only needed if deleting a user with recently changed password
             self.env['change.password.wizard'].search([('user_ids', '=', user.id)]).unlink()
             self.env['change.password.user'].search([('user_id', '=', user.id)]).unlink()
-
-            # remote_user = self.remote_user(user)
-            # if remote_user:
-            #     remote_user.unlink()
 
         return super(res_users, self).unlink()
 
@@ -198,11 +195,11 @@ class res_company(models.Model):
                     self._imapserver(password[0])
         return super(res_company, self).write(values)
 
-    def unlink(self):
-        remote_company = self.remote_company(self)
-        if remote_company:
-            remote_company.unlink()
-        super(res_company, self).unlink()
+    # def unlink(self):
+    #     remote_company = self.remote_company(self)
+    #     if remote_company:
+    #         remote_company.unlink()
+    #     super(res_company, self).unlink()
 
     @api.model
     def create(self, values):
