@@ -8,7 +8,7 @@
 
 {
     'name': 'User mail client',
-    'version': '1.4',
+    'version': '1.5',
     'category': 'other',
     'summary': 'Administation of mail for users on client side',
     'description': """
@@ -36,11 +36,12 @@ imap_port = 8069
 IOError: unsupported XML-RPC protocol
     
     v1.4 - Fixed sigleton error of res_users when deleting user.
+    v1.5 - Fixed maximum recursion for deleting companies.
     """,
     'author': 'Vertel AB',
-    'website': 'http://www.vertel.se',
-    'depends': ['user_password_tmp','fetchmail', 'user_mail_common'],
-    'data': ['res_users_view.xml','res_users_data.xml','res_users_report.xml'],
+    'website': 'https://www.vertel.se',
+    'depends': ['user_password_tmp', 'fetchmail', 'user_mail_common'],
+    'data': ['res_users_view.xml', 'res_users_data.xml', 'res_users_report.xml'],
     'installable': True,
     'application': True,
     #'auto_install': False,
