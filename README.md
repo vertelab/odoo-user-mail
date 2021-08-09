@@ -1,3 +1,9 @@
+This module syncronizes the users of multiple Odoo servers into one Odoo server, in order for a Devcot/Postfix-server to be able to recognize users' individual emails from the other emails that should be handled by the "catch-all"-function of Odoo.
+
+![image](https://user-images.githubusercontent.com/61729317/128695530-297069d9-363a-4a72-ab0a-e477f765212d.png)
+
+It is typically used in a Odoo-server with multiple databases who connects to one Devcot/Postfix-server.
+
 ```
 INSTALL INSTRUCTIONS
 
