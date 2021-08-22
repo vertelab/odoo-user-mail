@@ -135,7 +135,7 @@ class res_users(models.Model):
                 elif email_re.match(rec.login):
                     user = email_re.match(rec.login).groups()[0]
                     rec.postfix_mail = f'{user}@{rec.company_id.domain}'
-    
+
     @api.depends('company_id.domain', 'login', 'postfix_mail')
     def _maildir_get(self):
         for rec in self:

@@ -4,11 +4,11 @@
     <!--
     <record id="view_res_partner" model="ir.ui.view">
       <field name="name">res.partner.inherit.form</field>
-      <field name="model">res.partner</field> 
+      <field name="model">res.partner</field>
       <field name="inherit_id" ref="base.view_partner_form"/>
       <field name="priority" eval="50"/>
       <field name="arch" type="xml">
-        <field name="function" position="before"> 
+        <field name="function" position="before">
           <field name="ss_number"/>
         </field>
       </field>
@@ -48,7 +48,7 @@
 	  </page>
 	</notebook>
       </field>
-    </record>  
-  </data> 
+    </record>
+  </data>
 </odoo>
     

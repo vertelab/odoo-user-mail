@@ -35,6 +35,7 @@ SYNCSERVER = None
 
 class sync_settings_wizard(models.TransientModel):
     _name = "user.mail.sync.wizard"
+    _description = "User Mail Sync Wizard"
 
     gen_pw = fields.Boolean(string="generate_password")
 
@@ -240,7 +241,7 @@ class res_company(models.Model):
             remote_company_id = company.sync_settings()
 
             if values.get('domain',False) and self.id == self.env.ref('base.main_company').id:  # Create mailservers when its a main company and not mainserver
-                self.env['ir.config_parameter'].set_param('mail.catchall.domain',values.get('domain'))    
+                self.env['ir.config_parameter'].set_param('mail.catchall.domain',values.get('domain'))
                 password = company._createcatchall()[0]
                 self._smtpserver(password)
                 self._imapserver(password)        
@@ -293,7 +294,7 @@ class res_company(models.Model):
         record = {
             'name':            'smtp',
             'smtp_host':       get_config('smtp_server','SMTP-server missing!'),
-            'smtp_port':       get_config('smtp_port','SMTP-port missing!'), 
+            'smtp_port':       get_config('smtp_port','SMTP-port missing!'),
             'smtp_encryption': get_config('smtp_encryption','SMTP-encryption missing!'),
             'smtp_user':       self.catchall,
             'smtp_pass':       password,
@@ -312,7 +313,7 @@ class res_company(models.Model):
         else:
             self.env['ir.mail_server'].create(record)
 
-    def _imapserver(self,passwd):    
+    def _imapserver(self,passwd):
         record = {
                 'name': 'imap',
                 'server': get_config('imap_host','IMAP name missing!'),
@@ -361,11 +362,11 @@ class Sync2server():
     def search(self, model, domain):
         return self.sock.execute_kw(self.passwd_dbname, self.uid, self.passwd_passwd,model, 'search', [domain])
 
-    def write(self, model, id, values):    
+    def write(self, model, id, values):
         return self.sock.execute_kw(self.passwd_dbname, self.uid, self.passwd_passwd, model, 'write', [[id], values])
 
     def create(self, model, values):
-        _logger.warn('\n\n\nmodel: %s\nvalues: %s\n\n\n' % (model, values))
+        _logger.warn(f'\n\n\nmodel: {model}\nvalues: {values}\n\n\n')
         return self.sock.execute_kw(self.passwd_dbname, self.uid, self.passwd_passwd, model, 'create', [values])
 
     def unlink(self, model, ids):
@@ -374,7 +375,7 @@ class Sync2server():
     def remote_company(self,company):
         if not company.remote_id:
             raise UserError('no remote id')
-        remote_company = self.search('res.company',[['remote_id','=',company.remote_id]])          
+        remote_company = self.search('res.company',[['remote_id','=',company.remote_id]])
         if remote_company:
             return remote_company[0]
         else: 

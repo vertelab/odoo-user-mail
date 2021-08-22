@@ -53,12 +53,12 @@ class res_partner_service(models.Model):
         track_visibility='onchange', copy=False,
         help=" * The 'Draft' status is used when the password is editable.\n"
         " * The 'Sent' status is used when the password has been sent to the user.\n"
-        " * The'Cancelled'status is used when the password has been cancelled.\n")    
-#    type = fields.Selection(compu
+        " * The'Cancelled'status is used when the password has been cancelled.\n")
 
 
 class service(models.Model):
     _name = "service.service"
+    _description = "Service"
     
     name = fields.Char()
     server_ids = fields.One2many(comodel_name='service.server',
@@ -79,6 +79,7 @@ class service(models.Model):
 
 class service_server(models.Model):
     _name = "service.server"
+    _description = "Serviice Server"
     
     name = fields.Char()
     hostname = fields.Char()
@@ -90,8 +91,3 @@ class service_server(models.Model):
                               ('start','Started'),
                               ('error','Error')])
 
-
-    
-
-    
-    
