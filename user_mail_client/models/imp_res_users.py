@@ -85,12 +85,18 @@ class res_users(models.Model):
 
     def generate_password(self):
         length = int(self._get_param('pw_length', 13))
-        rules = eval(self._get_param('pw_rules', str({
+        # rules = eval(self._get_param('pw_rules', str({
+        #     'lower': 4,
+        #     'upper': 3,
+        #     'digits': 2,
+        #     'special': 1,
+        # })))
+        rules = {
             'lower': 4,
             'upper': 3,
             'digits': 2,
             'special': 1,
-        })))
+        }
         char_types = list(rules.keys())
         chars = {
             'lower': string.ascii_lowercase,
@@ -197,11 +203,11 @@ class res_company(models.Model):
                     self._imapserver(password[0])
         return super(res_company, self).write(values)
 
-    def unlink(self):
-        remote_company = self.remote_company(self)
-        if remote_company:
-            remote_company.unlink()
-        super(res_company, self).unlink()
+    # def unlink(self):
+    #     remote_company = self.remote_company(self)
+    #     if remote_company:
+    #         remote_company.unlink()
+    #     super(res_company, self).unlink()
 
     @api.model
     def create(self, values):
@@ -249,9 +255,10 @@ class res_company(models.Model):
             remote_company = self.remote_company(self)
 
             if remote_company:
-                record['company_ids'] = [(6, _, [remote_company])]
-                record['company_id'] = remote_company
+                record['company_ids'] = [(6, _, [remote_company.id])]
+                record['company_id'] = remote_company.id
 
+            print('record', record)
             self.env['res.users'].create(record)
             return new_pw
 
@@ -299,7 +306,7 @@ class res_company(models.Model):
             'server': get_config('imap_host', 'IMAP name missing!'),
             'port': get_config('imap_port', 'IMAP port missing!'),
             'is_ssl': True,
-            'type': 'imap',
+            'server_type': 'imap',
             'active': True,
             'state': 'done',
             'user': self.catchall,

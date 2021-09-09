@@ -69,12 +69,11 @@ class res_users(models.Model):
     
     domain = fields.Char(related="company_id.domain", string='Domain', size=64, store=True, readonly=True)
     dovecot_password = fields.Char()
-    forward_active = fields.Boolean('Active', default=False)
+    forward_active = fields.Boolean('Foward Active', default=False)
     forward_address = fields.Text('Forward address', help='Comma separated list of mail addresses')
     forward_cp = fields.Boolean('Keep', help="Keep a local copy of forwarded messages")
-    postfix_active = fields.Boolean('Active', default=False,)
-    postfix_alias_ids = fields.One2many('postfix.alias', 'user_id', string='Alias', copy=False, ondelete="cascade",
-                                        oldname="mail_alias")
+    postfix_active = fields.Boolean('Postfix Active', default=False,)
+    postfix_alias_ids = fields.One2many('postfix.alias', 'user_id', string='Alias', copy=False, ondelete="cascade")
     postfix_mail = fields.Char(string="Real Mail Address", compute='_email', store=True)
     # remote_id = fields.Char(string='Remote ID', default=_remote_id, size=64, copy=False)
     remote_id = fields.Char(string='Remote ID', size=64, copy=False)
@@ -108,7 +107,7 @@ class res_users(models.Model):
         default='3')
     vacation_subject = fields.Char('Subject', size=64,)
     vacation_text = fields.Text('Text', help="Vacation message for autorespond")
-    vacation_active = fields.Boolean('Active', default=False)
+    vacation_active = fields.Boolean('Vacation Active', default=False)
     vacation_from = fields.Date('From', help="Vacation starts")
     vacation_to = fields.Date('To', help="Vacation ends")
     vacation_forward = fields.Char('Forward', size=64, help="Mailaddress to send messages during vacation")
@@ -146,10 +145,10 @@ class res_users(models.Model):
         for this in self:
             if this.postfix_active and this.domain and this.postfix_mail:
                 this.maildir = "%s/%s/" % (this.domain, this.postfix_mail)
-                this.alias_name = this.login
+                # this.alias_name = this.login
             else:
                 this.maildir = None
-                this.alias_name = None
+                # this.alias_name = None
 
 
 class res_company(models.Model):
