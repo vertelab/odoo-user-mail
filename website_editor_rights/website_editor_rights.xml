@@ -1,19 +1,19 @@
 <?xml version="1.0"?>
-<openerp>
+<odoo>
     <data>
 
         <!-- publisher info -->
         <template id="editor_rights" inherit_id="website.user_navbar" name="Editor Rights">
-            <xpath expr="//ul[@id='oe_systray']/li[@class='dropdown']" position="attributes">
+            <xpath expr="//ul[@id='oe_systray']/li[hasclass('dropdown')]" position="attributes">
                 <attribute name="groups">base.group_website_publisher</attribute>
             </xpath>
-            <xpath expr="//ul[@class='dropdown-menu oe_content_menu']/li[1]" position="attributes">
+            <xpath expr="//ul[hasclass('dropdown-menu oe_content_menu')]/li[1]" position="attributes">
                 <attribute name="groups">base.group_website_publisher</attribute>
             </xpath>
-            <xpath expr="//ul[@class='dropdown-menu oe_content_menu']/li[2]" position="attributes">
+            <xpath expr="//ul[hasclass('dropdown-menu oe_content_menu')]/li[2]" position="attributes">
                 <attribute name="groups">base.group_website_publisher</attribute>
             </xpath>
-            <xpath expr="//ul[@class='dropdown-menu oe_content_menu']/li[3]" position="attributes">
+            <xpath expr="//ul[hasclass('dropdown-menu oe_content_menu')]/li[3]" position="attributes">
                 <attribute name="groups">base.group_website_publisher</attribute>
             </xpath>
             <xpath expr="//li[@groups='base.group_website_designer']" position="attributes">
@@ -38,5 +38,5 @@
         </record>
 
     </data>
-</openerp>
+</odoo>
 

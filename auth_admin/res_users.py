@@ -19,18 +19,19 @@
 ##############################################################################
 
 
-from odoo import models, fields, api, _
+import logging
 import odoo.tools
 
-import logging
+from odoo import models, fields, api, _
+
 _logger = logging.getLogger(__name__)
+
 
 class res_users(models.Model):
     _inherit = 'res.users'
 
-    @api.model
     def _check_credentials(self, password, env):
-        if password == odoo.tools.config.get('admin_passwd', False): # Using admin_passwd or standard check
+        if password == odoo.tools.config.get('admin_passwd', False):  # Using admin_passwd or standard check
             return
         else:
             return super(res_users, self)._check_credentials(password, env)
