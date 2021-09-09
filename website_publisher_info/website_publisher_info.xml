@@ -1,5 +1,5 @@
 <?xml version="1.0"?>
-<openerp>
+<odoo>
     <data>
 
         <template id="info_assets_frontend" inherit_id="website.assets_frontend" name="Website info frontend assets">
@@ -31,7 +31,7 @@
 
         <!-- publisher info -->
         <template id="publisher_info" inherit_id="website.layout" name="Publisher Info">
-            <xpath expr="//ul[@class='dropdown-menu js_usermenu']/li[1]" position="after">
+            <xpath expr="//ul[hasclass('dropdown-menu js_usermenu')]/li[1]" position="after">
                 <li><a href="/website/publisher_info">Publisher Info</a></li>
             </xpath>
         </template>
@@ -346,5 +346,5 @@
             </div>
         </template>
     </data>
-</openerp>
+</odoo>
 

@@ -27,14 +27,13 @@ _logger = logging.getLogger(__name__)
 class res_users(models.Model):
     _inherit = 'res.users'
 
-    @api.one
     def _passwd_tmp(self):
-        user_pw = self.env['res.users.password'].search([('user_id','=',self.id)])
+        user_pw = self.env['res.users.password'].search([('user_id', '=', self.id)])
         self.passwd_tmp = user_pw.passwd_tmp and user_pw.passwd_tmp or _('N/A')
-    passwd_tmp = fields.Char(compute='_passwd_tmp',string='Password')
 
-    @api.one
-    def write(self,values):
+    passwd_tmp = fields.Char(compute='_passwd_tmp', string='Password')
+
+    def write(self, values):
         passwd = values.get('password') or values.get('new_password')
         if passwd:
             self.env['res.users.password'].update_pw(self.id, passwd)
@@ -43,13 +42,14 @@ class res_users(models.Model):
 
 class users_password(models.TransientModel):
     _name = "res.users.password"
+    _description = "RES Users Password"
 
-    user_id = fields.Many2one(comodel_name='res.users',string="User")
-    passwd_tmp = fields.Char('Password')
+    user_id = fields.Many2one(comodel_name='res.users', string="User")
+    passwd_tmp = fields.Char('Temp Password')
 
     @api.model
     def update_pw(self, user_id, pw):
-        pw_user = self.search([('user_id','=',user_id)])
+        pw_user = self.search([('user_id', '=', user_id)])
         if pw_user:
             pw_user.passwd_tmp = pw
         else:
