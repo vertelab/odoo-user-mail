@@ -171,7 +171,6 @@ class res_users(models.Model):
                 })
                 password_wizard.change_password_button()
                 del values['new_password']
-            if remote_user_id:
                 _logger.info("VALUES IN WRITE :::::::::: %s" % values)
         return super(res_users, self).write(values)
 

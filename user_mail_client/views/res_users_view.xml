@@ -27,6 +27,7 @@
         <field name="target">new</field>
         <field name="binding_model_id" ref="base.model_res_users"/>
         <field name="binding_view_types">form,list</field>
+        <field name="binding_view_types">list</field>
        <field name="groups_id" eval="[(4, ref('user_mail_common.group_own_email_settings'))]"/>
     </record>
             
