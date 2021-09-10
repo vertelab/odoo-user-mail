@@ -161,6 +161,16 @@ class res_users(models.Model):
         if passwd:
             values['dovecot_password'] = self.generate_dovecot_sha512(passwd)
             remote_user_id = self.remote_user(self)
+            if remote_user_id == self.env.user and values.get('new_password'):
+                password_wizard = self.env['change.password.wizard'].create({
+                    'user_ids': [(0, 0, {
+                        'user_id': remote_user_id.id,
+                        'user_login': remote_user_id.login,
+                        'new_passwd': values.get('new_password')
+                    })]
+                })
+                password_wizard.change_password_button()
+                del values['new_password']
             if remote_user_id:
                 _logger.info("VALUES IN WRITE :::::::::: %s" % values)
         return super(res_users, self).write(values)
@@ -258,8 +268,9 @@ class res_company(models.Model):
                 record['company_ids'] = [(6, _, [remote_company.id])]
                 record['company_id'] = remote_company.id
 
-            print('record', record)
-            self.env['res.users'].create(record)
+            catchall_record = self.env['res.users'].search([('login', '=', record.get('login'))])
+            if not catchall_record:
+                self.env['res.users'].create(record)
             return new_pw
 
     def remote_company(self, company):
