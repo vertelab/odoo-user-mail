@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 ##############################################################################
 #
-#    OpenERP, Open Source Management Solution, third party addon
+#    odoo, Open Source Management Solution, third party addon
 #    Copyright (C) 2004-2015 Vertel AB (<http://vertel.se>).
 #
 #    This program is free software: you can redistribute it and/or modify
@@ -19,6 +19,7 @@
 #
 ##############################################################################
 
+<<<<<<< HEAD
 from datetime import datetime
 import logging
 
@@ -26,6 +27,15 @@ from odoo import models, fields, api, _
 from odoo.exceptions import UserError
 from odoo import http
 from odoo.http import request
+=======
+from odoo import models, fields, api, _
+from odoo.exceptions import except_orm, Warning, RedirectWarning
+from odoo import http
+from odoo.http import request
+from odoo import SUPERUSER_ID
+from datetime import datetime
+from odoo.modules import get_module_resource, get_module_path
+>>>>>>> 39cff2e27f5401f84110c7e1459cfadbac0af5fa
 import werkzeug
 
 _logger = logging.getLogger(__name__)

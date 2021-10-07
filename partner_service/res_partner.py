@@ -40,6 +40,7 @@ class res_partner(models.Model):
     
 class res_partner_service(models.Model):
     _name = "res.partner.service"
+    _description = "RES Partner Service"
     
     partner_id = fields.Many2one('res.partner')
     service_id = fields.Many2one('service.service')
@@ -47,6 +48,7 @@ class res_partner_service(models.Model):
     bind_record = fields.Text()
     odoo_database = fields.Char()
     odoo_nbrusers = fields.Integer()
+<<<<<<< HEAD
     state = fields.Selection(
         [('draft','Draft'),('sent','Sent'),('cancel','Cancelled'),],
         string='Status', index=True, readonly=False, default='draft',
@@ -54,11 +56,19 @@ class res_partner_service(models.Model):
         help=" * The 'Draft' status is used when the password is editable.\n"
         " * The 'Sent' status is used when the password has been sent to the user.\n"
         " * The'Cancelled'status is used when the password has been cancelled.\n")    
+=======
+    state = fields.Selection([('draft', 'Draft'), ('sent', 'Sent'), ('cancel', 'Cancelled')], string='Status',
+                             index=True, readonly=False, default='draft', track_visibility='onchange', copy=False,
+                             help=" * The 'Draft' status is used when the password is editable.\n"
+                                  " * The 'Sent' status is used when the password has been sent to the user.\n"
+                                  " * The'Cancelled'status is used when the password has been cancelled.\n")
+>>>>>>> 39cff2e27f5401f84110c7e1459cfadbac0af5fa
 #    type = fields.Selection(compu
 
 
 class service(models.Model):
     _name = "service.service"
+    _description = "Service"
     
     name = fields.Char()
     server_ids = fields.One2many(comodel_name='service.server',
@@ -66,6 +76,7 @@ class service(models.Model):
     command_status = fields.Text()
     command_enable = fields.Text()
     command_disable = fields.Text()
+<<<<<<< HEAD
     state = fields.Selection(
         [('disable','Disabled'),('enable','Enabled'),('error','Error')])
     apache_site_template = fields.Text()
@@ -76,9 +87,19 @@ class service(models.Model):
                                    'partner_id',
                                    'service_id',
                                    string="Partners")
+=======
+    state = fields.Selection([('disable', 'Disabled'), ('enable', 'Enabled'), ('error', 'Error')])
+    apache_site_template = fields.Text()
+    bind_record_template = fields.Text()
+    type = fields.Selection([('mail', 'Mail'), ('drupal', 'Drupal'), ('odoo', 'Odoo')])
+    partner_ids = fields.Many2many('res.partner.service', 'res_partner_service_rel', 'partner_id', 'service_id',
+                                   string="Partners")
+
+>>>>>>> 39cff2e27f5401f84110c7e1459cfadbac0af5fa
 
 class service_server(models.Model):
     _name = "service.server"
+    _description = "Service Server"
     
     name = fields.Char()
     hostname = fields.Char()
@@ -86,6 +107,7 @@ class service_server(models.Model):
     command_start = fields.Text()
     command_stop = fields.Text()
     service_id = fields.Many2one('service.service')
+<<<<<<< HEAD
     state = fields.Selection([('stop','Stopped'),
                               ('start','Started'),
                               ('error','Error')])
@@ -95,3 +117,6 @@ class service_server(models.Model):
 
     
     
+=======
+    state = fields.Selection([('stop', 'Stopped'), ('start', 'Started'), ('error', 'Error')])
+>>>>>>> 39cff2e27f5401f84110c7e1459cfadbac0af5fa

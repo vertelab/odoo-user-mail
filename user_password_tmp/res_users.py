@@ -28,6 +28,7 @@ class res_users(models.Model):
     _inherit = 'res.users'
 
     def _passwd_tmp(self):
+<<<<<<< HEAD
         for rec in self:
             user_pw = rec.env['res.users.password'].search(
                 [('user_id','=',rec.id)])
@@ -39,14 +40,30 @@ class res_users(models.Model):
             passwd = values.get('password') or values.get('new_password')
             if passwd:
                 rec.env['res.users.password'].update_pw(rec.id, passwd)
+=======
+        user_pw = self.env['res.users.password'].search([('user_id', '=', self.id)])
+        self.passwd_tmp = user_pw.passwd_tmp and user_pw.passwd_tmp or _('N/A')
+
+    passwd_tmp = fields.Char(compute='_passwd_tmp', string='Password')
+
+    def write(self, values):
+        passwd = values.get('password') or values.get('new_password')
+        if passwd:
+            self.env['res.users.password'].update_pw(self.id, passwd)
+>>>>>>> 39cff2e27f5401f84110c7e1459cfadbac0af5fa
         return super(res_users, self).write(values)
 
 
 class users_password(models.TransientModel):
     _name = "res.users.password"
+    _description = "RES Users Password"
 
     user_id = fields.Many2one(comodel_name='res.users', string="User")
+<<<<<<< HEAD
     passwd_tmp = fields.Char('Password')
+=======
+    passwd_tmp = fields.Char('Temp Password')
+>>>>>>> 39cff2e27f5401f84110c7e1459cfadbac0af5fa
 
     @api.model
     def update_pw(self, user_id, pw):

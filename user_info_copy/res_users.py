@@ -18,6 +18,11 @@
 #
 ##############################################################################
 
+<<<<<<< HEAD
+=======
+from odoo import models, fields, api, _
+from odoo.exceptions import Warning
+>>>>>>> 39cff2e27f5401f84110c7e1459cfadbac0af5fa
 import logging
 
 from odoo import models, fields, api, _
@@ -28,6 +33,7 @@ _logger = logging.getLogger(__name__)
 
 class postfix_alias_copy(models.Model):
     _name = "postfix.alias.copy"
+    _description = "Postfix Alias Copy"
 
     user_id_copy = fields.Many2one('res.users')
     mail_copy = fields.Char('Mail Copy')
