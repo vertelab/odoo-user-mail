@@ -1,21 +1,3 @@
-<<<<<<< HEAD
-<?xml version="1.0"?>
-<odoo>
-  <data>
-    <!-- Force update of groups' user view.
-         When updating (not new install), as `share` module is not loaded yet, shared groups
-         are taken into account when getting the group list, resulting to a different
-         organisation of the `Sharing` category (booleans instead of a selection) and thus,
-         different virtual field names.
-         When applying then inheritance of the following view, the check of field names
-         failed due to these virtual field name missmatch.
-         This is only for databases updated between a6eac0f08ee9100d1a44a4068d4f580b1c7c4b2c
-         and the commit introducing this line.
-    -->
-<!--
-    <function model="res.groups" name="update_user_groups_view" />
--->
-=======
 <odoo>
     <data>
         <record id="view_users_form_conf_mail" model="ir.ui.view">
@@ -27,7 +9,6 @@
                 <label for="login" position="replace">
                     <label for="login" class="oe_edit_only" string="Login Name / Email Address"/>
                 </label>
->>>>>>> 39cff2e27f5401f84110c7e1459cfadbac0af5fa
 
                 <field name="login" position="replace">
                     <div>
@@ -94,59 +75,6 @@
             </field>
         </record>
 
-<<<<<<< HEAD
-                  <separator string="Alias" />
-                  <newline />
-                  <field name="postfix_alias_ids" nolabel="1" widget="one2many_list" colspan="4">
-                    <tree editable="bottom" string="Mail alias">
-                      <field name="name" />
-                      <field name="mail" attrs="{'invisible': [('name', '=', ''),]}" class="oe_read_only"/>
-                      <field name="active" />
-                    </tree>
-                  </field>
-                 
-                   <separator string="Misc" colspan="4" />
-                  <field name="maildir" />
-<!--
-                  <newline />
-                  <field name="transport" />
--->
-                  <newline />
-                  <field name="quota" />
-                  <newline />
-                </group>
-              </group>
-            </page>
-          </notebook>
-        </data>
-      </field>
-    </record>
-    
-    <record id="intdomain_company" model="ir.ui.view">
-      <field name="name">res.company.intdomain.config</field>
-      <field name="model">res.company</field>
-      <field name="type">form</field>
-      <field name="inherit_id" ref="base.view_company_form" />
-      <field name="arch" type="xml">
-        <data>
-          <xpath expr="//page" position="inside">
-
-            <separator string="E-mail settings" colspan="2" />
-            <group>
-                <field name="domain"/>
-                <field name="catchall" />
-                <field name="default_quota" class="oe_inline"/><span class="oe_inline">MB</span><newline />
-                <field name="total_quota" />
-                <field name="nbr_users"/>
-            </group>
-            <newline />
-          </xpath>
-        </data>
-      </field>
-    </record>
-    
-  </data>
-=======
         <record id="intdomain_company" model="ir.ui.view">
             <field name="name">res.company.intdomain.config</field>
             <field name="model">res.company</field>
@@ -167,5 +95,4 @@
             </field>
         </record>
     </data>
->>>>>>> 39cff2e27f5401f84110c7e1459cfadbac0af5fa
 </odoo>

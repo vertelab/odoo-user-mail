@@ -18,15 +18,6 @@
         </form>
       </field>
     </record>
-<<<<<<< HEAD:user_mail_client/res_users_view.xml
-    <act_window id="action_user_mail_sync"
-            name="Synchronize E-mail Settings"
-            src_model="res.users"
-            res_model="user.mail.sync.wizard"
-            view_type="form" view_mode="form"
-            key2="client_action_multi" target="new"
-            groups="user_mail_common.group_own_email_settings"/>
-=======
 
     <record id="action_user_mail_sync" model="ir.actions.act_window">
         <field name="name">Synchronize E-mail Settings</field>
@@ -39,6 +30,5 @@
     </record>
             
 
->>>>>>> 39cff2e27f5401f84110c7e1459cfadbac0af5fa:user_mail_client/views/res_users_view.xml
   </data>
 </odoo>

@@ -18,11 +18,8 @@
 #
 ##############################################################################
 
-<<<<<<< HEAD
-=======
 from odoo import models, fields, api, _
 from odoo.exceptions import Warning
->>>>>>> 39cff2e27f5401f84110c7e1459cfadbac0af5fa
 import logging
 
 from odoo import models, fields, api, _

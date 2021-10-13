@@ -51,19 +51,11 @@ class postfix_alias(models.Model):
     
     @api.depends('user_id.company_id.domain', 'name')
     def _onchange_mail(self):
-<<<<<<< HEAD
-        for rec in self:
-            if rec.name:
-                rec.mail = '%s@%s' % (rec.name, rec.user_id.company_id.domain)
-            else:
-                rec.mail = '@%s' % (rec.user_id.company_id.domain)
-=======
         for this in self:
             if this.name:
                 this.mail = '%s@%s' % (this.name, this.user_id.company_id.domain)
             else:
                 this.mail = '@%s' % (this.user_id.company_id.domain)
->>>>>>> 39cff2e27f5401f84110c7e1459cfadbac0af5fa
 
 
 class res_users(models.Model):
@@ -140,28 +132,6 @@ class res_users(models.Model):
     
     @api.depends('company_id.domain', 'login')
     def _email(self):
-<<<<<<< HEAD
-        for rec in self:
-            if rec.postfix_active and rec.login:
-                email_re = re.compile(r"^[^@]+@[^@]+\.[^@]+$", re.VERBOSE)
-                # login is not an email address.
-                if not email_re.match(rec.login):
-                    rec.postfix_mail = f'{rec.login}@{rec.domain}'
-                # login is an (external) email address, use only left part
-                elif email_re.match(rec.login):
-                    user = email_re.match(rec.login).groups()[0]
-                    rec.postfix_mail = f'{user}@{rec.company_id.domain}'
-    
-    @api.depends('company_id.domain', 'login', 'postfix_mail')
-    def _maildir_get(self):
-        for rec in self:
-            if rec.postfix_active and rec.domain and rec.postfix_mail:
-                rec.maildir = f'{rec.domain}/{rec.postfix_mail}/'
-                rec.alias_name = rec.login
-            else:
-                rec.maildir = None
-                rec.alias_name = None
-=======
         for this in self:
             if this.postfix_active and this.login:
                 email_re = re.compile(r"""^([a-zA-Z0-9._%+-]+)@([a-zA-Z0-9.-]+\.[a-zA-Z]{2,6})$""", re.VERBOSE)
@@ -180,7 +150,6 @@ class res_users(models.Model):
                 this.maildir = None
                 # this.alias_name = None
 
->>>>>>> 39cff2e27f5401f84110c7e1459cfadbac0af5fa
 
 class res_company(models.Model):
     _inherit = 'res.company'
@@ -199,13 +168,7 @@ class res_company(models.Model):
     nbr_users = fields.Integer(compute="_nbr_users", string="Nbr of users")
     
     def _set_domain(self):
-<<<<<<< HEAD
-        for rec in self:
-            rec.env['ir.config_parameter'].set_param(
-                'mail.catchall.domain', rec.domain)
-=======
         self.env['ir.config_parameter'].set_param('mail.catchall.domain', self.domain)
->>>>>>> 39cff2e27f5401f84110c7e1459cfadbac0af5fa
     
     def _get_domain(self):
         for rec in self:
@@ -216,39 +179,20 @@ class res_company(models.Model):
     def _catchall(self):
         for rec in self:
             if rec.domain:
-<<<<<<< HEAD
-                rec.catchall = f'catchall@{rec.domain}'
-    
-    def _total_quota(self):
-        for rec in self:
-            rec.total_quota = sum(rec.user_ids.filtered(
-                lambda r: r.active == True and r.postfix_active == True).mapped('quota'))
-=======
                 rec.catchall = 'catchall' + '@' + rec.domain
             else:
                 rec.catchall = False
     
     def _total_quota(self):
         self.total_quota = sum(self.user_ids.filtered(lambda r: r.active is True and r.postfix_active is True).mapped('quota'))
->>>>>>> 39cff2e27f5401f84110c7e1459cfadbac0af5fa
     
     @api.depends('domain')
     def _email(self):
         for rec in self:
             if rec.domain:
-<<<<<<< HEAD
-                rec.email = f'info@{rec.domain}'
-    
-    def _nbr_users(self):
-        for rec in self:
-            rec.nbr_users = rec.env['res.users'].search_count(
-                [('postfix_active','=',True)])
-
-=======
                 rec.email = 'info@%s' % rec.domain
             else:
                 rec.email = False
     
     def _nbr_users(self):
         self.nbr_users = self.env['res.users'].sudo().search_count([('postfix_active', '=', True)])
->>>>>>> 39cff2e27f5401f84110c7e1459cfadbac0af5fa
