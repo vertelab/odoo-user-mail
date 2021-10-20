@@ -18,24 +18,23 @@
 #
 ##############################################################################
 
-from odoo import models, fields, api, _
-import odoo.tools
-from odoo.tools import safe_eval as eval
-
+import logging
+from passlib.hash import sha512_crypt
+import random
+import string
+import uuid
 try:
     from xmlrpc import client as xmlrpclib
 except ImportError:
     import xmlrpclib
 import xmlrpc.client
+
+from odoo import models, fields, api, _
 from odoo.exceptions import UserError
-import os, string
-import random
-import logging
+import odoo.tools
+from odoo.tools import safe_eval as eval
 
 _logger = logging.getLogger(__name__)
-import uuid
-from passlib.hash import sha512_crypt
-
 SYNCSERVER = None
 
 
@@ -52,13 +51,13 @@ class sync_settings_wizard(models.TransientModel):
 
     gen_pw = fields.Boolean(string="generate_password")
 
-    def default_user_ids(self):
+    def _default_user_ids(self):
         return self.env['res.users'].sudo().browse(self._context.get('active_ids'))
 
     def sync_settings(self):
         companies = set()
         nopw = list()
-        for user in self.default_user_ids():
+        for user in self._default_user_ids():
             if not self.gen_pw and not user.dovecot_password and user.passwd_tmp == _('N/A'):
                 nopw.append(user)
             user.user_sync_settings()
@@ -160,7 +159,7 @@ class res_users(models.Model):
             SYNCSERVER = Sync2server(self)
             remote_user_id = SYNCSERVER.remote_user(self)
             if remote_user_id:
-                _logger.info("VALUES IN WRITE :::::::::: %s" % values)
+                _logger.info(f"VALUES IN WRITE :::::::::: {values}")
                 SYNCSERVER.write(self._name, remote_user_id, values)
 
             if remote_user_id == self.env.user and values.get('new_password'):
@@ -173,7 +172,7 @@ class res_users(models.Model):
                 })
                 password_wizard.change_password_button()
                 del values['new_password']
-                _logger.info("VALUES IN WRITE :::::::::: %s" % values)
+                _logger.info(f"VALUES IN WRITE :::::::::: {values}")
         return super(res_users, self).write(values)
 
     def unlink(self):
@@ -210,7 +209,8 @@ class res_company(models.Model):
         if values.get('domain', False):
             self.company_sync_settings()
 
-            if self.id == self.env.ref('base.main_company').id:  # Create mailservers when its a main company and not mainserver
+            # Create mailservers when its a main company and not mainserver.
+            if self.id == self.env.ref('base.main_company').id:
                 self.env['ir.config_parameter'].set_param('mail.catchall.domain', values.get('domain'))
                 password = self._createcatchall()
                 if password:
@@ -226,7 +226,6 @@ class res_company(models.Model):
 
     @api.model
     def create(self, values):
-        SYNCSERVER = Sync2server(self)
 
         values['remote_id'] = self.generateUUID()
         company = super(res_company, self).create(values)
@@ -234,7 +233,8 @@ class res_company(models.Model):
         if company:
             remote_company_id = company.company_sync_settings()
 
-            if values.get('domain', False) and self.id == self.env.ref('base.main_company').id:  # Create mailservers when its a main company and not mainserver
+            # Create mailservers when its a main company and not mainserver
+            if values.get('domain', False) and self.id == self.env.ref('base.main_company').id:
                 self.env['ir.config_parameter'].set_param('mail.catchall.domain', values.get('domain'))
                 password = company._createcatchall()[0]
                 self._smtpserver(password)
@@ -310,7 +310,7 @@ class res_company(models.Model):
 
         try:
             smtp = self.env.ref('base.ir_mail_server_localhost0')
-        except Exception as e:
+        except Exception:
             pass
 
         if smtp:
@@ -406,4 +406,3 @@ class Sync2server():
         if user.remote_id:
             remote_user = self.search('res.users', [['remote_id', '=', user.remote_id]])
         return remote_user and remote_user[0] or False
-
