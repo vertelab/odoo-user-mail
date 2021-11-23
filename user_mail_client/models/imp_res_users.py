@@ -238,7 +238,7 @@ class ResCompany(models.Model):
 
     def _createcatchall(self):
         SYNCSERVER = Sync2server(self)
-        if not SYNCSERVER.env['res.users'].search([('postfix_mail', '=', self.catchall)]):
+        if not SYNCSERVER.search('res.users', [['postfix_mail', '=', self.catchall]]):
             new_pw = self.env['res.users'].sudo().generate_password()
 
             record = {
