@@ -2,7 +2,7 @@
 
 {
     'name': 'User mail client',
-    'version': '14.0',
+    'version': '14.0.1.0.0',
     'category': 'other',
     'summary': 'Administration of mail for users on client side',
     'description': """
@@ -22,13 +22,6 @@
     # for imap-configuration
     imap_host = localhost
     imap_port = 8069
-
-    self.sock_common = xmlrpclib.ServerProxy('%s/xmlrpc/common' % self.passwd_server)
-  File "/usr/lib/python2.7/xmlrpclib.py", line 1573, in __init__
-    raise IOError, "unsupported XML-RPC protocol"
-IOError: unsupported XML-RPC protocol
-    
-    v1.4 - Fixed sigleton error of res_users when deleting user.
     """,
     'author': 'Vertel AB',
     'website': 'https://www.vertel.se',
@@ -41,6 +34,4 @@ IOError: unsupported XML-RPC protocol
     ],
     'installable': True,
     'application': True,
-    #'auto_install': False,
 }
-# vim:expandtab:smartindent:tabstop=4:softtabstop=4:shiftwidth=4:
