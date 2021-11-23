@@ -153,7 +153,7 @@ class ResUsers(models.Model):
                 })
                 password_wizard.change_password_button()
                 del values['new_password']
-                _logger.info("VALUES IN WRITE :::::::::: %s" % values)
+                _logger.info(f"VALUES IN WRITE :::::::::: {values}")
         return super(ResUsers, self).write(values)
 
     def unlink(self):
@@ -277,7 +277,7 @@ class ResCompany(models.Model):
         try:
             smtp = self.env.ref('base.ir_mail_server_localhost0')
         except Exception as e:
-            _logger.warning("Error::: %s " % e)
+            _logger.warning(f"error::: {e}")
 
         if smtp:
             smtp.write(record)
@@ -305,7 +305,7 @@ class ResCompany(models.Model):
     def _set_remote_id(self):
         for company in self.env['res.company'].search([]):
             if not company.remote_id and company.domain:
-                _logger.warning("Company %s new remote id (%s)" % (company.name, company.domain))
+                _logger.warning(f"Company {company.name} new remote id {company.domain}")
                 company.write({'domain': company.domain})
 
 
@@ -316,28 +316,27 @@ class Sync2server():
         self.passwd_dbname = get_config('passwd_dbname', 'Database name is missing')
         self.passwd_user = get_config('passwd_user', 'Username is missing')
         self.passwd_passwd = get_config('passwd_passwd', 'Password is missing')
-        _logger.info(
-            'Sync2server server %s database %s user %s' % (self.passwd_server, self.passwd_dbname, self.passwd_user))
+        _logger.info(f"Sync2server server {self.passwd_server} database {self.passwd_dbname} user {self.passwd_user}")
         try:
             self.sock_common = xmlrpc.client.ServerProxy('%s/xmlrpc/2/common' % self.passwd_server)
             self.uid = self.sock_common.authenticate(self.passwd_dbname, self.passwd_user, self.passwd_passwd, {})
             self.sock = xmlrpc.client.ServerProxy('%s/xmlrpc/2/object' % self.passwd_server)
-            _logger.info('self.sock -- %s' % self.sock)
+            _logger.info(f"self.sock {self.sock}")
         except xmlrpclib.Fault as err:
             raise UserError(_("%s (server %s, db %s, user %s, pw %s)" % (err, self.passwd_server, self.passwd_dbname,
                                                                        self.passwd_user, self.passwd_passwd)))
 
     def search(self, model, domain):
-        _logger.info('search.sock -- %s' % self.sock)
+        _logger.info(f"search.sock {self.sock}")
         return self.sock.execute_kw(self.passwd_dbname, self.uid, self.passwd_passwd, model, 'search', [domain])
 
     def write(self, model, rec_id, values):
-        _logger.warning('\n\n\n model: %s\n rec_id: %s \n values: %s\n\n\n' % (model, rec_id, values))
+        _logger.warning(f"model: {model} \n rec_id: {rec_id} \n values: {values}")
         return self.sock.execute_kw(self.passwd_dbname, self.uid, self.passwd_passwd, model, 'write',
                                     [[rec_id], values])
 
     def create(self, model, values):
-        _logger.warning('\n\n\nmodel: %s\nvalues: %s\n\n\n' % (model, values))
+        _logger.warning(f"model: {model} \n values: {values}")
         return self.sock.execute_kw(self.passwd_dbname, self.uid, self.passwd_passwd, model, 'create', [values])
 
     def unlink(self, model, ids):
