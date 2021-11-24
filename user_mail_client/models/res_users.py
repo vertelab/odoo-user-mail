@@ -187,9 +187,9 @@ class res_users(models.Model):
         
         remote_company = SYNCSERVER.search('res.company', [['remote_id', '=', None]])
 
-            remote_company = SYNCSERVER.remote_company(rec.company_id)
-        
-            #raise UserError(uid,info)
+        remote_company = SYNCSERVER.remote_company(rec.company_id)
+
+        #raise UserError(uid,info)
 
 
 class res_company(models.Model):
