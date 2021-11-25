@@ -119,8 +119,8 @@ class ResUsers(models.Model):
 
         remote_company = SYNCSERVER.remote_company(self.company_id)
         if remote_company:
-            record['company_ids'] = [(6, _, [remote_company.id])]
-            record['company_id'] = remote_company.id
+            record['company_ids'] = [(6, _, [remote_company])]
+            record['company_id'] = remote_company
         else:
             raise UserError(_('Update company first'))
 
