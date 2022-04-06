@@ -8,6 +8,12 @@ Note that user_mail_common contains fields and functions that both user_mail_cli
 
 The intended purpose user_mail modules is only for dovecot/postfix. Not for regular Odoo usage.
 
+Install order:
+Update config according to below description
+Install user_mail_server on the server
+Install user_mail_client on the client(s)
+Set domain in settings/general settings/company/<your company> - This will trigger a sync to the server and create a catch_all for the company.
+For all Users check box postfix active and use action/syncronize e-mail settings - This will sync user to the server.
 
 -------/etc/odoo/odoo.conf-------
 
