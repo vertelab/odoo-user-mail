@@ -3,7 +3,7 @@
 #
 #    Copyright (C) 2015- 2019 Vertel AB (<http://www.vertel.se>).
 #
-#    This progrupdateam is free software: you can redistribute it and/or modify
+#    This program is free software: you can redistribute it and/or modify
 #    it under the terms of the GNU Affero General Public License as
 #    published by the Free Software Foundation, either version 3 of the
 #    License, or (at your option) any later version.
@@ -46,7 +46,7 @@ class postfix_alias(models.Model):
     mail = fields.Char(string='Complete Mail Address', size=64, compute='_onchange_mail',
                        help="Mail as <user>@<domain>, if you are using a foreign domain, make sure that this domain are "
                             "handled by the same mailserver", store=True)
-    name = fields.Char(string='Mailaddress', size=64,
+    name = fields.Char(string='Mail Address', size=64,
                        help="Mail without domain (left side of @), leave blank for a catcall for the domain")
     
     @api.depends('user_id.company_id.domain', 'name')
@@ -73,7 +73,7 @@ class res_users(models.Model):
     forward_address = fields.Text('Forward address', help='Comma separated list of mail addresses')
     forward_cp = fields.Boolean('Keep', help="Keep a local copy of forwarded messages")
     postfix_active = fields.Boolean('Postfix Active', default=False,)
-    postfix_alias_ids = fields.One2many('postfix.alias', 'user_id', string='Alias', copy=False, ondelete="cascade")
+    postfix_alias_ids = fields.One2many('postfix.alias', 'user_id', string='Alias', copy=False)
     postfix_mail = fields.Char(string="Real Mail Address", compute='_email', store=True)
     # remote_id = fields.Char(string='Remote ID', default=_remote_id, size=64, copy=False)
     remote_id = fields.Char(string='Remote ID', size=64, copy=False)
@@ -164,16 +164,19 @@ class res_company(models.Model):
     total_quota = fields.Integer(compute="_total_quota", string='All quota (MB)', help="Sum of all Users Quota in MB")
     catchall = fields.Char(compute='_catchall', string='Catchall', help="catchall mail address")
     domain = fields.Char(string='Domain', help="the internet domain for mail", compute='_get_domain',
-                         inverse='_set_domain', store=True, required=True)
+                         inverse='_set_domain', required=True)
     nbr_users = fields.Integer(compute="_nbr_users", string="Nbr of users")
     
     def _set_domain(self):
         self.env['ir.config_parameter'].set_param('mail.catchall.domain', self.domain)
     
+    @api.depends('name')
     def _get_domain(self):
         for rec in self:
-            rec.domain = rec.env['ir.config_parameter'].get_param(
-                'mail.catchall.domain')
+            if rec.name:
+                rec.domain = rec.env['ir.config_parameter'].get_param('mail.catchall.domain')
+            else:
+                rec.domain = False
     
     @api.depends('domain')
     def _catchall(self):
