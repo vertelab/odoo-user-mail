@@ -114,7 +114,8 @@ class ResUsers(models.Model):
     def user_sync_settings(self):
         syncserver = Sync2server()
         for record in self:
-            sync_record = record.read(self.USER_MAIL_FIELDS)
+            # Should allways be just one result in this list.
+            sync_record = record.read(self.USER_MAIL_FIELDS)[0]
             aliases = [(0, 0,
                         {'name': m.name, 'mail': m.mail, 'active': m.active})
                        for m in record.postfix_alias_ids]
@@ -230,7 +231,8 @@ class ResCompany(models.Model):
         syncserver = Sync2server()
         fields = ['name', 'domain', 'catchall', 'default_quota', 'email', 'remote_id']
         for record in self:
-            sync_record = self.read(fields)
+            # Should always be one dictionary here.
+            sync_record = record.read(fields)[0]
             remote_company_id = False
             if record.remote_id:
                 remote_company_id = syncserver.remote_company(record)
@@ -346,9 +348,6 @@ class Sync2server():
 
     def unlink(self, model, ids):
         return self.sock.execute_kw(self.passwd_dbname, self.uid, self.passwd_passwd, model, 'unlink', [ids])
-
-    def browse(self, model, ids):
-        return self.sock.execute_kw(self.passwd_dbname, self.uid, self.passwd_passwd, model, 'browse', [ids])
 
     def remote_company(self, company):
         if not company.remote_id:
