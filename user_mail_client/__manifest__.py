@@ -2,7 +2,7 @@
 
 {
     'name': 'User mail client',
-    'version': '14.0.1.0.0',
+    'version': '14.0.1.0.1',
     'category': 'other',
     'summary': 'Administration of mail for users on client side',
     'description': """
