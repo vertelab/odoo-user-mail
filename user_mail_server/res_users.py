@@ -35,6 +35,7 @@ class ResUsers(models.Model):
         ctx.update({'no_reset_password': True})
         return super(ResUsers, self.with_context(ctx)).create(values)
 
+    @api.multi
     def write(self, values):
         if values.get('password') and not values.get('dovecot_password', False):
             _logger.info('creates dovecot_password from %s' % values)

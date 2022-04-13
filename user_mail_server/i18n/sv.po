@@ -287,7 +287,7 @@ msgstr "Synk-inställningar"
 #: model:ir.actions.act_window,name:user_mail.action_user_mail_sync
 #: view:user.mail.sync.wizard:user_mail.user_mail_sync_view
 msgid "Synchronize Settings"
-msgstr "Synkroniserade inställningar"
+msgstr "Synkronisera Inställningar"
 
 #. module: user_mail
 #: help:res.users,spam_tag:0
