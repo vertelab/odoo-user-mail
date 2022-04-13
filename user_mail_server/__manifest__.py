@@ -8,7 +8,7 @@
 
 {
     'name': 'User Mail Server',
-    'version': '1.1',
+    'version': '10.0.0.1',
     'category': 'other',
     'summary': 'Administation of mail for users, serverside component',
     'author': 'Vertel AB',
