@@ -35,12 +35,14 @@ class ResUsers(models.Model):
         ctx.update({'no_reset_password': True})
         return super(ResUsers, self.with_context(ctx)).create(values)
 
+    @api.multi
     def write(self, values):
         if values.get('password') and not values.get('dovecot_password', False):
             _logger.info('creates dovecot_password from %s' % values)
             values['dovecot_password'] = sha512_crypt.encrypt(values.get('password'))
         return super(ResUsers, self).write(values)
 
+    @api.multi
     def unlink(self):
         self.env['postfix.alias'].search([('user_id', '=', self.id)]).unlink()
         return super(ResUsers, self).unlink()
