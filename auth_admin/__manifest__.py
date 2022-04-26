@@ -13,7 +13,7 @@
     'summary': 'Unified password for admin',
     'author': 'Vertel AB',
     'website': 'http://www.vertel.se',
-    'depends': [],
+    'depends': ['base'],
     'data': [],
     'installable': True,
     'application': False,
