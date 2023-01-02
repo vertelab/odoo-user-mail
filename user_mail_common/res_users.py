@@ -164,7 +164,7 @@ class res_company(models.Model):
     total_quota = fields.Integer(compute="_total_quota", string='All quota (MB)', help="Sum of all Users Quota in MB")
     catchall = fields.Char(compute='_catchall', string='Catchall', help="catchall mail address")
     domain = fields.Char(string='Domain', help="the internet domain for mail", compute='_get_domain',
-                         inverse='_set_domain', required=False)
+                         inverse='_set_domain', required=True)
     nbr_users = fields.Integer(compute="_nbr_users", string="Nbr of users")
     
     def _set_domain(self):
