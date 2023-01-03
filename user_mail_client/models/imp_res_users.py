@@ -358,6 +358,8 @@ class Sync2server():
         else:
             remote_company = self.search('res.company', [['domain', '=', company.domain]])
             if len(remote_company) == 0:
+                if not company.domain:
+                    raise UserError(_("No domain set for the user's company"))
                 return self.create(
                     'res.company',
                     {'name': company.name, 'domain': company.domain, 'remote_id': company.remote_id})
