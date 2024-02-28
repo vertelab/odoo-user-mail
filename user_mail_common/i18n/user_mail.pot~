@@ -1,0 +1,503 @@
+# Translation of Odoo Server.
+# This file contains the translation of the following modules:
+# 	* user_mail
+#
+msgid ""
+msgstr ""
+"Project-Id-Version: Odoo Server 8.0-20150922\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2015-10-15 12:15+0000\n"
+"PO-Revision-Date: 2015-10-15 14:36+0100\n"
+"Last-Translator: <>\n"
+"Language-Team: \n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: \n"
+"X-Generator: Poedit 1.5.4\n"
+"Language: sv_SE\n"
+
+#. module: user_mail
+#: code:addons/user_mail/res_users.py:358
+#, python-format
+msgid "%s (%s in /etc/odoo/openerp-server.conf)"
+msgstr ""
+
+#. module: user_mail
+#: code:addons/user_mail/res_users.py:394
+#, python-format
+msgid "%s (server %s, db %s, user %s, pw %s)"
+msgstr ""
+
+#. module: user_mail
+#: field:postfix.alias,active:0 field:res.users,forward_active:0
+#: field:res.users,postfix_active:0 field:res.users,vacation_active:0
+msgid "Active"
+msgstr ""
+
+#. module: user_mail
+#: view:res.users:user_mail.view_users_form_conf_mail
+#: field:res.users,mail_alias:0
+msgid "Alias"
+msgstr ""
+
+#. module: user_mail
+#: view:user.mail.sync.wizard:user_mail.user_mail_sync_view
+msgid "Cancel"
+msgstr ""
+
+#. module: user_mail
+#: help:res.users,forward_address:0
+msgid "Comma separated list of mail addresses"
+msgstr ""
+
+#. module: user_mail
+#: model:ir.model,name:user_mail.model_res_company
+msgid "Companies"
+msgstr ""
+
+#. module: user_mail
+#: view:res.company:user_mail.intdomain_company
+msgid "Configuration"
+msgstr ""
+
+#. module: user_mail
+#: field:postfix.alias,create_uid:0
+#: field:postfix.vacation_notification,create_uid:0
+#: field:res.users.password,create_uid:0
+#: field:user.mail.sync.wizard,create_uid:0
+msgid "Created by"
+msgstr ""
+
+#. module: user_mail
+#: field:postfix.alias,create_date:0
+#: field:postfix.vacation_notification,create_date:0
+#: field:res.users.password,create_date:0
+#: field:user.mail.sync.wizard,create_date:0
+msgid "Created on"
+msgstr ""
+
+#. module: user_mail
+#: field:postfix.vacation_notification,date:0
+msgid "Date"
+msgstr ""
+
+#. module: user_mail
+#: view:res.company:user_mail.intdomain_company field:res.company,domain:0
+#: field:res.users,domain:0
+msgid "Domain"
+msgstr ""
+
+#. module: user_mail
+#: view:res.users:user_mail.view_users_form_conf_mail
+msgid "E-mail settings"
+msgstr ""
+
+#. module: user_mail
+#: view:res.users:user_mail.view_users_form_conf_mail
+#: field:res.users,vacation_forward:0
+msgid "Forward"
+msgstr ""
+
+#. module: user_mail
+#: field:res.users,forward_address:0
+msgid "Forward address"
+msgstr ""
+
+#. module: user_mail
+#: field:res.users,vacation_from:0
+msgid "From"
+msgstr ""
+
+#. module: user_mail
+#: view:user.mail.sync.wizard:user_mail.user_mail_sync_view
+msgid "Generate Password"
+msgstr ""
+
+#. module: user_mail
+#: view:res.users:user_mail.view_users_form_conf_mail
+msgid "I am at vacation"
+msgstr ""
+
+#. module: user_mail
+#: field:postfix.alias,id:0 field:postfix.vacation_notification,id:0
+#: field:res.users.password,id:0 field:user.mail.sync.wizard,id:0
+msgid "ID"
+msgstr ""
+
+#. module: user_mail
+#: view:res.company:user_mail.intdomain_company
+msgid "Internet Domain"
+msgstr ""
+
+#. module: user_mail
+#: field:res.users,forward_cp:0
+msgid "Keep"
+msgstr ""
+
+#. module: user_mail
+#: help:res.users,forward_cp:0
+msgid "Keep a local copy of forwarded messages"
+msgstr ""
+
+#. module: user_mail
+#: help:res.users,spam_killevel:0
+msgid "Killed spam never reach your mail client"
+msgstr ""
+
+#. module: user_mail
+#: field:postfix.alias,write_uid:0
+#: field:postfix.vacation_notification,write_uid:0
+#: field:res.users.password,write_uid:0
+#: field:user.mail.sync.wizard,write_uid:0
+msgid "Last Updated by"
+msgstr ""
+
+#. module: user_mail
+#: field:postfix.alias,write_date:0
+#: field:postfix.vacation_notification,write_date:0
+#: field:res.users.password,write_date:0
+#: field:user.mail.sync.wizard,write_date:0
+msgid "Last Updated on"
+msgstr ""
+
+#. module: user_mail
+#: field:postfix.alias,mail:0
+msgid "Mail"
+msgstr ""
+
+#. module: user_mail
+#: report: user_mail.mail_config:0 
+#: view:website:user_mail.mail_config_document
+msgid "Mail Configuration instruction"
+msgstr ""
+
+#. module: user_mail
+#: view:res.users:user_mail.view_users_form_conf_mail
+msgid "Mail alias"
+msgstr ""
+
+#. module: user_mail
+#: help:postfix.alias,mail:0
+msgid ""
+"Mail as <user>@<domain>, if you are using a foreign domain, make sure that "
+"this domain are handled by the same mailserver"
+msgstr ""
+
+#. module: user_mail
+#: model:ir.actions.report.xml,name:user_mail.mail_config
+msgid "Mail configuration instructions"
+msgstr ""
+
+#. module: user_mail
+#: help:res.users,vacation_forward:0
+msgid "Mailaddress to send messages during vacation"
+msgstr ""
+
+#. module: user_mail
+#: field:res.users,maildir:0
+msgid "Maildir"
+msgstr ""
+
+#. module: user_mail
+#: view:res.users:user_mail.view_users_form_conf_mail
+msgid "Misc"
+msgstr ""
+
+#. module: user_mail
+#: code:addons/user_mail/res_users.py:86
+#, python-format
+msgid "None"
+msgstr ""
+
+#. module: user_mail
+#: field:postfix.vacation_notification,notified:0
+msgid "Notified"
+msgstr ""
+
+#. module: user_mail
+#: view:website:user_mail.mail_config_document
+msgid "Outgoing​ (SMTP)"
+msgstr ""
+
+#. module: user_mail
+#: field:res.users.password,passwd_mail:0
+#: view:website:user_mail.mail_config_document
+msgid "Password"
+msgstr ""
+
+#. module: user_mail
+#: view:res.users:user_mail.view_users_form_conf_mail
+msgid "Preferences"
+msgstr ""
+
+#. module: user_mail
+#: field:res.company,default_quota:0 field:res.users,quota:0
+msgid "Quota"
+msgstr ""
+
+#. module: user_mail
+#: field:res.company,remote_id:0
+msgid "Remote ID"
+msgstr ""
+
+#. module: user_mail
+#: view:website:user_mail.mail_config_document
+msgid "STARTTLS​"
+msgstr ""
+
+#. module: user_mail
+#: field:res.users,spam_active:0
+msgid "Spam Check"
+msgstr ""
+
+#. module: user_mail
+#: field:res.users,spam_killevel:0
+msgid "Spam Kill Level"
+msgstr "Spam-kill nivå"
+
+#. module: user_mail
+#: field:res.users,spam_tag:0
+msgid "Spam Tag Level"
+msgstr "Spam-tagg nivå"
+
+#. module: user_mail
+#: field:res.users,spam_tag2:0
+msgid "Spam Tag Level two"
+msgstr "Spam-tagg nivå två"
+
+#. module: user_mail
+#: view:res.users:user_mail.view_users_form_conf_mail
+msgid "Spam check"
+msgstr "Spam kontroll"
+
+#. module: user_mail
+#: field:res.users,vacation_subject:0
+msgid "Subject"
+msgstr "Ämne"
+
+#. module: user_mail
+#: view:res.company:user_mail.intdomain_company
+#: view:res.users:user_mail.view_users_form_conf_mail
+msgid "Sync settings"
+msgstr "Synk-inställningar"
+
+#. module: user_mail
+#: model:ir.actions.act_window,name:user_mail.action_user_mail_sync
+#: view:user.mail.sync.wizard:user_mail.user_mail_sync_view
+msgid "Synchronize Settings"
+msgstr "Synkroniserade inställningar"
+
+#. module: user_mail
+#: help:res.users,spam_tag:0
+msgid "Tagged spam will be marked as spam in your mail client"
+msgstr "Taggat spam kommer vara markerat som spam i din mailklient"
+
+#. module: user_mail
+#: help:res.users,spam_tag2:0
+msgid ""
+"Tagged spam will be marked as spam in your mail client and usually sorted in "
+"the spam directory"
+msgstr ""
+"Taggat spam kommer vara markerat som spam i din mailklient och är vanligtvis "
+"sorterat i spam-mappen"
+
+#. module: user_mail
+#: field:res.users,vacation_text:0
+msgid "Text"
+msgstr "Text"
+
+#. module: user_mail
+#: view:website:user_mail.mail_config_document
+msgid ""
+"This is the mail configuration for mail clients in mobile phones, tablets "
+"and computers."
+msgstr ""
+"Det här är mailkonfigurationen för mailklienter i mobiltelefoner, "
+"surfplattor och datorer."
+
+#. module: user_mail
+#: view:website:user_mail.mail_config_document
+msgid "This is your credentials for webmail."
+msgstr "Det här är dina uppgifter för webbmail"
+
+#. module: user_mail
+#: field:res.users,vacation_to:0
+msgid "To"
+msgstr "Till"
+
+#. module: user_mail
+#: field:res.users,transport:0
+msgid "Transport"
+msgstr "Transport"
+
+#. module: user_mail
+#: view:website:user_mail.mail_config_document
+msgid "URL"
+msgstr "URL"
+
+#. module: user_mail
+#: field:postfix.alias,user_id:0 field:postfix.vacation_notification,user_id:0
+#: field:res.users.password,user_id:0
+msgid "User"
+msgstr "Användare"
+
+#. module: user_mail
+#: model:ir.model,name:user_mail.model_res_users
+msgid "Users"
+msgstr "Användare"
+
+#. module: user_mail
+#: view:res.users:user_mail.view_users_form_conf_mail
+msgid "Vacation"
+msgstr "Semester"
+
+#. module: user_mail
+#: help:res.users,vacation_to:0
+msgid "Vacation ends"
+msgstr "Semester tar slut"
+
+#. module: user_mail
+#: help:res.users,vacation_text:0
+msgid "Vacation message for autorespond"
+msgstr "Meddelanden för autosvar under semestern"
+
+#. module: user_mail
+#: help:res.users,vacation_from:0
+msgid "Vacation starts"
+msgstr "Semester startar"
+
+#. module: user_mail
+#: field:res.users,virus_active:0
+msgid "Virus Check"
+msgstr "Virusundersökning"
+
+#. module: user_mail
+#: view:res.users:user_mail.view_users_form_conf_mail
+msgid "Virus check"
+msgstr "Virusundersökning"
+
+#. module: user_mail
+#: view:website:user_mail.mail_config_document
+msgid "Webmail"
+msgstr "Webbmail"
+
+#. module: user_mail
+#: field:user.mail.sync.wizard,gen_pw:0
+msgid "generate_password"
+msgstr "generate_password"
+
+#. module: user_mail
+#: selection:res.users,spam_tag:0
+msgid "high (1.5)"
+msgstr "Hög (1.5)"
+
+#. module: user_mail
+#: selection:res.users,spam_tag2:0
+msgid "high (4)"
+msgstr "Hög (4)"
+
+#. module: user_mail
+#: selection:res.users,spam_killevel:0
+msgid "high (4.5)"
+msgstr "Hög (4.5)"
+
+#. module: user_mail
+#: selection:res.users,spam_killevel:0
+msgid "low (10)"
+msgstr "Låg (10)"
+
+#. module: user_mail
+#: selection:res.users,spam_tag:0
+msgid "low (7)"
+msgstr "Låg (7)"
+
+#. module: user_mail
+#: selection:res.users,spam_tag2:0
+msgid "low (9.5)"
+msgstr "Låg (9.5)"
+
+#. module: user_mail
+#: selection:res.users,spam_tag:0
+msgid "medium (3)"
+msgstr "Medium (3)"
+
+#. module: user_mail
+#: selection:res.users,spam_tag2:0
+msgid "medium (5.5)"
+msgstr "Medium (5.5)"
+
+#. module: user_mail
+#: selection:res.users,spam_killevel:0
+msgid "medium (6)"
+msgstr "Medium (6)"
+
+#. module: user_mail
+#: view:res.users:user_mail.view_users_form_conf_mail
+msgid "my@temporarymail.comXanother@mailaddress.com"
+msgstr "my@temporarymail.comXanother@mailaddress.com"
+
+#. module: user_mail
+#: view:res.users:user_mail.view_users_form_conf_mail
+msgid "my@vacationmail.com"
+msgstr ""
+
+#. module: user_mail
+#: help:res.company,domain:0 help:res.users,domain:0
+msgid "the internet domain for mail"
+msgstr "Internetdomänen för mail."
+
+#. module: user_mail
+#: selection:res.users,spam_tag:0
+msgid "very high (0)"
+msgstr "Väldigt hög (0)"
+
+#. module: user_mail
+#: selection:res.users,spam_tag2:0
+msgid "very high (2.5)"
+msgstr "Väldigt hög (2.5)"
+
+#. module: user_mail
+#: selection:res.users,spam_killevel:0
+msgid "very high (3)"
+msgstr "Väldigt hög (3)"
+
+#. module: user_mail
+#: view:website:user_mail.mail_config_document
+msgid "​Authentication"
+msgstr "Autentisering"
+
+#. module: user_mail
+#: view:website:user_mail.mail_config_document
+msgid "​Incomming (IMAP)"
+msgstr "Ingående (IMAP)"
+
+#. module: user_mail
+#: view:website:user_mail.mail_config_document
+msgid "​Lösenord"
+msgstr "Lösenord"
+
+#. module: user_mail
+#: view:website:user_mail.mail_config_document
+msgid "​Port"
+msgstr "Port"
+
+#. module: user_mail
+#: view:website:user_mail.mail_config_document
+msgid "​SSL/TSL"
+msgstr "SSL/TSL"
+
+#. module: user_mail
+#: view:website:user_mail.mail_config_document
+msgid "​STARTTLS"
+msgstr "STARTTLS"
+
+#. module: user_mail
+#: view:website:user_mail.mail_config_document
+msgid "​Server Name"
+msgstr "Servernamn"
+
+#. module: user_mail
+#: view:website:user_mail.mail_config_document
+msgid "​Username"
+msgstr "Användernamn"
