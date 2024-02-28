@@ -21,7 +21,7 @@
 
 {
     'name': 'User Mail: User Password Tmp',
-    'version': '14.0.1.0.0',
+    'version': '16.0.1.0.0',
     # Version ledger: 14.0 = Odoo version. 1 = Major. Non regressionable code. 2 = Minor. New features that are regressionable. 3 = Bug fixes
     'summary': 'Saves users password in clear text for a short time.',
     # Categories can be used to filter modules in modules listing
