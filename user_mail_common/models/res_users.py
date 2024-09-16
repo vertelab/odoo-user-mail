@@ -23,6 +23,7 @@ from odoo.exceptions import UserError, ValidationError
 from odoo import tools
 import uuid
 import re
+from passlib.hash import sha512_crypt
 
 import logging
 _logger = logging.getLogger(__name__)
@@ -149,6 +150,17 @@ class res_users(models.Model):
             else:
                 this.maildir = None
                 # this.alias_name = None
+    
+    # ~ def _check_credentials(self, password, env): #Used to debug dovecot password
+        # ~ if self.dovecot_password:
+           # ~ verify = sha512_crypt.verify(password, self.dovecot_password)
+           # ~ _logger.warning(sha512_crypt.verify(password, self.dovecot_password))
+           # ~ old_dovecote_password = self.dovecot_password
+           # ~ #_logger.warning(f"{password=}")
+           # ~ #_logger.warning(f"{self.dovecot_password=}")
+           # ~ if verify:
+               # ~ _logger.warning("The passwords match!")
+        # ~ super(res_users, self)._check_credentials(password, env)
 
 
 class res_company(models.Model):
@@ -163,15 +175,14 @@ class res_company(models.Model):
                                    default=200)
     total_quota = fields.Integer(compute="_total_quota", string='All quota (MB)', help="Sum of all Users Quota in MB")
     catchall = fields.Char(compute='_catchall', string='Catchall', help="catchall mail address")
-    domain = fields.Char(string='Domain', help="the internet domain for mail", compute='_get_domain',
-                         inverse='_set_domain', required=True)
+    domain = fields.Char(string='Domain', help="the internet domain for mail", store=True, required=True)
     nbr_users = fields.Integer(compute="_nbr_users", string="Nbr of users")
     
-    def _set_domain(self):
+    def _set_domain_depricated(self):
         self.env['ir.config_parameter'].set_param('mail.catchall.domain', self.domain)
     
     @api.depends('name')
-    def _get_domain(self):
+    def _get_domain_depricated(self):
         for rec in self:
             if rec.name:
                 rec.domain = rec.env['ir.config_parameter'].get_param('mail.catchall.domain')

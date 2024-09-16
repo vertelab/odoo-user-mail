@@ -20,14 +20,15 @@
 import logging
 
 from odoo import models, fields, api, _
-from odoo.exceptions import Warning
+from odoo.exceptions import ValidationError, UserError
 from passlib.hash import sha512_crypt
 
 _logger = logging.getLogger(__name__)
 
 
 class ResUsers(models.Model):
-    _inherit = 'res.users' 
+    _inherit = 'res.users'
+    
 
     @api.model
     def create(self, values):
@@ -37,11 +38,11 @@ class ResUsers(models.Model):
 
     def write(self, values):
         if values.get('password') and not values.get('dovecot_password', False):
-            _logger.info('creates dovecot_password from %s' % values)
-            values['dovecot_password'] = sha512_crypt.encrypt(values.get('password'))
+            values['dovecot_password'] = sha512_crypt.hash(values.get('password'))
         return super(ResUsers, self).write(values)
 
     def unlink(self):
         self.env['postfix.alias'].search([('user_id', '=', self.id)]).unlink()
         return super(ResUsers, self).unlink()
+
 
