@@ -59,11 +59,11 @@
                             <separator string="Alias"/>
                             <newline/>
                             <field name="postfix_alias_ids" nolabel="1" widget="one2many_list">
-                                <tree editable="bottom" string="Mail alias">
+                                <list editable="bottom" string="Mail alias">
                                     <field name="name"/>
                                     <field class="oe_read_only" invisible="name == ''" name="mail"/>
                                     <field name="active"/>
-                                </tree></field>
+                                </list></field>
                             <separator string="Misc"/>
                             <field name="maildir"/>
                             <newline/>

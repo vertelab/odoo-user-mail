@@ -56,6 +56,13 @@ class SyncSettingsWizard(models.TransientModel):
         companies = set()
         nopw = list()
         for user in self._default_user_ids():
+            _logger.warning(f"{user=}")
+            _logger.warning(f"{user=}")
+            _logger.warning(f"{user=}")
+            _logger.warning(f"{user=}")
+            _logger.warning(f"{user=}")
+            _logger.warning(f"{user=}")
+            _logger.warning(f"{user=}")
             if not self.gen_pw and not user.dovecot_password and user.passwd_tmp == _('N/A'):
                 nopw.append(user)
             user.user_sync_settings()
