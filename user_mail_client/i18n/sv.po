@@ -1,0 +1,244 @@
+# Translation of Odoo Server.
+# This file contains the translation of the following modules:
+# 	* user_mail_client
+#
+msgid ""
+msgstr ""
+"Project-Id-Version: Odoo Server 18.0-20250829\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-09-01 07:52+0000\n"
+"PO-Revision-Date: 2025-09-01 10:03+0200\n"
+"Last-Translator: \n"
+"Language-Team: \n"
+"Language: sv\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"X-Generator: Poedit 3.4.2\n"
+
+#. module: user_mail_client
+#. odoo-python
+#: code:addons/user_mail_client/models/res_users.py:0
+msgid "%s (%s in /etc/odoo/odoo.conf)"
+msgstr "%s (%s in /etc/odoo/odoo.conf)"
+
+#. module: user_mail_client
+#. odoo-python
+#: code:addons/user_mail_client/models/res_users.py:0
+msgid "%s (server %s, db %s, user %s, pw %s)"
+msgstr "%s (server %s, db %s, användare %s, lösenord %s)"
+
+#. module: user_mail_client
+#: model:ir.actions.report,print_report_name:user_mail_client.mail_config
+msgid "('Mail settings  - %s' % (object.name))"
+msgstr "('Epost inställningar  - %s' % (object.name))"
+
+#. module: user_mail_client
+#: model_terms:ir.ui.view,arch_db:user_mail_client.mail_config_report
+msgid "<strong>​Authentication</strong>"
+msgstr "<strong>​Autentisering</strong>"
+
+#. module: user_mail_client
+#: model_terms:ir.ui.view,arch_db:user_mail_client.mail_config_report
+msgid "<strong>​Port</strong>"
+msgstr "<strong>​Port</strong>"
+
+#. module: user_mail_client
+#: model_terms:ir.ui.view,arch_db:user_mail_client.mail_config_report
+msgid "<strong>​SSL/TSL</strong>"
+msgstr "<strong>​SSL/TSL</strong>"
+
+#. module: user_mail_client
+#: model_terms:ir.ui.view,arch_db:user_mail_client.mail_config_report
+msgid "<strong>​Server Name</strong>"
+msgstr "<strong>​Servernamn</strong>"
+
+#. module: user_mail_client
+#: model_terms:ir.ui.view,arch_db:user_mail_client.user_mail_sync_view
+msgid "Cancel"
+msgstr "Avbryt"
+
+#. module: user_mail_client
+#: model:ir.model,name:user_mail_client.model_res_company
+msgid "Companies"
+msgstr "Bolag"
+
+#. module: user_mail_client
+#: model:ir.model.fields,field_description:user_mail_client.field_user_mail_sync_wizard__create_uid
+msgid "Created by"
+msgstr "Skapad av"
+
+#. module: user_mail_client
+#: model:ir.model.fields,field_description:user_mail_client.field_user_mail_sync_wizard__create_date
+msgid "Created on"
+msgstr "Skapat den"
+
+#. module: user_mail_client
+#: model:ir.model.fields,field_description:user_mail_client.field_user_mail_sync_wizard__display_name
+msgid "Display Name"
+msgstr "Visningsnamn"
+
+#. module: user_mail_client
+#: model_terms:ir.ui.view,arch_db:user_mail_client.user_mail_sync_view
+msgid "Generate Password"
+msgstr "Generera lösenord"
+
+#. module: user_mail_client
+#: model:ir.model.fields,field_description:user_mail_client.field_user_mail_sync_wizard__id
+msgid "ID"
+msgstr "ID"
+
+#. module: user_mail_client
+#: model:ir.model.fields,field_description:user_mail_client.field_user_mail_sync_wizard__write_uid
+msgid "Last Updated by"
+msgstr "Senast uppdaterad av"
+
+#. module: user_mail_client
+#: model:ir.model.fields,field_description:user_mail_client.field_user_mail_sync_wizard__write_date
+msgid "Last Updated on"
+msgstr "Senast uppdaterad den"
+
+#. module: user_mail_client
+#: model_terms:ir.ui.view,arch_db:user_mail_client.mail_config_report
+msgid "Mail Configuration instruction"
+msgstr "Instruktioner för e-postkonfiguration"
+
+#. module: user_mail_client
+#: model:ir.actions.report,name:user_mail_client.mail_config
+msgid "Mail configuration instructions"
+msgstr "Instruktioner för e-postkonfigurationer"
+
+#. module: user_mail_client
+#. odoo-python
+#: code:addons/user_mail_client/models/res_users.py:0
+msgid "N/A"
+msgstr "Ej tillgänglig"
+
+#. module: user_mail_client
+#. odoo-python
+#: code:addons/user_mail_client/models/res_users.py:0
+msgid "No domain set for the user's company"
+msgstr "Ingen domän har angetts för användarens bolag"
+
+#. module: user_mail_client
+#: model_terms:ir.ui.view,arch_db:user_mail_client.mail_config_report
+msgid "Outgoing​ (SMTP)"
+msgstr "Utgående (SMPT)"
+
+#. module: user_mail_client
+#: model_terms:ir.ui.view,arch_db:user_mail_client.mail_config_report
+msgid "Password"
+msgstr "Lösenord"
+
+#. module: user_mail_client
+#: model_terms:ir.ui.view,arch_db:user_mail_client.mail_config_report
+msgid "STARTTLS​"
+msgstr "STARTTLS​"
+
+#. module: user_mail_client
+#. odoo-python
+#: code:addons/user_mail_client/models/res_users.py:0
+msgid ""
+"Some users missing password:\n"
+"\n"
+"%s\n"
+"\n"
+" please set new (sync is done)"
+msgstr ""
+"Vissa användare saknar lösenord:\n"
+"\n"
+"%s\n"
+"\n"
+"vänligen ange ett nytt (synkroniseringen är klar)"
+
+#. module: user_mail_client
+#: model:ir.actions.act_window,name:user_mail_client.action_user_mail_sync
+msgid "Synchronize E-mail Settings"
+msgstr "Synkronisera e-post inställningar"
+
+#. module: user_mail_client
+#: model_terms:ir.ui.view,arch_db:user_mail_client.user_mail_sync_view
+msgid "Synchronize Settings"
+msgstr "Synkronisera inställningar"
+
+#. module: user_mail_client
+#: model_terms:ir.ui.view,arch_db:user_mail_client.mail_config_report
+msgid ""
+"This is the mail configuration for mail clients in mobile phones, tablets "
+"and computers."
+msgstr ""
+"Detta är e-postkonfigurationen för e-postklienter i mobiltelefoner, "
+"surfplattor och datorer."
+
+#. module: user_mail_client
+#: model_terms:ir.ui.view,arch_db:user_mail_client.mail_config_report
+msgid "This is your credentials for webmail."
+msgstr "Detta är dina inloggningsuppgifter för webbmejl."
+
+#. module: user_mail_client
+#: model_terms:ir.ui.view,arch_db:user_mail_client.mail_config_report
+msgid "URL"
+msgstr "URL"
+
+#. module: user_mail_client
+#. odoo-python
+#: code:addons/user_mail_client/models/res_users.py:0
+msgid "Update company first"
+msgstr "Uppdatera bolag först"
+
+#. module: user_mail_client
+#: model:ir.model,name:user_mail_client.model_res_users
+msgid "User"
+msgstr "Användare"
+
+#. module: user_mail_client
+#: model:ir.model,name:user_mail_client.model_user_mail_sync_wizard
+msgid "User Mail Sync Wizard"
+msgstr "Guiden för synkronisering av användarmail"
+
+#. module: user_mail_client
+#: model_terms:ir.ui.view,arch_db:user_mail_client.mail_config_report
+msgid "Webmail"
+msgstr "Webbmail"
+
+#. module: user_mail_client
+#: model:ir.model.fields,field_description:user_mail_client.field_user_mail_sync_wizard__gen_pw
+msgid "generate_password"
+msgstr "generate_password"
+
+#. module: user_mail_client
+#. odoo-python
+#: code:addons/user_mail_client/models/res_users.py:0
+msgid "no remote id"
+msgstr "inget fjärr-ID"
+
+#. module: user_mail_client
+#: model_terms:ir.ui.view,arch_db:user_mail_client.mail_config_report
+msgid "​143"
+msgstr "143"
+
+#. module: user_mail_client
+#: model_terms:ir.ui.view,arch_db:user_mail_client.mail_config_report
+msgid "​587"
+msgstr "587"
+
+#. module: user_mail_client
+#: model_terms:ir.ui.view,arch_db:user_mail_client.mail_config_report
+msgid "​Incomming (IMAP)"
+msgstr "Inkommande (IMAP)"
+
+#. module: user_mail_client
+#: model_terms:ir.ui.view,arch_db:user_mail_client.mail_config_report
+msgid "​Lösenord"
+msgstr "Lösenord"
+
+#. module: user_mail_client
+#: model_terms:ir.ui.view,arch_db:user_mail_client.mail_config_report
+msgid "​STARTTLS"
+msgstr "STARTTLS"
+
+#. module: user_mail_client
+#: model_terms:ir.ui.view,arch_db:user_mail_client.mail_config_report
+msgid "​Username"
+msgstr "Användarnamn"
