@@ -1,15 +1,162 @@
 # Translation of Odoo Server.
 # This file contains the translation of the following modules:
+# 	* user_password_strength
 #
 msgid ""
 msgstr ""
-"Project-Id-Version: Odoo Server 18.0-20250826\n"
+"Project-Id-Version: Odoo Server 18.0-20250925\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2025-08-27 08:45+0000\n"
-"PO-Revision-Date: 2025-08-27 08:45+0000\n"
+"POT-Creation-Date: 2025-09-29 11:36+0000\n"
+"PO-Revision-Date: 2025-09-29 14:00+0200\n"
 "Last-Translator: \n"
 "Language-Team: \n"
+"Language: sv\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
-"Content-Transfer-Encoding: \n"
-"Plural-Forms: \n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"X-Generator: Poedit 3.4.2\n"
+
+#. module: user_password_strength
+#. odoo-python
+#: code:addons/user_password_strength/controllers/main.py:0
+#: code:addons/user_password_strength/models/change_password_user.py:0
+msgid "*****The Password Should have 8 characters."
+msgstr "*****Lösenordet ska innehålla 8 tecken."
+
+#. module: user_password_strength
+#. odoo-python
+#: code:addons/user_password_strength/controllers/main.py:0
+#: code:addons/user_password_strength/models/change_password_user.py:0
+msgid "*****The Password Should have at least one lowercase character."
+msgstr "*****Lösenordet ska innehålla minst en gemen bokstav."
+
+#. module: user_password_strength
+#. odoo-python
+#: code:addons/user_password_strength/controllers/main.py:0
+#: code:addons/user_password_strength/models/change_password_user.py:0
+msgid "*****The Password Should have at least one number."
+msgstr "*****Lösenordet ska innehålla minst en siffra."
+
+#. module: user_password_strength
+#. odoo-python
+#: code:addons/user_password_strength/controllers/main.py:0
+#: code:addons/user_password_strength/models/change_password_user.py:0
+msgid "*****The Password Should have at least one special symbol."
+msgstr "*****Lösenordet ska innehålla minst en specialsymbol."
+
+#. module: user_password_strength
+#. odoo-python
+#: code:addons/user_password_strength/controllers/main.py:0
+#: code:addons/user_password_strength/models/change_password_user.py:0
+msgid "*****The Password Should have at least one uppercase character."
+msgstr "*****Lösenordet ska innehålla minst ett versalt tecken."
+
+#. module: user_password_strength
+#: model_terms:ir.ui.view,arch_db:user_password_strength.document_fields
+msgid ""
+"<br>\n"
+"                </br>\n"
+"                <progress id=\"progress\" value=\"0\" max=\"100\" style=\"color: red;\">70</progress>"
+msgstr ""
+"<br>\n"
+"                </br>\n"
+"                <progress id=\"progress\" value=\"0\" max=\"100\" style=\"color: red;\">70</progress>"
+
+#. module: user_password_strength
+#: model:ir.model,name:user_password_strength.model_res_config_settings
+msgid "Config Settings"
+msgstr "Inställningar"
+
+#. module: user_password_strength
+#: model:ir.model.fields,help:user_password_strength.field_res_config_settings__is_strength
+msgid "Enable this to check for 8 characters"
+msgstr "Aktivera detta för att kontrollera om det finns 8 tecken"
+
+#. module: user_password_strength
+#: model:ir.model.fields,help:user_password_strength.field_res_config_settings__is_digit
+msgid "Enable this to check for at least a digit"
+msgstr "Aktivera detta för att kontrollera om det finns minst en siffra"
+
+#. module: user_password_strength
+#: model:ir.model.fields,help:user_password_strength.field_res_config_settings__is_lower
+msgid "Enable this to check for lowercase letter"
+msgstr "Aktivera detta för att kontrollera om det finns små bokstäver"
+
+#. module: user_password_strength
+#: model:ir.model.fields,help:user_password_strength.field_res_config_settings__is_special_symbol
+msgid "Enable this to check for special symbol"
+msgstr "Aktivera detta för att kontrollera om det finns en speciell symbol"
+
+#. module: user_password_strength
+#: model:ir.model.fields,help:user_password_strength.field_res_config_settings__is_upper
+msgid "Enable this to check for uppercase letter"
+msgstr "Aktivera detta för att kontrollera om det finns versaler"
+
+#. module: user_password_strength
+#: model_terms:ir.ui.view,arch_db:user_password_strength.res_config_settings_inherit_view_form
+msgid ""
+"Enable user password strength -\n"
+"                            restricting weak password"
+msgstr ""
+"Aktivera styrka för användarlösenord\n"
+"                            Begränsning av svaga lösenord"
+
+#. module: user_password_strength
+#. odoo-python
+#: code:addons/user_password_strength/controllers/main.py:0
+msgid "Passwords do not match; please retype them."
+msgstr "Lösenorden stämmer inte överens, vänligen skriv in dem på nytt."
+
+#. module: user_password_strength
+#: model:ir.model.fields,field_description:user_password_strength.field_res_config_settings__user_password_restrict
+#: model_terms:ir.ui.view,arch_db:user_password_strength.res_config_settings_inherit_view_form
+msgid "Restrict User Password"
+msgstr "Begränsa användarens lösenord"
+
+#. module: user_password_strength
+#: model:ir.model.fields,field_description:user_password_strength.field_res_config_settings__is_strength
+msgid "Should have 8 characters"
+msgstr "Bör ha 8 tecken"
+
+#. module: user_password_strength
+#: model:ir.model.fields,field_description:user_password_strength.field_res_config_settings__is_lower
+msgid "Should have at least one lowercase character"
+msgstr "Bör ha minst en gemen bokstav"
+
+#. module: user_password_strength
+#: model:ir.model.fields,field_description:user_password_strength.field_res_config_settings__is_digit
+msgid "Should have at least one number"
+msgstr "Bör ha minst ett nummer"
+
+#. module: user_password_strength
+#: model:ir.model.fields,field_description:user_password_strength.field_res_config_settings__is_special_symbol
+msgid "Should have at least one special symbol"
+msgstr "Bör ha minst en specialsymbol"
+
+#. module: user_password_strength
+#: model:ir.model.fields,field_description:user_password_strength.field_res_config_settings__is_upper
+msgid "Should have at least one uppercase"
+msgstr "Bör ha minst en versal"
+
+#. module: user_password_strength
+#. odoo-python
+#: code:addons/user_password_strength/controllers/main.py:0
+msgid "The form was not properly filled in."
+msgstr "Formuläret var inte korrekt ifyllt."
+
+#. module: user_password_strength
+#. odoo-python
+#: code:addons/user_password_strength/models/change_password_user.py:0
+msgid "The password cannot be empty."
+msgstr "Lösenordet kan inte vara tomt."
+
+#. module: user_password_strength
+#: model:ir.model.fields,help:user_password_strength.field_res_config_settings__user_password_restrict
+msgid "Tick this to enable passwordrestriction"
+msgstr "Kryssa i detta för att aktivera lösenordsbegränsning"
+
+#. module: user_password_strength
+#: model:ir.model,name:user_password_strength.model_change_password_user
+msgid "User, Change Password Wizard"
+msgstr "Användare, byt lösenordsguiden"
