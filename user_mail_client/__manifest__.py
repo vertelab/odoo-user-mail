@@ -46,7 +46,6 @@
     imap_host = localhost
     imap_port = 8069
     """,
-    #'sequence': '1',
     'author': 'Vertel AB',
     'website': 'https://vertel.se/apps/odoo-user-mail/user_mail_client',
     'images': ['static/description/banner.png'], # 560x280 px.
@@ -54,8 +53,6 @@
     'contributor': '',
     'maintainer': 'Vertel AB',
     'repository': 'https://github.com/vertelab/odoo-user-mail',
-    # Any module necessary for this one to work correctly
-
     'depends': ['user_password_tmp', 'mail', 'user_mail_common'],
     'data': [
         'security/ir.model.access.csv',
@@ -65,5 +62,6 @@
     ],
     'installable': True,
     'application': True,
+    'post_init_hook': 'set_domain',
+
 }
-# vim:expandtab:smartindent:tabstop=4:softtabstop=4:shiftwidth=4:
