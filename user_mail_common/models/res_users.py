@@ -131,7 +131,7 @@ class res_users(models.Model):
                         'virus_active',
                         ]
     
-    @api.depends('company_id.domain', 'login')
+    @api.depends('company_id.domain', 'login','postfix_active')
     def _email(self):
         for this in self:
             if this.postfix_active and this.login:
