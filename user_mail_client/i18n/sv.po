@@ -174,7 +174,7 @@ msgstr ""
 #. module: user_mail_client
 #: model_terms:ir.ui.view,arch_db:user_mail_client.mail_config_report
 msgid "This is your credentials for webmail."
-msgstr "Detta är dina inloggningsuppgifter för webbmejl."
+msgstr "Detta är dina inloggningsuppgifter för webbmail."
 
 #. module: user_mail_client
 #: model_terms:ir.ui.view,arch_db:user_mail_client.mail_config_report
