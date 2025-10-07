@@ -67,7 +67,7 @@ msgstr "Bolag"
 #. module: user_mail_common
 #: model:ir.model.fields,field_description:user_mail_common.field_postfix_alias__mail
 msgid "Complete Mail Address"
-msgstr "Fullständig postadress"
+msgstr "Fullständig e-postadress"
 
 #. module: user_mail_common
 #: model:ir.model.fields,field_description:user_mail_common.field_postfix_alias__create_uid
@@ -124,7 +124,9 @@ msgstr "E-post"
 msgid ""
 "External e-mail or login. Your Company e-mail address are constructed from "
 "login"
-msgstr "Används för att logga in i systemet"
+msgstr ""
+"Extern e-postadress eller inloggning. Din företags e-postadress är konstruerad från "
+"inloggning"
 
 #. module: user_mail_common
 #: model:ir.model.fields,field_description:user_mail_common.field_res_users__vacation_forward
@@ -290,7 +292,7 @@ msgstr "Antal användare"
 #. module: user_mail_common
 #: model:ir.model.fields,field_description:user_mail_common.field_postfix_vacation_notification__notified
 msgid "Notified"
-msgstr "Meddelad"
+msgstr "Notifierad"
 
 #. module: user_mail_common
 #: model:ir.model.fields,field_description:user_mail_common.field_res_users__postfix_active
@@ -332,7 +334,7 @@ msgstr "Fjärr-ID"
 #. module: user_mail_common
 #: model:ir.model.fields,field_description:user_mail_common.field_res_users__spam_active
 msgid "Spam Check"
-msgstr "Kontroll av skräppost"
+msgstr "Skräppostkontroll"
 
 #. module: user_mail_common
 #: model:ir.model.fields,field_description:user_mail_common.field_res_users__spam_killevel
@@ -347,12 +349,12 @@ msgstr "Nivå för skräpposttagg"
 #. module: user_mail_common
 #: model:ir.model.fields,field_description:user_mail_common.field_res_users__spam_tag2
 msgid "Spam Tag Level two"
-msgstr "Spam Tag Nivå två"
+msgstr "Skräpposttaggning nivå två"
 
 #. module: user_mail_common
 #: model_terms:ir.ui.view,arch_db:user_mail_common.view_users_form_conf_mail
 msgid "Spam check"
-msgstr "Kontroll av skräppost"
+msgstr "Skräppost kontroll"
 
 #. module: user_mail_common
 #: model:ir.model.fields,field_description:user_mail_common.field_res_users__vacation_subject
@@ -468,7 +470,7 @@ msgstr "postadress för catchall"
 #. module: user_mail_common
 #: model_terms:ir.ui.view,arch_db:user_mail_common.view_users_form_conf_mail
 msgid "my@temporarymail.com"
-msgstr "my@temporarymail.com"
+msgstr "min@tillfalliga-epost.se"
 
 #. module: user_mail_common
 #: model_terms:ir.ui.view,arch_db:user_mail_common.view_users_form_conf_mail
