@@ -4,10 +4,10 @@
 #
 msgid ""
 msgstr ""
-"Project-Id-Version: Odoo Server 18.0-20250925\n"
+"Project-Id-Version: Odoo Server 18.0-20251205\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2025-09-29 11:26+0000\n"
-"PO-Revision-Date: 2025-09-29 13:57+0200\n"
+"POT-Creation-Date: 2025-12-08 13:36+0000\n"
+"PO-Revision-Date: 2025-12-08 14:55+0100\n"
 "Last-Translator: \n"
 "Language-Team: \n"
 "Language: sv\n"
@@ -125,8 +125,8 @@ msgid ""
 "External e-mail or login. Your Company e-mail address are constructed from "
 "login"
 msgstr ""
-"Extern e-postadress eller inloggning. Din företags e-postadress är konstruerad från "
-"inloggning"
+"Extern e-postadress eller inloggning. Din företags-e-postadress är skapad "
+"från inloggningsuppgifter."
 
 #. module: user_mail_common
 #: model:ir.model.fields,field_description:user_mail_common.field_res_users__vacation_forward
@@ -188,7 +188,7 @@ msgstr "Behåll en lokal kopia av vidarebefordrade meddelanden"
 #. module: user_mail_common
 #: model:ir.model.fields,help:user_mail_common.field_res_users__spam_killevel
 msgid "Killed spam never reach your mail client"
-msgstr "Borttagen skräppost når aldrig din e-postklient"
+msgstr "Avstängd skräppost når aldrig din e-postklient"
 
 #. module: user_mail_common
 #: model:ir.model.fields,field_description:user_mail_common.field_postfix_alias__write_uid
@@ -230,12 +230,12 @@ msgstr "Låg (9,5)"
 #. module: user_mail_common
 #: model:ir.model.fields,field_description:user_mail_common.field_postfix_alias__name
 msgid "Mail Address"
-msgstr "Postadress"
+msgstr "E-postadress"
 
 #. module: user_mail_common
 #: model_terms:ir.ui.view,arch_db:user_mail_common.view_users_form_conf_mail
 msgid "Mail alias"
-msgstr "Mail-alias"
+msgstr "E-postalias"
 
 #. module: user_mail_common
 #: model:ir.model.fields,help:user_mail_common.field_postfix_alias__mail
@@ -243,8 +243,8 @@ msgid ""
 "Mail as <user>@<domain>, if you are using a foreign domain, make sure that "
 "this domain are handled by the same mailserver"
 msgstr ""
-"Mail som <user>@<domain>, om du använder en utländsk domän, se till att "
-"denna domän hanteras av samma mailserver"
+"E-post som <user>@<domain>, om du använder en utländsk domän, se till att "
+"denna domän hanteras av samma e-postserver"
 
 #. module: user_mail_common
 #: model:ir.model.fields,help:user_mail_common.field_postfix_alias__name
@@ -252,12 +252,12 @@ msgid ""
 "Mail without domain (left side of @), leave blank for a catcall for the "
 "domain"
 msgstr ""
-"Mail utan domän (vänster sida av @), lämna tomt för en catcall för domänen"
+"E-post utan domän (vänster sida av @), lämna tomt för en catcall för domänen"
 
 #. module: user_mail_common
 #: model:ir.model.fields,help:user_mail_common.field_res_users__vacation_forward
 msgid "Mailaddress to send messages during vacation"
-msgstr "Mailadress för att skicka meddelanden under semestern"
+msgstr "E-postadress för att skicka meddelanden under semestern"
 
 #. module: user_mail_common
 #: model:ir.model.fields,field_description:user_mail_common.field_res_users__maildir
@@ -267,17 +267,17 @@ msgstr "Maildir"
 #. module: user_mail_common
 #: model:ir.model.fields.selection,name:user_mail_common.selection__res_users__spam_tag__3
 msgid "Medium (3)"
-msgstr "Medium (3)"
+msgstr "Medel (3)"
 
 #. module: user_mail_common
 #: model:ir.model.fields.selection,name:user_mail_common.selection__res_users__spam_tag2__5_5
 msgid "Medium (5.5)"
-msgstr "Medelhög (5,5)"
+msgstr "Medel (5,5)"
 
 #. module: user_mail_common
 #: model:ir.model.fields.selection,name:user_mail_common.selection__res_users__spam_killevel__6
 msgid "Medium (6)"
-msgstr "Medium (6)"
+msgstr "Medel (6)"
 
 #. module: user_mail_common
 #: model_terms:ir.ui.view,arch_db:user_mail_common.view_users_form_conf_mail
@@ -292,7 +292,7 @@ msgstr "Antal användare"
 #. module: user_mail_common
 #: model:ir.model.fields,field_description:user_mail_common.field_postfix_vacation_notification__notified
 msgid "Notified"
-msgstr "Notifierad"
+msgstr "Meddelad"
 
 #. module: user_mail_common
 #: model:ir.model.fields,field_description:user_mail_common.field_res_users__postfix_active
@@ -308,7 +308,7 @@ msgstr "Postfix-alias"
 #. module: user_mail_common
 #: model:ir.model,name:user_mail_common.model_postfix_vacation_notification
 msgid "Postfix Vacation Notfication"
-msgstr "Postfix Semester Notation"
+msgstr "Postfix semestermeddelande"
 
 #. module: user_mail_common
 #: model:ir.model.fields,field_description:user_mail_common.field_res_users__quota
