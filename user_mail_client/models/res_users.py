@@ -217,22 +217,21 @@ class ResCompany(models.Model):
                 syncserver.unlink(rec._name, remote_company)
         super(ResCompany, self).unlink()
 
-    @api.model
-    def create(self, values):
-        values['remote_id'] = self.generateUUID()
-        company = super(ResCompany, self).create(values)
-
-        if company:
+    @api.model_create_multi
+    def create(self, vals_list):
+        for vals in vals_list:
+            vals['remote_id'] = self.generateUUID()
+        companies = super(ResCompany, self).create(vals_list)
+        for company in companies:
             company.company_sync_settings()
-            domain = values.get('domain')
-            # Create mailservers when its a main company and not mainserver
+            domain = company.domain
             if domain and self.id == self.env.ref('base.main_company').id:
                 self.env['ir.config_parameter'].set_param(
                     'mail.catchall.domain', domain)
                 password = company._createcatchall()[0]
                 self._smtpserver(password)
                 self._imapserver(password)
-        return company
+        return companies
 
     def company_sync_settings(self):
         syncserver = Sync2server()
