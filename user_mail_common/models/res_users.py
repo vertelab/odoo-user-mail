@@ -116,7 +116,6 @@ class res_users(models.Model):
     quota = fields.Integer('Quota',)
     maildir = fields.Char(compute="_maildir_get", string='Maildir', size=64, store=True)
     email = fields.Char(help="Your e-mail address, Company or External")
-    email = fields.Char(invisible=False)
     login = fields.Char(string="Email or login")
     login = fields.Char(help="External e-mail or login. Your Company e-mail address are constructed from login")
 
@@ -131,7 +130,7 @@ class res_users(models.Model):
                         'virus_active',
                         ]
     
-    @api.depends('company_id.domain', 'login','postfix_active')
+    @api.depends('company_id.domain', 'login')
     def _email(self):
         for this in self:
             if this.postfix_active and this.login:
