@@ -1,2 +1,3 @@
 id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
-access_scim_directory_user,scim.directory.user,model_scim_directory_user,base.group_system,1,0,0,1
+access_scim_directory_user_admin,scim.directory.user,model_scim_directory_user,base.group_system,1,1,1,1
+access_scim_directory_user_user,scim.directory.user,model_scim_directory_user,base.group_user,1,0,0,0

@@ -190,6 +190,10 @@ class ResUsers(models.Model):
         }
         verify = config['verify_ssl']
 
+        base_api = config['bridge_url'].rstrip('/')
+        if not base_api.endswith('/scim/v2'):
+            base_api += '/scim/v2'
+
         for record in self:
             uid = record.login.split('@')[0] if record.login else record.name
             try:
@@ -197,7 +201,7 @@ class ResUsers(models.Model):
                 if not record.active or not record.postfix_active:
                     if record.scim_id:
                         r = requests.delete(
-                            f"{config['bridge_url']}/scim/v2/Users/{uid}",
+                            f"{base_api}/Users/{uid}",
                             headers=headers,
                             verify=verify,
                             timeout=10,
@@ -212,7 +216,7 @@ class ResUsers(models.Model):
 
                 if record.scim_id:
                     r = requests.put(
-                        f"{config['bridge_url']}/scim/v2/Users/{uid}",
+                        f"{base_api}/Users/{uid}",
                         json=scim_data,
                         headers=headers,
                         verify=verify,
@@ -220,7 +224,7 @@ class ResUsers(models.Model):
                     )
                 else:
                     r = requests.post(
-                        f"{config['bridge_url']}/scim/v2/Users",
+                        f"{base_api}/Users",
                         json=scim_data,
                         headers=headers,
                         verify=verify,

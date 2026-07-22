@@ -92,12 +92,17 @@ class ScimDirectoryUser(models.Model):
         """Hämta alla användare från SCIM-bridgen och uppdatera lokala poster."""
         IParam = self.env['ir.config_parameter'].sudo()
         bridge_url = IParam.get_param('scim.bridge_url', '').rstrip('/')
-        api_key = IParam.get_param('scim.admin_api_key', '')
+        api_key = IParam.get_param('scim.admin_api_key', '') or IParam.get_param('scim.api_key', '')
         verify = IParam.get_param('scim.verify_ssl', 'True') == 'True'
 
         if not bridge_url or not api_key:
             _logger.warning("SCIM bridge not configured for directory sync")
             return 0
+
+        # Bygg rätt SCIM API-bas-URL
+        base_api = bridge_url
+        if not base_api.endswith('/scim/v2'):
+            base_api += '/scim/v2'
 
         headers = {
             "X-SCIM-API-Key": api_key,
@@ -106,7 +111,7 @@ class ScimDirectoryUser(models.Model):
 
         try:
             r = requests.get(
-                f"{bridge_url}/scim/v2/Users?count=500",
+                f"{base_api}/Users?count=500",
                 headers=headers,
                 verify=verify,
                 timeout=30,
@@ -162,13 +167,13 @@ class ScimDirectoryUser(models.Model):
                 'last_seen': now,
             }
 
-            existing = self.search([('scim_id', '=', scim_id)], limit=1)
+            existing = self.sudo().search([('scim_id', '=', scim_id)], limit=1)
             try:
                 if existing:
-                    existing.write(vals)
+                    existing.sudo().write(vals)
                     synced_ids.append(existing.id)
                 else:
-                    record = self.create(vals)
+                    record = self.sudo().create(vals)
                     synced_ids.append(record.id)
             except Exception as e:
                 errors.append(f"{scim_id}: {e}")
@@ -176,12 +181,12 @@ class ScimDirectoryUser(models.Model):
 
         # Markera användare som inte längre finns i SCIM
         if synced_ids:
-            missing = self.search([('id', 'not in', synced_ids)])
+            missing = self.sudo().search([('id', 'not in', synced_ids)])
             if missing:
                 _logger.info(
                     f"SCIM directory: {len(missing)} users no longer in LDAP"
                 )
-                missing.unlink()
+                missing.sudo().unlink()
 
         if errors:
             _logger.warning(f"SCIM directory sync completed with {len(errors)} errors")
