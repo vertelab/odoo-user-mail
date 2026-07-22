@@ -3,7 +3,7 @@
     <record id="view_users_form_scim" model="ir.ui.view">
         <field name="name">res.users.form.scim</field>
         <field name="model">res.users</field>
-        <field name="inherit_id" ref="user_mail_common.view_users_form_mail" />
+        <field name="inherit_id" ref="user_mail_common.view_users_form_conf_mail" />
         <field name="arch" type="xml">
             <xpath expr="//notebook" position="inside">
                 <page name="scim" string="SCIM / LDAP">
@@ -19,8 +19,7 @@
                             <field name="quota" />
                             <field name="spam_kill_level" />
                             <field name="forward_active" />
-                            <field name="forward_address"
-                                   attrs="{'invisible': [('forward_active', '=', False)]}" />
+                            <field name="forward_address" invisible="not forward_active" />
                         </group>
                     </group>
                 </page>
