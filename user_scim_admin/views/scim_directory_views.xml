@@ -1,0 +1,132 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- ================================================================== -->
+    <!-- TREE VIEW — alla användare i en tabell -->
+    <!-- ================================================================== -->
+    <record id="view_scim_directory_tree" model="ir.ui.view">
+        <field name="name">scim.directory.user.tree</field>
+        <field name="model">scim.directory.user</field>
+        <field name="arch" type="xml">
+            <tree decoration-danger="not active_scim" decoration-info="has_matrix">
+                <field name="display_name" string="Name" />
+                <field name="email_primary" string="Email" />
+                <field name="customer" string="Customer" />
+                <field name="matrix_id" optional="show" />
+                <field name="active_scim" invisible="1" />
+                <field name="has_forward" optional="hide" />
+                <field name="quota" optional="hide" />
+                <field name="last_sync" optional="hide" />
+            </tree>
+        </field>
+    </record>
+
+    <!-- ================================================================== -->
+    <!-- FORM VIEW — detaljer för en användare -->
+    <!-- ================================================================== -->
+    <record id="view_scim_directory_form" model="ir.ui.view">
+        <field name="name">scim.directory.user.form</field>
+        <field name="model">scim.directory.user</field>
+        <field name="arch" type="xml">
+            <form>
+                <sheet>
+                    <div class="oe_button_box" name="button_box">
+                        <button name="action_sync_from_bridge" type="object"
+                                class="oe_stat_button" icon="fa-refresh"
+                                string="Sync Now" />
+                        <button name="action_open_customer_odoo" type="object"
+                                class="oe_stat_button" icon="fa-external-link"
+                                string="Open in Customer Odoo" />
+                    </div>
+
+                    <group>
+                        <group string="SCIM Core">
+                            <field name="scim_id" />
+                            <field name="display_name" />
+                            <field name="user_name" />
+                            <field name="given_name" />
+                            <field name="family_name" />
+                            <field name="email_primary" />
+                            <field name="email_other" />
+                            <field name="active_scim" />
+                        </group>
+                        <group string="Customer Info">
+                            <field name="customer" />
+                            <field name="phone_number" />
+                            <field name="mobile" />
+                        </group>
+                    </group>
+
+                    <notebook>
+                        <page name="mail" string="Mail">
+                            <group>
+                                <group string="Forwarding">
+                                    <field name="forward_active" />
+                                    <field name="forward_address"
+                                           attrs="{'invisible': [('forward_active', '=', False)]}" />
+                                </group>
+                                <group string="Settings">
+                                    <field name="quota" />
+                                    <field name="spam_kill_level" />
+                                </group>
+                            </group>
+                        </page>
+                        <page name="matrix" string="Matrix">
+                            <group>
+                                <field name="matrix_id" />
+                                <field name="has_matrix" />
+                            </group>
+                        </page>
+                        <page name="sync" string="Sync Info">
+                            <group>
+                                <field name="last_sync" />
+                                <field name="last_seen" />
+                            </group>
+                        </page>
+                    </notebook>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <!-- ================================================================== -->
+    <!-- SEARCH VIEW -->
+    <!-- ================================================================== -->
+    <record id="view_scim_directory_search" model="ir.ui.view">
+        <field name="name">scim.directory.user.search</field>
+        <field name="model">scim.directory.user</field>
+        <field name="arch" type="xml">
+            <search>
+                <field name="display_name" string="Name" />
+                <field name="email_primary" string="Email" />
+                <field name="customer" string="Customer" />
+                <field name="matrix_id" string="Matrix ID" />
+
+                <filter name="active" string="Active"
+                        domain="[('active_scim', '=', True)]" />
+                <filter name="inactive" string="Inactive"
+                        domain="[('active_scim', '=', False)]" />
+                <separator />
+                <filter name="has_matrix" string="Has Matrix"
+                        domain="[('matrix_id', '!=', False)]" />
+                <filter name="no_matrix" string="No Matrix"
+                        domain="[('matrix_id', '=', False)]" />
+                <separator />
+                <filter name="has_forward" string="Has Forward"
+                        domain="[('forward_active', '=', True)]" />
+                <filter name="has_no_forward" string="No Forward"
+                        domain="[('forward_active', '=', False)]" />
+
+                <group expand="0" string="Group by">
+                    <filter name="group_customer" string="Customer"
+                            context="{'group_by': 'customer'}" />
+                    <filter name="group_active" string="Active Status"
+                            context="{'group_by': 'active_scim'}" />
+                    <filter name="group_has_matrix" string="Has Matrix"
+                            context="{'group_by': 'has_matrix'}" />
+                </group>
+            </search>
+        </field>
+    </record>
+
+</odoo>

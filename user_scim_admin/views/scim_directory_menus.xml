@@ -1,0 +1,72 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- ================================================================== -->
+    <!-- MENYER — under en ny toppmeny "SCIM Directory" -->
+    <!-- ================================================================== -->
+
+    <!-- Huvudmeny -->
+    <menuitem id="menu_scim_directory_root"
+              name="SCIM Directory"
+              sequence="99"
+              groups="base.group_system" />
+
+    <!-- Alla användare — tree + kanban + form -->
+    <record id="action_scim_directory_users" model="ir.actions.act_window">
+        <field name="name">All Users</field>
+        <field name="res_model">scim.directory.user</field>
+        <field name="view_mode">kanban,tree,form</field>
+        <field name="search_view_id" ref="view_scim_directory_search" />
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">
+                No LDAP users found.
+            </p>
+            <p>
+                Users from all customers appear here after the first sync
+                from the SCIM bridge.
+            </p>
+        </field>
+    </record>
+
+    <menuitem id="menu_scim_directory_users"
+              name="All Users"
+              parent="menu_scim_directory_root"
+              action="action_scim_directory_users"
+              sequence="10" />
+
+    <!-- Dashboard (JSON via controller) -->
+    <record id="action_scim_directory_dashboard" model="ir.actions.client">
+        <field name="name">Dashboard</field>
+        <field name="tag">scim_directory_dashboard</field>
+    </record>
+
+    <menuitem id="menu_scim_directory_dashboard"
+              name="Dashboard"
+              parent="menu_scim_directory_root"
+              action="action_scim_directory_dashboard"
+              sequence="20" />
+
+    <!-- Konflikter -->
+    <record id="action_scim_directory_conflicts" model="ir.actions.client">
+        <field name="name">Conflicts</field>
+        <field name="tag">scim_directory_conflicts</field>
+    </record>
+
+    <menuitem id="menu_scim_directory_conflicts"
+              name="Conflicts"
+              parent="menu_scim_directory_root"
+              action="action_scim_directory_conflicts"
+              sequence="30" />
+
+    <!-- Synk-knapp -->
+    <record id="action_scim_directory_sync" model="ir.actions.server">
+        <field name="name">Sync All from SCIM Bridge</field>
+        <field name="model_id" ref="model_scim_directory_user"/>
+        <field name="binding_model_id" ref="model_scim_directory_user"/>
+        <field name="state">code</field>
+        <field name="code">
+            records.action_sync_from_bridge()
+        </field>
+    </record>
+
+</odoo>

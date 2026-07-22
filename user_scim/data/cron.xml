@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="cron_scim_sync" model="ir.cron">
+        <field name="name">SCIM: Sync users to LDAP bridge</field>
+        <field name="model_id" ref="base.model_res_users"/>
+        <field name="state">code</field>
+        <field name="code">
+            users = model.sudo().search([
+                ('postfix_active', '=', True),
+            ])
+            users._scim_push()
+        </field>
+        <field name="interval_number">5</field>
+        <field name="interval_type">minutes</field>
+        <field name="numbercall">-1</field>
+        <field name="active">True</field>
+        <field name="priority">5</field>
+    </record>
+</odoo>

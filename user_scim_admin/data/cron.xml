@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="cron_scim_directory_sync" model="ir.cron">
+        <field name="name">SCIM Directory: Sync all users from LDAP</field>
+        <field name="model_id" ref="model_scim_directory_user"/>
+        <field name="state">code</field>
+        <field name="code">
+            model.sync_all()
+        </field>
+        <field name="interval_number">15</field>
+        <field name="interval_type">minutes</field>
+        <field name="numbercall">-1</field>
+        <field name="active">True</field>
+        <field name="priority">3</field>
+    </record>
+</odoo>

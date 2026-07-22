@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_users_form_scim" model="ir.ui.view">
+        <field name="name">res.users.form.scim</field>
+        <field name="model">res.users</field>
+        <field name="inherit_id" ref="user_mail_common.view_users_form_mail" />
+        <field name="arch" type="xml">
+            <xpath expr="//notebook" position="inside">
+                <page name="scim" string="SCIM / LDAP">
+                    <group>
+                        <group string="SCIM Bridge">
+                            <field name="scim_id" readonly="1" />
+                            <field name="scim_last_sync" readonly="1" />
+                            <field name="scim_sync_error" readonly="1" widget="text" />
+                            <button name="action_scim_sync" type="object"
+                                    string="Sync Now" class="btn-primary" />
+                        </group>
+                        <group string="Mail Settings">
+                            <field name="quota" />
+                            <field name="spam_kill_level" />
+                            <field name="forward_active" />
+                            <field name="forward_address"
+                                   attrs="{'invisible': [('forward_active', '=', False)]}" />
+                        </group>
+                    </group>
+                </page>
+            </xpath>
+        </field>
+    </record>
+
+    <record id="view_users_tree_scim" model="ir.ui.view">
+        <field name="name">res.users.tree.scim</field>
+        <field name="model">res.users</field>
+        <field name="inherit_id" ref="base.view_users_tree" />
+        <field name="arch" type="xml">
+            <field name="login" position="after">
+                <field name="scim_last_sync" optional="hide" />
+                <field name="scim_sync_error" optional="hide" />
+            </field>
+        </field>
+    </record>
+</odoo>
