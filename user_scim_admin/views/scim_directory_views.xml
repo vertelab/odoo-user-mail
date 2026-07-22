@@ -8,7 +8,7 @@
         <field name="name">scim.directory.user.tree</field>
         <field name="model">scim.directory.user</field>
         <field name="arch" type="xml">
-            <tree decoration-danger="not active_scim" decoration-info="has_matrix">
+            <list decoration-danger="not active_scim" decoration-info="has_matrix">
                 <field name="display_name" string="Name" />
                 <field name="email_primary" string="Email" />
                 <field name="customer" string="Customer" />
@@ -17,7 +17,7 @@
                 <field name="has_forward" optional="hide" />
                 <field name="quota" optional="hide" />
                 <field name="last_sync" optional="hide" />
-            </tree>
+            </list>
         </field>
     </record>
 
@@ -62,8 +62,7 @@
                             <group>
                                 <group string="Forwarding">
                                     <field name="forward_active" />
-                                    <field name="forward_address"
-                                           attrs="{'invisible': [('forward_active', '=', False)]}" />
+                                    <field name="forward_address" invisible="not forward_active" />
                                 </group>
                                 <group string="Settings">
                                     <field name="quota" />
