@@ -1,47 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
-    <record id="view_general_config_scim" model="ir.ui.view">
-        <field name="name">res.config.settings.scim</field>
-        <field name="model">res.config.settings</field>
-        <field name="inherit_id" ref="base.res_config_settings_view_form" />
-        <field name="arch" type="xml">
-            <xpath expr="//div[@id='tracking']" position="before">
-                <div class="settings">
-                    <div class="page-header">
-                        <h2>SCIM Bridge</h2>
-                        <p class="text-muted">
-                            Push users to central LDAP directory.
-                            Get your API key from Vertel.
-                        </p>
-                    </div>
-                    <div class="row mt16 o_settings_container">
-                        <div class="col-12 col-lg-6 o_setting_box">
-                            <div class="o_setting_right_pane">
-                                <label for="scim_bridge_url"/>
-                                <div class="text-muted">
-                                    SCIM bridge URL (t.ex. https://scim.vertel.se/scim/v2)
-                                </div>
-                                <div class="row mt8">
-                                    <field name="scim_bridge_url" class="w-100" />
-                                </div>
-                            </div>
-                        </div>
-                        <div class="col-12 col-lg-6 o_setting_box">
-                            <div class="o_setting_right_pane">
-                                <label for="scim_api_key"/>
-                                <div class="text-muted">
-                                    API-nyckel från Vertel. Kontakta support för att få en.
-                                </div>
-                                <div class="row mt8">
-                                    <field name="scim_api_key" password="True" class="w-100"/>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </xpath>
-        </field>
-    </record>
+    <!-- SCIM Settings fields TA BORT från General Settings UI.
+         Konfiguration sker via Salt pillar → odoo.conf, inte via användar-GUI. -->
 
     <record id="action_scim_sync_all" model="ir.actions.server">
         <field name="name">Sync all users to SCIM</field>

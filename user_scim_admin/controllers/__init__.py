@@ -15,11 +15,34 @@ import requests
 
 from odoo import http
 from odoo.http import request
+from odoo.tools import config as odoo_config
 
 _logger = logging.getLogger(__name__)
 
 
+def _scim_config(key, default=''):
+    """Läs SCIM-konfig: tools.config → ir.config_parameter → default."""
+    from odoo import http
+    val = odoo_config.get(key, '')
+    if not val:
+        IParam = http.request.env['ir.config_parameter'].sudo()
+        val = IParam.get_param(key, default)
+    return val
+
+
 class ScimDirectoryController(http.Controller):
+
+    def _scim_admin_config(self):
+        """Hämta admin-config från tools.config eller ir.config_parameter."""
+        IParam = request.env['ir.config_parameter'].sudo()
+        bridge_url = odoo_config.get('scim_bridge_url', '') or IParam.get_param('scim.bridge_url', '')
+        api_key = odoo_config.get('scim_admin_api_key', '') or IParam.get_param('scim.admin_api_key', '')
+        verify = odoo_config.get('scim_verify_ssl', '') or IParam.get_param('scim.verify_ssl', 'True')
+        return {
+            'bridge_url': bridge_url.rstrip('/'),
+            'api_key': api_key,
+            'verify_ssl': str(verify).lower() == 'true',
+        }
 
     @http.route('/scim/dashboard/overview', type='json', auth='user')
     def scim_dashboard_overview(self):
@@ -27,19 +50,15 @@ class ScimDirectoryController(http.Controller):
         if not request.env.user.has_group('base.group_system'):
             return {'error': 'Access denied'}
 
-        IParam = request.env['ir.config_parameter'].sudo()
-        bridge_url = IParam.get_param('scim.bridge_url', '').rstrip('/')
-        api_key = IParam.get_param('scim.admin_api_key', '')
-        verify = IParam.get_param('scim.verify_ssl', 'True') == 'True'
-
-        if not bridge_url or not api_key:
+        cfg = self._scim_admin_config()
+        if not cfg['bridge_url'] or not cfg['api_key']:
             return {'error': 'SCIM bridge not configured'}
 
         try:
             r = requests.get(
-                f"{bridge_url}/admin/overview",
-                headers={"X-SCIM-API-Key": api_key},
-                verify=verify,
+                f"{cfg['bridge_url']}/admin/overview",
+                headers={"X-SCIM-API-Key": cfg['api_key']},
+                verify=cfg['verify_ssl'],
                 timeout=10,
             )
             return r.json()
@@ -52,19 +71,15 @@ class ScimDirectoryController(http.Controller):
         if not request.env.user.has_group('base.group_system'):
             return {'error': 'Access denied'}
 
-        IParam = request.env['ir.config_parameter'].sudo()
-        bridge_url = IParam.get_param('scim.bridge_url', '').rstrip('/')
-        api_key = IParam.get_param('scim.admin_api_key', '')
-        verify = IParam.get_param('scim.verify_ssl', 'True') == 'True'
-
-        if not bridge_url or not api_key:
+        cfg = self._scim_admin_config()
+        if not cfg['bridge_url'] or not cfg['api_key']:
             return {'error': 'SCIM bridge not configured'}
 
         try:
             r = requests.get(
-                f"{bridge_url}/admin/conflicts",
-                headers={"X-SCIM-API-Key": api_key},
-                verify=verify,
+                f"{cfg['bridge_url']}/admin/conflicts",
+                headers={"X-SCIM-API-Key": cfg['api_key']},
+                verify=cfg['verify_ssl'],
                 timeout=10,
             )
             return r.json()
@@ -75,7 +90,7 @@ class ScimDirectoryController(http.Controller):
     def scim_webhook(self):
         """Webhook från SCIM Bridge — LDAP-ändringar i realtid."""
         IParam = request.env['ir.config_parameter'].sudo()
-        webhook_secret = IParam.get_param('scim.webhook_secret', '')
+        webhook_secret = odoo_config.get('scim_webhook_secret', '') or IParam.get_param('scim.webhook_secret', '')
 
         if webhook_secret:
             import hashlib, hmac, json

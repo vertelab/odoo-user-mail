@@ -1,24 +1,4 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
-    <record id="view_general_config_scim_admin" model="ir.ui.view">
-        <field name="name">res.config.settings.scim.admin</field>
-        <field name="model">res.config.settings</field>
-        <field name="inherit_id" ref="user_scim.view_general_config_scim" />
-        <field name="arch" type="xml">
-            <xpath expr="//field[@name='scim_api_key']/.." position="after">
-                <div class="col-12 col-lg-6 o_setting_box">
-                    <div class="o_setting_right_pane">
-                        <label for="scim_admin_api_key"/>
-                        <div class="text-muted">
-                            Admin API-nyckel för SCIM-bridge.
-                            Krävs för att läsa alla användare från LDAP.
-                        </div>
-                        <div class="row mt8">
-                            <field name="scim_admin_api_key" password="True" class="w-100"/>
-                        </div>
-                    </div>
-                </div>
-            </xpath>
-        </field>
-    </record>
+    <!-- Admin SCIM-konfiguration via Salt pillar → odoo.conf, inte via användar-GUI. -->
 </odoo>

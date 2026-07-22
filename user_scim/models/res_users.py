@@ -14,6 +14,7 @@ import logging
 import requests
 
 from odoo import models, fields, api, _
+from odoo.tools import config as odoo_config
 
 _logger = logging.getLogger(__name__)
 
@@ -65,12 +66,23 @@ class ResUsers(models.Model):
         ]
 
     def _get_scim_config(self):
-        """Hämta SCIM-konfiguration från systemparametrar."""
+        """Hämta SCIM-konfiguration.
+
+        Prioriteringsordning:
+        1. tools.config (odoo.conf — sätts via Salt pillar)
+        2. ir.config_parameter (per-database — används på multi-DB-servrar)
+        3. Tomt — bridge och nyckel måste konfigureras
+        """
         IParam = self.env['ir.config_parameter'].sudo()
+
+        bridge_url = odoo_config.get('scim_bridge_url', '') or IParam.get_param('scim.bridge_url', '')
+        api_key = odoo_config.get('scim_api_key', '') or IParam.get_param('scim.api_key', '')
+        verify = odoo_config.get('scim_verify_ssl', '') or IParam.get_param('scim.verify_ssl', 'True')
+
         return {
-            'bridge_url': IParam.get_param('scim.bridge_url', '').rstrip('/'),
-            'api_key': IParam.get_param('scim.api_key', ''),
-            'verify_ssl': IParam.get_param('scim.verify_ssl', 'True') == 'True',
+            'bridge_url': bridge_url.rstrip('/'),
+            'api_key': api_key,
+            'verify_ssl': str(verify).lower() == 'true',
         }
 
     # ---------------------------------------------------------------------------
