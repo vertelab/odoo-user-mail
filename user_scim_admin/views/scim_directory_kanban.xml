@@ -21,7 +21,7 @@
                 <templates>
                     <t t-name="kanban-box">
                         <div class="oe_kanban_global_click"
-                             t-att-class="'oe_kanban_color_0' if record.active_scim.raw_value else 'oe_kanban_color_7'">
+                             t-attf-class="oe_kanban_color_{{ record.active_scim.raw_value ? '0' : '7' }}">
                             <div class="o_kanban_card_header">
                                 <div class="o_kanban_card_header_title">
                                     <div class="o_kanban_record_headings">
