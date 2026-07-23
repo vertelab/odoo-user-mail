@@ -57,6 +57,9 @@ class ScimDirectoryUser(models.Model):
     phone_number = fields.Char('Phone', readonly=True)
     mobile = fields.Char('Mobile', readonly=True)
 
+    # Avatar (från SCIM eller placeholder)
+    image_128 = fields.Binary('Image', readonly=True, attachment=True)
+
     # Matrix (fylls i om user_scim_matrix är aktiv)
     matrix_id = fields.Char('Matrix ID', readonly=True)
 
