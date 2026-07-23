@@ -34,30 +34,6 @@
               action="action_scim_directory_users"
               sequence="10" />
 
-    <!-- Dashboard (JSON via controller) -->
-    <record id="action_scim_directory_dashboard" model="ir.actions.client">
-        <field name="name">Dashboard</field>
-        <field name="tag">scim_directory_dashboard</field>
-    </record>
-
-    <menuitem id="menu_scim_directory_dashboard"
-              name="Dashboard"
-              parent="menu_scim_directory_root"
-              action="action_scim_directory_dashboard"
-              sequence="20" />
-
-    <!-- Konflikter -->
-    <record id="action_scim_directory_conflicts" model="ir.actions.client">
-        <field name="name">Conflicts</field>
-        <field name="tag">scim_directory_conflicts</field>
-    </record>
-
-    <menuitem id="menu_scim_directory_conflicts"
-              name="Conflicts"
-              parent="menu_scim_directory_root"
-              action="action_scim_directory_conflicts"
-              sequence="30" />
-
     <!-- Synk-knapp -->
     <record id="action_scim_directory_sync" model="ir.actions.server">
         <field name="name">Sync All from SCIM Bridge</field>
