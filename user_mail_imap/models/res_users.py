@@ -10,6 +10,14 @@ class ResUsers(models.Model):
 
     imap_password = fields.Char(string='IMAP Password', help='Encrypted IMAP password')
 
+    imap_poll_enabled = fields.Boolean(
+        string='Aktivera mail-pollning',
+        default=False,
+        help='Pollerar denna användares brevlåda via IMAP (cron).')
+    last_imap_sync = fields.Datetime(
+        string='Senaste IMAP-synk',
+        help='Tidpunkt för senaste lyckade pollning (inkrementell hämtning).')
+
     def _get_encryption_key(self):
         param = self.env['ir.config_parameter'].sudo()
         key = param.get_param('user_mail_imap.encryption_key')

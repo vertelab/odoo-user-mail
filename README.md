@@ -173,3 +173,97 @@ user_query = SELECT 5000 as uid, 5000 as gid, '/var/lib/vmail/domains/' || maild
 iterate_query = SELECT postfix_mail AS user FROM res_users
 ```
 
+
+# user_mail_ai — Mail-hjälpredan (Skiva 1–2)
+
+Personlig AI-hjälpreda för mail. Läser IMAP via `user_mail_imap`-pollern,
+arkiverar i Odoo Mind (OKF + AGE-graf), klassificerar och agerar med HITL.
+
+## Aktivering
+
+1. Användaren fyller i IMAP-lösenord (user_mail_imap, User Settings).
+2. Sätt **Aktivera mail-pollning** (`imap_poll_enabled`) på användaren.
+3. Valfritt: välj `ai_coworker_id` (default: Mail-hjälpredan).
+
+Cron: User Mail IMAP Poll (var 5 min) → poller → triage → klassificering
+→ Teams→calendar / promotion / utkast / routing → nudge (notis + Discuss-DM).
+
+## Flöden (Skiva 2)
+
+- **Promotion (objektkoppling):** mail med tråd-match (References→
+  mail.message) eller LLM-kandidat → HITL `promote_mail` → godkänd →
+  `mail.message` på objektets chatter (följare ser). **Default privat —
+  koppling till objekt = publicering = HITL.**
+- **Svarsutkast:** `reply_suggested` + intresse ≥ tröskel → LLM-utkast →
+  APPEND till IMAP-Drafts (syns i Thunderbird/Roundcube/K9). Skick via
+  knappen "Föreslå skick" → HITL `send_reply` → SMTP med användarens
+  credentials.
+- **Catchall-mail:** mail.message-hook (message_type=email, icke-intern
+  avsändare) → samma triage; objekt redan känt. Svar via "Svara i tråden"
+  → HITL → `message_post(parent_id=…)` i Odoo-tråden.
+- **Nyhetsbrev:** första flytten → HITL `newsletter_move_rule` → godkänd →
+  autonom flytt till `AI/Newsletters` (reversibel via "Flytta tillbaka").
+- **Action-mail:** `\Flagged` + nudge.
+- **Specialist-routing:** `user_mail_ai.routing` (kategori → coworker),
+  seedad faktura → Faktura-assistenten. Bryggor lägger till fler rader.
+
+## HITL
+
+All HITL via `ai.coworker.hitl` (core): aktivitet i klockan, chatter,
+trust-ladder (N=3 → auto-förslag). Godkända mail-HITL:ar dispatchar
+promotion/skick/mapp-regel automatiskt (user_mail_ai överlagrar
+`action_approve` — core förblir domän-fri).
+
+## Konfiguration (ir.config_parameter)
+
+- `user_mail_ai.nudge_threshold` (default 7.0) — intresse-tröskel för nudge
+- `user_mail_ai.draft_threshold` (default 6.0) — tröskel för proaktivt utkast
+- `user_mail_ai.max_drafts_per_cycle` (default 5)
+- `user_mail_imap.drafts_folder` — fallback-mapp för utkast (annars
+  LIST-detektering Drafts/Utkast)
+
+# user_mail_ai — Skiva 3: intelligens
+
+## Regler (user_mail_ai.rule)
+
+Användaren styr hjälpredan med regler i klartext (meny: Imap-mail →
+Mail-hjälpredan → Regler, eller smartknapp i Min profil):
+
+- `sender`/`subject`/`category` — deterministisk matchning utan LLM.
+- `llm` — fri-text-regel som utvärderas i klassificeringsprompten
+  (`matched_rules` i utdata).
+- Actions: ignore, block, move_to_folder, flag, nudge, draft_reply,
+  send_to_specialist, create_event.
+- Lägre `priority` = högre prioritet; högst prioriterad matchande regel vinner.
+- Seed-defaults per användare (Teams→event, nyhetsbrev→AI/Newsletters,
+  nudge-för-action) skapas vid aktivering (`_ensure_default_rules`).
+- Trust-ladder standing rules (ai.coworker.hitl) importeras som rules
+  med `source='trust_ladder'` (t.ex. newsletter_move_rule → move_to_folder).
+
+## Intresseprofil (hybrid)
+
+- `ai_profile_text` (prompt-text) + `ai_profile_embedding` (pgvector-likhet)
+  genereras veckovis av cron (`_recompute_profiles`) från OKF-personligt,
+  interaktionshistorik och graf-volym (graph_query).
+- Klassificeringsprompten inkluderar profilen; final `interest_score` =
+  viktad kombination (LLM + embedding-likhet), vikten via
+  `user_mail_ai.profile_weight_llm` (default 0.7). Komponenterna sparas i
+  `interest_components`.
+
+## Digest
+
+- Daglig morgonbrief (`ai_digest_enabled`) + veckovis djup
+  (`ai_digest_weekday`) — levereras som Odoo-notis (aldrig mail, undviker
+  loop) och arkiveras som OKF-koncept (frågbarhet).
+
+## Heartbeat
+
+- Skill "Granska öppna mail-ärenden" → coworkern anropar
+  `_heartbeat_review()` (via odoo_call_method): hittar stale action-mail,
+  osedda utkast, förfallna follow-ups och Reply Zero → nudge + sätter
+  `follow_up_at`.
+
+## Konfiguration (ir.config_parameter)
+
+- `user_mail_ai.profile_weight_llm` (default 0.7)
+- `user_mail_ai.nudge_threshold` / `draft_threshold` / `max_drafts_per_cycle`

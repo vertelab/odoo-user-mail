@@ -174,7 +174,7 @@ class res_company(models.Model):
                                    default=200)
     total_quota = fields.Integer(compute="_total_quota", string='All quota (MB)', help="Sum of all Users Quota in MB")
     catchall = fields.Char(compute='_catchall', string='Catchall', help="catchall mail address")
-    domain = fields.Char(string='Domain', help="the internet domain for mail", store=True, required=True)
+    domain = fields.Char(string='Domain', help="the internet domain for mail", store=True)
     nbr_users = fields.Integer(compute="_nbr_users", string="Nbr of users")
     
     def _set_domain_depricated(self):

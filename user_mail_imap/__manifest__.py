@@ -1,7 +1,7 @@
 {
     'name': 'User Mail: IMAP Client',
-    'version': '18.0.1.0.0',
-    'summary': 'IMAP email client integrated in Odoo',
+    'version': '18.0.1.2.0',
+    'summary': 'IMAP email client integrated in Odoo — with per-user poller',
     'category': 'Productivity',
     'author': 'Vertel AB',
     'website': 'https://vertel.se',
@@ -12,6 +12,7 @@
     },
     'data': [
         'security/ir.model.access.csv',
+        'data/cron.xml',
         'views/menus_views.xml',
         'wizards/imap_password_wizard.xml',
     ],
