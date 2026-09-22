@@ -25,7 +25,7 @@ Tekniskt flöde:
 Beroenden: user_mail_common
     """,
     'author': 'Vertel AB',
-    'website': 'https://vertel.se',
+    'website': 'https://vertel.se/apps/odoo-user-mail/user_scim',
     'license': 'AGPL-3',
     'depends': [
         'base',

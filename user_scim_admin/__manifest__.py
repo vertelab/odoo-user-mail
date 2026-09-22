@@ -24,7 +24,7 @@ Installeras ENDAST på ledningssystemets Odoo, inte på kundinstanser.
 Beroenden: user_scim (för återanvändning av SCIM-funktioner)
     """,
     'author': 'Vertel AB',
-    'website': 'https://vertel.se',
+    'website': 'https://vertel.se/apps/odoo-user-mail/user_scim_admin',
     'license': 'AGPL-3',
     'depends': [
         'base',

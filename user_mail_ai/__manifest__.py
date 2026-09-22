@@ -5,7 +5,7 @@
     'summary': 'Personlig AI-mailhjälpreda — IMAP-triage, Odoo Mind (graf), Teams→kalender',
     'category': 'Productivity',
     'author': 'Vertel AB',
-    'website': 'https://vertel.se',
+    'website': 'https://vertel.se/apps/odoo-user-mail/user_mail_ai',
     'license': 'AGPL-3',
     'description': """
         Personlig AI-hjälpreda för mail (ai.coworker "Mail-hjälpredan").

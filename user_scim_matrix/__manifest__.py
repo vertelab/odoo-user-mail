@@ -21,7 +21,7 @@ Tekniskt flöde:
     user_matrix → user_scim_matrix → SCIM hook → LDAP
     """,
     'author': 'Vertel AB',
-    'website': 'https://vertel.se',
+    'website': 'https://vertel.se/apps/odoo-user-mail/user_scim_matrix',
     'license': 'AGPL-3',
     'depends': [
         'user_scim',
