@@ -21,31 +21,39 @@
 
 {
     'name': 'User Mail: User Mail Client',
-    'version': '1.0.1',
+    'version': '18.0.1.0.1',
     # Version ledger: 14.0 = Odoo version. 1 = Major. Non regressionable code. 2 = Minor. New features that are regressionable. 3 = Bug fixes
     'summary': 'Administration of mail for users on client side.',
     # Categories can be used to filter modules in modules listing
     # Check https://github.com/odoo/odoo/blob/14.0/odoo/addons/base/data/ir_module_category_data.xml
     # for the full list
     'category': 'Technical',
-    'description': """
+    'description': '''
+User Mail Client
+================
+
     Client side configuration of mail accounts
-    use this in /etc/odoo/openerp-server.conf:
-    # mail_server
-    passwd_server = localhost
-    passwd_dbname = mail_server
-    passwd_user = admin
-    passwd_passwd = admin
-    # for smtp-configuration
-    smtp_host = localhost
-    smtp_port = 8069
-    smtp_encryption = yes
-    smtp_user = admin
-    smtp_pass = admin
-    # for imap-configuration
-    imap_host = localhost
-    imap_port = 8069
-    """,
+        use this in /etc/odoo/openerp-server.conf:
+        # mail_server
+        passwd_server = localhost
+        passwd_dbname = mail_server
+        passwd_user = admin
+        passwd_passwd = admin
+        # for smtp-configuration
+        smtp_host = localhost
+        smtp_port = 8069
+        smtp_encryption = yes
+        smtp_user = admin
+        smtp_pass = admin
+        # for imap-configuration
+        imap_host = localhost
+        imap_port = 8069
+
+    Features:
+
+        - UI Integration: Extends 3 view(s) in the Odoo interface.
+        - Extends Odoo: Builds on user.mail.sync.wizard.
+    ''',
     'author': 'Vertel AB',
     'website': 'https://vertel.se/apps/odoo-user-mail/user_mail_client',
     'images': ['static/description/banner.png'], # 560x280 px.

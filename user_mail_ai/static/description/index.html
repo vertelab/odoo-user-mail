@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>User Mail: User Password Tmp &mdash; Vertel for Odoo</title>
+  <title>User Mail: AI Assistant &mdash; Vertel for Odoo</title>
   <style>
     :root { --navy:#0F172A; --darkBg:#1E293B; --white:#F8FAFC; --gray:#94A3B8;
              --lightGray:#E2E8F0; --brand:#930a57; --brand2:#8105a7; }
@@ -43,47 +43,50 @@
 </head>
 <body>
 <div class="hero">
-  <h1>User Mail: User Password Tmp</h1>
-  <p class="subtitle">Saves users password in clear text for a short time.</p>
+  <h1>User Mail: AI Assistant</h1>
+  <p class="subtitle">Personlig AI-mailhjälpreda — IMAP-triage, Odoo Mind (graf), Teams→kalender.</p>
   <div class="meta">
     <span>Odoo 18.0</span><span>&middot;</span>
-    <span>Technical</span><span>&middot;</span>
+    <span>Productivity</span><span>&middot;</span>
     <span>by Vertel Sverige AB</span>
   </div>
 </div>
 <div class="container">
   <section id="overview">
     <h2>Overview</h2>
-    <p>Saves users password in clear text for a short time.</p>
-    <p>It introduces the model(s) <code>res_users</code> to handle this workflow.</p>
+    <p>Personlig AI-mailhjälpreda — IMAP-triage, Odoo Mind (graf), Teams→kalender.</p>
+    <p>It introduces the model(s) <code>UserMailAiMail</code>, <code>MailMessageAI</code>, <code>UserMailAiRouting</code> to handle this workflow.</p>
   </section>
   <section id="features">
     <h2>Key Features</h2>
     <div class="feature-grid">
-      <div class="feature-card"><h4>Dedicated data model</h4><p>Adds its own models: res_users.</p></div>
+      <div class="feature-card"><h4>Dedicated data model</h4><p>Adds its own models: UserMailAiMail, MailMessageAI, UserMailAiRouting.</p></div>
+      <div class="feature-card"><h4>Automation</h4><p>Scheduled jobs: Mail-AI: Intresseprofiler (veckovis), Mail-AI: Daglig digest, Mail-AI: Veckovis digest.</p></div>
+      <div class="feature-card"><h4>Actions</h4><p>Adds action_mark_processed, action_mark_ignored, action_reclassify.</p></div>
+      <div class="feature-card"><h4>UI integration</h4><p>Extends 3 view(s) in the Odoo interface.</p></div>
     </div>
   </section>
   <section id="screenshots">
     <h2>Module Graphics</h2>
     <div class="screenshots">
       <figure>
-        <img src="icon.png" alt="User Mail: User Password Tmp icon" width="140" height="140">
+        <img src="icon.png" alt="User Mail: AI Assistant icon" width="140" height="140">
         <figcaption>Icon &mdash; 140 &times; 140 px</figcaption>
       </figure>
       <figure>
-        <img src="banner.png" alt="User Mail: User Password Tmp banner" width="560" height="280">
+        <img src="banner.png" alt="User Mail: AI Assistant banner" width="560" height="280">
         <figcaption>Banner &mdash; 560 &times; 280 px</figcaption>
       </figure>
     </div>
   </section>
   <section id="dependencies">
     <h2>Dependencies</h2>
-    <ul><li><code>base</code></li></ul>
+    <ul><li><code>user_mail_imap</code></li><li><code>user_mail_common</code></li><li><code>ai_agent_core</code></li><li><code>calendar</code></li></ul>
     <p><small>Requires <strong>Odoo 18.0</strong> or later.</small></p>
   </section>
   <section id="installation">
     <h2>Installation</h2>
-    <p>Install the module <code>user_password_tmp</code> from the Odoo Apps menu,
+    <p>Install the module <code>user_mail_ai</code> from the Odoo Apps menu,
        or deploy it via the Vertel SaltStack pipeline.</p>
   </section>
   <section id="support">
@@ -93,7 +96,7 @@
   </section>
 </div>
 <footer>
-  <p><strong>User Mail: User Password Tmp</strong> &mdash; by <a href="https://vertel.se">Vertel Sverige AB</a></p>
+  <p><strong>User Mail: AI Assistant</strong> &mdash; by <a href="https://vertel.se">Vertel Sverige AB</a></p>
   <p><a href="https://vertel.se">vertel.se</a> &middot;
      <a href="mailto:info@vertel.se">info@vertel.se</a></p>
 </footer>

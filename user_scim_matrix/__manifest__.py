@@ -3,23 +3,21 @@
     'name': 'User SCIM — Matrix Extension',
     'version': '18.0.1.0.0',
     'category': 'Tools',
-    'summary': 'Sync Matrix ID to LDAP via SCIM bridge',
-    'description': """
+    'summary': 'Sync Matrix ID to LDAP via SCIM bridge.',
+    'description': '''
 User SCIM — Matrix Extension
-=============================
-Lägger till Matrix-ID-fältet på användaren och synkar det till LDAP via
-SCIM-bridgen.
+============================
 
-Kräver:
-- user_scim (SCIM-synk)
-- user_matrix (eller motsvarande) — den modul som finns i samma repo
+    Adds the Matrix ID field to the user and syncs it to LDAP via the SCIM bridge.
 
-När user_matrix är installerad lägger user_scim_matrix till matrix_id i
-SCIM-JSON:en så att det synkas till LDAP-fältet labeledURI.
+Requires:
 
-Tekniskt flöde:
-    user_matrix → user_scim_matrix → SCIM hook → LDAP
-    """,
+    - user_scim (SCIM sync)
+    - user_matrix (or equivalent)
+
+When user_matrix is installed, user_scim_matrix adds matrix_id to the SCIM
+JSON so that it is synced to the LDAP field labeledURI.
+    ''',
     'author': 'Vertel AB',
     'website': 'https://vertel.se/apps/odoo-user-mail/user_scim_matrix',
     'license': 'AGPL-3',

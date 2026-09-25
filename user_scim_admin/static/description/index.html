@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>User Mail: User Password Tmp &mdash; Vertel for Odoo</title>
+  <title>User SCIM — Admin Directory &mdash; Vertel for Odoo</title>
   <style>
     :root { --navy:#0F172A; --darkBg:#1E293B; --white:#F8FAFC; --gray:#94A3B8;
              --lightGray:#E2E8F0; --brand:#930a57; --brand2:#8105a7; }
@@ -43,47 +43,51 @@
 </head>
 <body>
 <div class="hero">
-  <h1>User Mail: User Password Tmp</h1>
-  <p class="subtitle">Saves users password in clear text for a short time.</p>
+  <h1>User SCIM — Admin Directory</h1>
+  <p class="subtitle">Central admin view of all LDAP users across customers.</p>
   <div class="meta">
     <span>Odoo 18.0</span><span>&middot;</span>
-    <span>Technical</span><span>&middot;</span>
+    <span>Tools</span><span>&middot;</span>
     <span>by Vertel Sverige AB</span>
   </div>
 </div>
 <div class="container">
   <section id="overview">
     <h2>Overview</h2>
-    <p>Saves users password in clear text for a short time.</p>
-    <p>It introduces the model(s) <code>res_users</code> to handle this workflow.</p>
+    <p>Central admin view of all LDAP users across customers.</p>
+    <p>It introduces the model(s) <code>ScimDirectoryUser</code> to handle this workflow.</p>
+    <p>It extends Odoo's settings.</p>
   </section>
   <section id="features">
     <h2>Key Features</h2>
     <div class="feature-grid">
-      <div class="feature-card"><h4>Dedicated data model</h4><p>Adds its own models: res_users.</p></div>
+      <div class="feature-card"><h4>Dedicated data model</h4><p>Adds its own models: ScimDirectoryUser.</p></div>
+      <div class="feature-card"><h4>Automation</h4><p>Scheduled jobs: SCIM Directory: Sync all users from LDAP.</p></div>
+      <div class="feature-card"><h4>Actions</h4><p>Adds action_sync_from_bridge, action_open_customer_odoo.</p></div>
+      <div class="feature-card"><h4>UI integration</h4><p>Extends 4 view(s) in the Odoo interface.</p></div>
     </div>
   </section>
   <section id="screenshots">
     <h2>Module Graphics</h2>
     <div class="screenshots">
       <figure>
-        <img src="icon.png" alt="User Mail: User Password Tmp icon" width="140" height="140">
+        <img src="icon.png" alt="User SCIM — Admin Directory icon" width="140" height="140">
         <figcaption>Icon &mdash; 140 &times; 140 px</figcaption>
       </figure>
       <figure>
-        <img src="banner.png" alt="User Mail: User Password Tmp banner" width="560" height="280">
+        <img src="banner.png" alt="User SCIM — Admin Directory banner" width="560" height="280">
         <figcaption>Banner &mdash; 560 &times; 280 px</figcaption>
       </figure>
     </div>
   </section>
   <section id="dependencies">
     <h2>Dependencies</h2>
-    <ul><li><code>base</code></li></ul>
+    <ul><li><code>base</code></li><li><code>user_scim</code></li></ul>
     <p><small>Requires <strong>Odoo 18.0</strong> or later.</small></p>
   </section>
   <section id="installation">
     <h2>Installation</h2>
-    <p>Install the module <code>user_password_tmp</code> from the Odoo Apps menu,
+    <p>Install the module <code>user_scim_admin</code> from the Odoo Apps menu,
        or deploy it via the Vertel SaltStack pipeline.</p>
   </section>
   <section id="support">
@@ -93,7 +97,7 @@
   </section>
 </div>
 <footer>
-  <p><strong>User Mail: User Password Tmp</strong> &mdash; by <a href="https://vertel.se">Vertel Sverige AB</a></p>
+  <p><strong>User SCIM — Admin Directory</strong> &mdash; by <a href="https://vertel.se">Vertel Sverige AB</a></p>
   <p><a href="https://vertel.se">vertel.se</a> &middot;
      <a href="mailto:info@vertel.se">info@vertel.se</a></p>
 </footer>

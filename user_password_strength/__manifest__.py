@@ -23,9 +23,20 @@
 
 {
     'name': "User Password Strength",
-    'version': "1.0.0",
-    'summary': """ User password strength - restrict weak password""",
-    'description': """  User password strength - restrict weak password""",
+    'version': '18.0.1.0.0',
+    'summary': """User password strength - restrict weak password.""",
+    'description': '''
+User Password Strength
+======================
+
+    User password strength - restrict weak password.
+
+    Features:
+
+        - Web integration: Exposes HTTP endpoints for external systems.
+        - UI Integration: Extends 2 view(s) in the Odoo interface.
+        - Extends Odoo: Builds on existing Odoo models.
+    ''',
     'author': "Cybrosys Techno Solutions",
     'company': "Cybrosys Techno Solutions",
     'maintainer': "Cybrosys Techno Solutions",

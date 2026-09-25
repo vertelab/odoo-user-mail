@@ -3,27 +3,24 @@
     'name': 'User SCIM Sync',
     'version': '18.0.1.0.0',
     'category': 'Tools',
-    'summary': 'Sync users to central LDAP via SCIM 2.0 bridge',
-    'description': """
+    'summary': 'Sync users to central LDAP via SCIM 2.0 bridge.',
+    'description': '''
 User SCIM Sync
-===============
-Push user changes (create/update/delete) to a SCIM 2.0 bridge that writes to
-a shared OpenLDAP directory.
+==============
 
-Kärnmodul för att synka Vertels användare från ett Odoo (kundportal) till
-den centrala LDAP-katalogen. Används av alla kunder.
+    Pushes user changes (create/update/delete) to a SCIM 2.0 bridge that writes
+to a shared OpenLDAP directory.
 
-Fält som synkas:
-- name, login, email
-- postfix_active, postfix_mail
-- forward_active, forward_address
-- quota, spam_kill_level
+Core module for syncing Vertel users from an Odoo (customer portal) to the
+central LDAP directory. Used by all customers.
 
-Tekniskt flöde:
-    Odoo → SCIM 2.0 HTTP → SCIM bridge → LDAP
+Fields synced:
 
-Beroenden: user_mail_common
-    """,
+    - name, login, email
+    - postfix_active, postfix_mail
+    - forward_active, forward_address
+    - quota, spam_kill_level
+    ''',
     'author': 'Vertel AB',
     'website': 'https://vertel.se/apps/odoo-user-mail/user_scim',
     'license': 'AGPL-3',

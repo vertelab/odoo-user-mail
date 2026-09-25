@@ -21,16 +21,23 @@
 
 {
     'name': 'User Mail: User Password Tmp',
-    'version': '1.0.0',
+    'version': '18.0.1.0.0',
     # Version ledger: 14.0 = Odoo version. 1 = Major. Non regressionable code. 2 = Minor. New features that are regressionable. 3 = Bug fixes
     'summary': 'Saves users password in clear text for a short time.',
     # Categories can be used to filter modules in modules listing
     # Check https://github.com/odoo/odoo/blob/14.0/odoo/addons/base/data/ir_module_category_data.xml
     # for the full list
     'category': 'Technical',
-    'description': """
+    'description': '''
+User Password Tmp
+=================
+
     Saves users password in clear text for a short time.
-    """,
+
+    Features:
+
+        - Extends Odoo: Builds on existing Odoo models.
+    ''',
     #'sequence': '1',
     'author': 'Vertel AB',
     'website': 'https://vertel.se/apps/odoo-user-mail/user_password_tmp',
