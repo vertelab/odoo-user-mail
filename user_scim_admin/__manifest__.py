@@ -3,28 +3,24 @@
     'name': 'User SCIM — Admin Directory',
     'version': '18.0.1.0.0',
     'category': 'Tools',
-    'summary': 'Central admin view of all LDAP users across customers',
-    'description': """
+    'summary': 'Central admin view of all LDAP users across customers.',
+    'description': '''
 User SCIM — Admin Directory
-=============================
-Central vy i ledningssystemet som visar ALLA användare från ALLA kunder
-i den gemensamma LDAP-katalogen.
+===========================
 
-Visar data som synkas via SCIM-bridgen från respektive kunds Odoo-instans.
+    Central view in the management system showing ALL users from ALL customers in
+the shared LDAP directory.
 
-Funktioner:
-- Trädvy över alla LDAP-användare med kundtillhörighet
-- Filter på kund, aktiv, har Matrix-ID, m.fl.
-- Konfliktdetektering (samma uid i flera kunder)
-- Dashboard med statistik per kund
-- Manuell synk från SCIM-bridge
+Shows data synced via the SCIM bridge from each customer's Odoo instance.
 
-Installeras ENDAST på ledningssystemets Odoo, inte på kundinstanser.
+Features:
 
-Beroenden: user_scim (för återanvändning av SCIM-funktioner)
-    """,
+    - Tree view of all LDAP users with customer affiliation.
+    - Filters on customer, active, has Matrix ID, etc.
+    - Conflict detection (same uid in several customers).
+    ''',
     'author': 'Vertel AB',
-    'website': 'https://vertel.se',
+    'website': 'https://vertel.se/apps/odoo-user-mail/user_scim_admin',
     'license': 'AGPL-3',
     'depends': [
         'base',

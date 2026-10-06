@@ -1,10 +1,10 @@
-odoo-ai / user_mail_imap
+odoo-user-mail / user_mail_imap
 2026-09-24
 
 
 Be aware of these!
-odoo-ai/user_mail_imap/static/description/banner.png
-odoo-ai/user_mail_imap/static/description/icon.png
+odoo-user-mail/user_mail_imap/static/description/banner.png
+odoo-user-mail/user_mail_imap/static/description/icon.png
 
 
 Icon: "User Mail: IMAP Client"

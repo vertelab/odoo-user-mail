@@ -1,10 +1,10 @@
-odoo-ai / user_mail_ai
+odoo-user-mail / user_mail_ai
 2026-09-24
 
 
 Be aware of these!
-odoo-ai/user_mail_ai/static/description/banner.png
-odoo-ai/user_mail_ai/static/description/icon.png
+odoo-user-mail/user_mail_ai/static/description/banner.png
+odoo-user-mail/user_mail_ai/static/description/icon.png
 
 
 Icon: "User Mail: AI Assistant"
