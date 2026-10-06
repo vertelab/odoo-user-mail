@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- Min profil (preferences-dialogen) — flik 1 "Preferences".
+         Detta är användarens egen yta: lösenord + poll-flagga + status.
+         Login-namn (postfix_mail) och host/port är redan kända och frågas
+         inte efter.
+
+         OBS: base.view_users_form_simple_modif filtrerar sin arch mot
+         SELF_READABLE_FIELDS/SELF_WRITEABLE_FIELDS — fälten exponeras i
+         user_mail_imap/models/res_users.py. -->
+    <record id="view_users_form_simple_modif_imap" model="ir.ui.view">
+        <field name="name">res.users.preferences.form.imap</field>
+        <field name="model">res.users</field>
+        <field name="inherit_id" ref="base.view_users_form_simple_modif"/>
+        <field name="arch" type="xml">
+            <page name="preferences_page" position="inside">
+                <group name="mail_assistant" string="Mail-hjälpredan">
+                    <div colspan="2">
+                        <!-- Lösenordet sätts via wizarden och visas aldrig
+                             tillbaka i klartext. Fältet läses bara för att
+                             kunna visa om ett lösenord finns. -->
+                        <field name="imap_password" invisible="1"/>
+                        <button name="%(action_imap_password_wizard)d"
+                                type="action"
+                                string="Ange mail-lösenord"
+                                class="btn btn-secondary"/>
+                        <span class="text-muted ms-2" invisible="imap_password">
+                            Inget lösenord angett — pollning är avstängd.
+                        </span>
+                        <span class="text-muted ms-2" invisible="not imap_password">
+                            Lösenord angett.
+                        </span>
+                    </div>
+                    <field name="imap_poll_enabled"
+                           readonly="not imap_password"/>
+                    <field name="last_imap_sync" readonly="1"/>
+                </group>
+            </page>
+        </field>
+    </record>
+</odoo>

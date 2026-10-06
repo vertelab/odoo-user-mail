@@ -125,6 +125,20 @@ class UserMailAiMail(models.Model):
         help='{"model": ..., "id": ..., "confidence": ...} — används i Skiva 2.')
     notes = fields.Text('Anteckningar')
 
+    # ── Minnessynk (mail-memory-sync) ────────────────────────────────
+    # Markör för om mailens minne (OKF + AGE-nod + SENT_BY-kant) är
+    # byggt. Rådgivande: reparationen verifierar vad som faktiskt finns.
+    memory_synced_at = fields.Datetime(
+        'Minne synkat', readonly=True,
+        help='Tidpunkt då OKF-koncept, graf-nod och kant alla lyckats.')
+    memory_state = fields.Selection([
+        ('pending', 'Väntar'),
+        ('synced', 'Synkad'),
+        ('failed', 'Misslyckad'),
+    ], string='Minnesstatus', default='pending', index=True,
+        help='pending = inte byggt än; synced = komplett; '
+             'failed = ett steg kastade (kräver åtgärd/reparation).')
+
     _sql_constraints = [
         ('unique_user_message',
          'unique(user_id, message_id)',
@@ -226,6 +240,7 @@ class UserMailAiMail(models.Model):
             record.write(extra)
 
         # OKF-arkiv (personligt scope) — får aldrig blockera ingestion
+        okf_ok = False
         try:
             if 'ai.okf.concept' in self.env:
                 self.env['ai.okf.concept'].create_from_mail(
@@ -239,10 +254,47 @@ class UserMailAiMail(models.Model):
                               if raw else None),
                     source_ref=record.message_id,
                 )
+                okf_ok = True
         except Exception as e:
             _logger.warning('OKF archive failed for %s: %s',
                             record.subject, e)
+
+        # Graf: :MailMessage-nod + SENT_BY-kant (F1). Byggs här så grafen
+        # inte släpar efter — cronen blir reparatör, inte byggare.
+        graph_ok = record._sync_graph_node()
+
+        # Markör sist: synced bara när alla steg lyckats.
+        if okf_ok and graph_ok:
+            record.write({
+                'memory_synced_at': fields.Datetime.now(),
+                'memory_state': 'synced',
+            })
+        else:
+            record.write({'memory_state': 'failed'})
         return record
+
+    def _sync_graph_node(self):
+        """Skapa/uppdatera :MailMessage-noden + SENT_BY-kanten.
+
+        Idempotent (MATCH...SET / MERGE). Returnerar True om steget
+        lyckades, False om grafen inte är tillgänglig eller kastar —
+        ingestion ska aldrig blockeras av grafen.
+        """
+        self.ensure_one()
+        try:
+            defn = self.env['graph.node.definition'].search([
+                ('model_id.model', '=', 'user_mail_ai.mail'),
+                ('graph_label', '=', 'MailMessage'),
+            ], limit=1)
+            if not defn:
+                return False
+            defn._upsert_node(self)
+            defn._create_edges(self)
+            return True
+        except Exception as e:
+            _logger.warning(
+                'Graph node sync failed for %s: %s', self.subject, e)
+            return False
 
     @api.model
     def _ingest_mail_message(self, message):
@@ -599,16 +651,28 @@ class UserMailAiMail(models.Model):
                     data.get('matched_rules') or []),
                 'status': 'classified',
             })
-            return True
         except Exception as e:
             _logger.error('Classification store failed for %s: %s',
                           self.subject, e)
             self.write({'notes': 'Klassificering misslyckades: %s' % e})
             return False
+
         # Deterministisk tråd-matchning vinner över LLM-kandidaten.
+        # MÅSTE köras efter write ovan (som kan ha satt/raderat kandidaten
+        # från LLM-svaret) — annars kan en LLM-nolla skriva över en säker
+        # References/In-Reply-To-matchning (confidence 1.0).
+        self._apply_thread_candidate()
+        return True
+
+    def _apply_thread_candidate(self):
+        """Skriv deterministisk tråd-kandidat över LLM-kandidaten (per record).
+
+        Anropas efter klassificerings-write. Tyst om ingen rå .eml finns
+        (catchall-mail har redan objekt) eller ingen tråd matchar.
+        """
         for rec in self:
             cand = rec._thread_candidate()
-            if cand:
+            if cand and not rec.object_model:
                 rec.write({'object_link_candidate': json.dumps(cand)})
         return True
 

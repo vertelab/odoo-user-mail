@@ -1,8 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
-    <!-- Intresseprofil: veckovis återkomputation (Odoo 18-format) -->
+    <!-- Intresseprofil: daglig cron, räknar om på användarens veckodag
+         (ai_profile_weekday, default fredag) — samma mönster som
+         veckodigesten. Se _recompute_profiles(force=False). -->
     <record id="ir_actions_server_profile_weekly" model="ir.actions.server">
-        <field name="name">Mail-AI: Generera intresseprofiler (veckovis)</field>
+        <field name="name">Mail-AI: Generera intresseprofiler</field>
         <field name="model_id" ref="model_user_mail_ai_mail"/>
         <field name="state">code</field>
         <field name="code">
@@ -13,7 +15,7 @@ model._recompute_profiles()
         <field name="name">Mail-AI: Intresseprofiler (veckovis)</field>
         <field name="cron_name">Mail-AI: Intresseprofiler (veckovis)</field>
         <field name="ir_actions_server_id" ref="ir_actions_server_profile_weekly"/>
-        <field name="interval_number">7</field>
+        <field name="interval_number">1</field>
         <field name="interval_type">days</field>
         <field name="active">True</field>
     </record>

@@ -181,12 +181,28 @@ arkiverar i Odoo Mind (OKF + AGE-graf), klassificerar och agerar med HITL.
 
 ## Aktivering
 
-1. Användaren fyller i IMAP-lösenord (user_mail_imap, User Settings).
-2. Sätt **Aktivera mail-pollning** (`imap_poll_enabled`) på användaren.
+1. Användaren öppnar **Min profil** (avatar-menyn) → fliken *Preferences* →
+   gruppen **Mail-hjälpredan** → knappen **Ange mail-lösenord**.
+   Lösenordet är samma som Odoo-inloggningen och verifieras mot
+   `dovecot_password` (SHA512-CRYPT) innan det sparas.
+2. Bocka i **Aktivera mail-pollning** (samma grupp). Går bara när ett
+   lösenord finns — annars nekas det (förhindrar felloop).
 3. Valfritt: välj `ai_coworker_id` (default: Mail-hjälpredan).
 
 Cron: User Mail IMAP Poll (var 5 min) → poller → triage → klassificering
 → Teams→calendar / promotion / utkast / routing → nudge (notis + Discuss-DM).
+
+### Lösenordskontrakt
+
+Odoo-lösenordet och mail-lösenordet är **samma lösenord**. När en användares
+Odoo-lösenord ändras (via Min profil eller av admin) uppdateras även
+`imap_password` — det loggas. `imap_password` är en **tvåvägskrypterad**
+(Fernet) kopia som pollern behöver: en IMAP-*klient* måste skicka klartexten,
+till skillnad från Dovecot som verifierar mot en enkelriktad hash.
+Klartexten sparas aldrig.
+
+Pollern kör bara användare som har ett `imap_password` — en användare utan
+lösenord hoppas över tyst (inga fel var 5:e minut).
 
 ## Flöden (Skiva 2)
 
@@ -267,3 +283,47 @@ Mail-hjälpredan → Regler, eller smartknapp i Min profil):
 
 - `user_mail_ai.profile_weight_llm` (default 0.7)
 - `user_mail_ai.nudge_threshold` / `draft_threshold` / `max_drafts_per_cycle`
+
+# user_mail_ai — Minnessynk (mail-memory-sync)
+
+Mail-hjälpredans minne består av tre delar: **OKF-koncept** (sökbart
+arkiv), **`:MailMessage`-nod** i AGE-grafen och **`SENT_BY`-kanten** till
+avsändarpartnern.
+
+## Markör på triage-raden
+
+- `memory_synced_at` — sätts när alla tre stegen lyckats.
+- `memory_state` — `pending` / `synced` / `failed`. Ett mail vars
+  arkivering kastar blir `failed` i stället för en tyst nolla; det syns
+  som röd rad i triage-listvyn.
+
+Markören är **rådgivande** — reparationen verifierar vad som faktiskt
+finns i stället för att lita blint på den.
+
+## Byggs vid ingest
+
+`_ingest_message()` skapar noden + kanten direkt (inte via 5-min-cronen),
+så grafen inte släpar efter. `cron_sync_graph` finns kvar som reparatör.
+
+## Reparation + städning (cron)
+
+- **Mail-AI: Reparera mail-minne** (var 15 min) — hittar mail med
+  `memory_state != 'synced'` för användare med pollning aktiverad och
+  bygger det som saknas. Idempotent; OKF-konceptet skapas **bara om det
+  saknas** (mail är immutabla — ingen versionering). Kör `_create_edges`
+  om så kanter till sena partner-noder läks. Bounded batch (50/varv).
+- **Mail-AI: Städa graf-spöknoder** (dygnsvis) — tar bort
+  `:MailMessage`-noder vars Odoo-rad inte längre finns. Destruktivt, därför
+  sällan och separat. Frågar grafen efter id:n (proportionellt mot antalet
+  spöken, inte mot arkivet).
+
+## Manuell uppdatering
+
+**Min profil → fliken Preferences → Mail-minne → "Uppdatera mina
+mail-minnen"** kör samma kärna som reparationen, scopad till din egen
+postlåda (`env.user`). Rör aldrig någon annans mail.
+
+## Konfiguration (ir.config_parameter)
+
+- Batchstorlek och intervall sätts på respektive `ir.cron`.
+

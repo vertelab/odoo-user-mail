@@ -1,6 +1,6 @@
 {
     'name': 'User Mail: IMAP Client',
-    'version': '18.0.1.2.0',
+    'version': '18.0.1.3.0',
     'summary': 'IMAP email client integrated in Odoo — with per-user poller',
     'category': 'Productivity',
     'author': 'Vertel AB',
@@ -13,8 +13,11 @@
     'data': [
         'security/ir.model.access.csv',
         'data/cron.xml',
-        'views/menus_views.xml',
+        # Wizarden FÖRE vyn: res_users_view.xml refererar
+        # %(action_imap_password_wizard)d och kräver att den finns.
         'wizards/imap_password_wizard.xml',
+        'views/menus_views.xml',
+        'views/res_users_view.xml',
     ],
     'assets': {
         'web.assets_backend': [

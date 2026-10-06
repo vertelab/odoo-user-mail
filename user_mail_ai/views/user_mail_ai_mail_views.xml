@@ -22,6 +22,10 @@
                 <field name="handoff_coworker_id" string="Specialist"/>
                 <field name="handoff_state" string="Handoff"/>
                 <field name="promotion_hitl_id" string="Promotion"/>
+                <field name="memory_state" string="Minne"
+                       decoration-danger="memory_state == 'failed'"
+                       decoration-success="memory_state == 'synced'"/>
+                <field name="memory_synced_at" string="Minnes-synk"/>
             </list>
         </field>
     </record>

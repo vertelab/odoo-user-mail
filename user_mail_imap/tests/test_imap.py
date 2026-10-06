@@ -47,12 +47,100 @@ class TestImap(TransactionCase):
         self.assertIsNone(result)
 
     def test_model_exists(self):
-        self.assertTrue(self.imap, "user.mail.imap model should exist")
+        # user.mail.imap är en AbstractModel — den har inga records, så
+        # assertTrue(recordset) är alltid falskt. Kontrollera namnet.
+        self.assertEqual(self.imap._name, 'user.mail.imap')
         self.assertEqual(self.imap._description, 'IMAP Mail Operations')
 
     def test_model_fields(self):
         user_fields = self.env['res.users'].fields_get()
         self.assertIn('imap_password', user_fields, "res.users should have imap_password field")
+
+    # ── Credentials: verifiering mot dovecot_password + gate ─────────
+
+    def test_verify_dovecot_password_match(self):
+        from passlib.hash import sha512_crypt
+        self.user.dovecot_password = sha512_crypt.hash('hemligt')
+        self.assertTrue(self.user._verify_dovecot_password('hemligt'))
+
+    def test_verify_dovecot_password_mismatch(self):
+        from passlib.hash import sha512_crypt
+        self.user.dovecot_password = sha512_crypt.hash('hemligt')
+        self.assertFalse(self.user._verify_dovecot_password('fel'))
+
+    def test_verify_dovecot_password_no_hash(self):
+        self.user.dovecot_password = False
+        self.assertIsNone(self.user._verify_dovecot_password('vad-som-helst'))
+
+    def test_action_set_imap_password_verifies(self):
+        from passlib.hash import sha512_crypt
+        self.user.dovecot_password = sha512_crypt.hash('hemligt')
+        self.user.imap_password = False
+        self.user.action_set_imap_password('hemligt')
+        self.assertEqual(self.user._decrypt_imap_pw(), 'hemligt')
+
+    def test_action_set_imap_password_rejects_wrong(self):
+        from odoo.exceptions import UserError
+        from passlib.hash import sha512_crypt
+        self.user.dovecot_password = sha512_crypt.hash('hemligt')
+        self.user.imap_password = False
+        with self.assertRaises(UserError):
+            self.user.action_set_imap_password('fel')
+        self.assertFalse(self.user.imap_password)
+
+    def test_action_set_imap_password_without_hash(self):
+        self.user.dovecot_password = False
+        self.user.imap_password = False
+        self.user.action_set_imap_password('nytt-losenord')
+        self.assertEqual(self.user._decrypt_imap_pw(), 'nytt-losenord')
+
+    def test_poll_enabled_requires_password(self):
+        from odoo.exceptions import UserError
+        self.user.imap_password = False
+        self.user.imap_poll_enabled = False
+        with self.assertRaises(UserError):
+            self.user.write({'imap_poll_enabled': True})
+
+    def test_poll_enabled_with_password_ok(self):
+        self.user.imap_password = self.user._encrypt_imap_pw('x')
+        self.user.write({'imap_poll_enabled': True})
+        self.assertTrue(self.user.imap_poll_enabled)
+
+    def test_poll_disable_always_allowed(self):
+        self.user.imap_password = False
+        self.user.imap_poll_enabled = False
+        self.user.write({'imap_poll_enabled': False})
+        self.assertFalse(self.user.imap_poll_enabled)
+
+    def test_poll_skips_user_without_password(self):
+        # Användare med poll-flagga men utan lösenord ska hoppas över tyst.
+        self.env.cr.execute(
+            "UPDATE res_users SET imap_poll_enabled = true, "
+            "imap_password = NULL WHERE id = %s", (self.user.id,))
+        self.user.invalidate_recordset()
+        # Ska inte kasta trots saknat lösenord.
+        self.imap.action_poll_all()
+
+    def test_preferences_exposes_mail_fields(self):
+        # Min profil (view_users_form_simple_modif) filtrerar mot
+        # SELF_READABLE_FIELDS/SELF_WRITEABLE_FIELDS — utan överridningen
+        # renderas gruppen tom och flaggan kan inte sparas.
+        readable = self.env['res.users'].SELF_READABLE_FIELDS
+        writeable = self.env['res.users'].SELF_WRITEABLE_FIELDS
+        for f in ('imap_password', 'imap_poll_enabled', 'last_imap_sync'):
+            self.assertIn(f, readable, f'{f} måste vara self-readable')
+        self.assertIn('imap_poll_enabled', writeable,
+                      'imap_poll_enabled måste vara self-writeable')
+        self.assertNotIn('imap_password', writeable,
+                         'lösenordet sätts via wizarden, inte via formuläret')
+
+    def test_preferences_save_persists_poll_flag(self):
+        # 4.5: fältet ska faktiskt sparas när användaren ändrar sig själv
+        # via preferences (write sker som användaren, inte sudo).
+        self.user.imap_password = self.user._encrypt_imap_pw('x')
+        self.user.with_user(self.user).write({'imap_poll_enabled': True})
+        self.assertTrue(
+            self.env['res.users'].browse(self.user.id).imap_poll_enabled)
 
     # ── Poller (normalisering, dedup, modeller) ──────────────────────
 
@@ -68,8 +156,10 @@ class TestImap(TransactionCase):
         msg['Date'] = 'Mon, 05 Aug 2026 10:00:00 +0200'
         msg.set_content(body)
         if add_ics:
+            # Python 3.12: bytes → raw_data_manager (tillåter maintype/
+            # subtype); en str skulle gå till text-managern och kasta.
             msg.add_attachment(
-                'BEGIN:VCALENDAR\r\nVERSION:2.0\r\nEND:VCALENDAR\r\n',
+                b'BEGIN:VCALENDAR\r\nVERSION:2.0\r\nEND:VCALENDAR\r\n',
                 filename='invite.ics', maintype='text', subtype='calendar')
         return msg.as_bytes()
 
@@ -107,7 +197,10 @@ class TestImap(TransactionCase):
                 'user_id': user.id, 'message_id': 'dup-1'})
 
     def test_poll_model_and_fields(self):
-        self.assertTrue(self.env['user.mail.poll'])
+        # user.mail.poll är konkret men tom → kontrollera namnet, inte
+        # sanningsvärdet av ett tomt recordset.
+        self.assertEqual(
+            self.env['user.mail.poll']._name, 'user.mail.poll')
         self.assertTrue('imap_poll_enabled' in self.env['res.users']._fields)
         self.assertTrue('last_imap_sync' in self.env['res.users']._fields)
         self.assertFalse(self.env.user.imap_poll_enabled,

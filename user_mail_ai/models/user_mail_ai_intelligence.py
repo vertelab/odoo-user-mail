@@ -30,6 +30,140 @@ class UserMailAiIntelligence(models.Model):
     _inherit = 'user_mail_ai.mail'
 
     # ══════════════════════════════════════════════════════════════
+    # Minnessynk (mail-memory-sync): reparation + städning
+    # ══════════════════════════════════════════════════════════════
+
+    def _okf_concept_exists(self):
+        """Finns ett OKF-koncept för detta mail (source_ref = message-id)?"""
+        self.ensure_one()
+        if 'ai.okf.concept' not in self.env:
+            return False
+        return bool(self.env['ai.okf.concept'].sudo().search([
+            ('source_ref', '=', self.message_id),
+        ], limit=1))
+
+    def _graph_node_exists(self):
+        """Finns :MailMessage-noden i AGE-grafen?"""
+        self.ensure_one()
+        try:
+            res = self.env['graph.executor'].cypher(
+                "MATCH (n:MailMessage {id: %d}) RETURN n.id" % self.id,
+                read_only=True)
+            return bool(res)
+        except Exception:
+            return None  # grafen otillgänglig — vet inte
+
+    def _rebuild_memory(self):
+        """Bygg det som saknas för detta mail (idempotent).
+
+        Verifierar vad som faktiskt finns i stället för att lita blint på
+        markören (D2): OKF-koncept skapas BARA om det saknas (D4, mail är
+        immutabla — ingen versionering), grafen upsertas (idempotent) och
+        kanter körs om så sena partner-noder läks (D3).
+        """
+        self.ensure_one()
+        okf_ok = True
+        # ① OKF — bara om konceptet saknas (ingen ny version)
+        try:
+            if 'ai.okf.concept' in self.env and not self._okf_concept_exists():
+                eml = self.env['ir.attachment'].sudo().search([
+                    ('res_model', '=', 'user_mail_ai.mail'),
+                    ('res_id', '=', self.id),
+                    ('mimetype', '=', 'message/rfc822'),
+                ], limit=1)
+                self.env['ai.okf.concept'].create_from_mail(
+                    subject=self.subject,
+                    body=self.notes or self.subject or '',
+                    from_email=self.from_email,
+                    from_name=self.from_name,
+                    user=self.user_id,
+                    eml_data=eml.datas.decode() if eml and eml.datas else None,
+                    source_ref=self.message_id,
+                )
+        except Exception as e:
+            _logger.warning('Memory repair: OKF failed for %s: %s',
+                            self.subject, e)
+            okf_ok = False
+        # ② Graf-nod + kant
+        graph_ok = self._sync_graph_node()
+        if okf_ok and graph_ok:
+            self.write({
+                'memory_synced_at': fields.Datetime.now(),
+                'memory_state': 'synced',
+            })
+            return True
+        self.write({'memory_state': 'failed'})
+        return False
+
+    def _refresh_memory(self, user, batch_size=50):
+        """Kärna: bygg minnet för en användares icke-synkade mail.
+
+        Anropas av knappen i Min profil (env.user) och av cronen (per
+        användare). Bounded batch — resten tas nästa varv (D6).
+        """
+        pending = self.search([
+            ('user_id', '=', user.id),
+            ('memory_state', '!=', 'synced'),
+        ], limit=batch_size)
+        done = 0
+        for rec in pending:
+            try:
+                if rec._rebuild_memory():
+                    done += 1
+            except Exception as e:
+                _logger.warning('Memory refresh failed for %s: %s',
+                                rec.subject, e)
+                rec.write({'memory_state': 'failed'})
+        return done
+
+    @api.model
+    def _repair_memory_all(self, batch_size=50):
+        """Cron: reparera minnet för användare med pollning aktiverad."""
+        users = self.env['res.users'].search([
+            ('imap_poll_enabled', '=', True)])
+        total = 0
+        for user in users:
+            try:
+                total += self.with_user(user.id)._refresh_memory(
+                    user, batch_size=batch_size)
+            except Exception as e:
+                _logger.error(
+                    'Memory repair failed for %s: %s', user.login, e)
+        return total
+
+    @api.model
+    def _prune_graph_nodes(self):
+        """Städning: ta bort :MailMessage-noder utan Odoo-rad (F5).
+
+        Frågar GRAFEN efter id:n (inte Odoo) så kostnaden är proportionell
+        mot antalet spöken. Destruktivt — körs sällan, separat från
+        reparationen.
+        """
+        try:
+            rows = self.env['graph.executor'].cypher(
+                "MATCH (n:MailMessage) RETURN n.id", read_only=True)
+        except Exception as e:
+            _logger.warning('Ghost prune: kunde inte läsa grafen: %s', e)
+            return 0
+        graph_ids = [r for r in rows if isinstance(r, int)]
+        if not graph_ids:
+            return 0
+        odoo_ids = set(self.sudo().search(
+            [('id', 'in', graph_ids)]).ids)
+        ghosts = [i for i in graph_ids if i not in odoo_ids]
+        removed = 0
+        for gid in ghosts:
+            try:
+                self.env['graph.executor'].cypher_write(
+                    "MATCH (n:MailMessage {id: %d}) DETACH DELETE n" % gid)
+                removed += 1
+            except Exception as e:
+                _logger.warning('Ghost prune failed for id %s: %s', gid, e)
+        if removed:
+            _logger.info('Ghost prune: tog bort %d spöknod(er)', removed)
+        return removed
+
+    # ══════════════════════════════════════════════════════════════
     # Regler
     # ══════════════════════════════════════════════════════════════
 
@@ -188,13 +322,22 @@ class UserMailAiIntelligence(models.Model):
         return provider, model
 
     @api.model
-    def _recompute_profiles(self):
-        """Vecko-cron: generera om intresseprofilen per användare."""
+    def _recompute_profiles(self, force=False):
+        """Cron: generera om intresseprofilen per användare.
+
+        Kör varje dag; profilen räknas om för de användare vars
+        ai_profile_weekday matchar dagens veckodag (default fredag, samma
+        mönster som _run_weekly_digests). force=True (t.ex. vid manuellt
+        anrop) räknar om alla oavsett veckodag.
+        """
+        today = date.today().weekday()
         users = self.env['res.users'].search([
             ('imap_poll_enabled', '=', True)])
         done = 0
         for user in users:
             try:
+                if not force and int(user.ai_profile_weekday or 4) != today:
+                    continue
                 if self._generate_profile(user):
                     done += 1
             except Exception as e:
@@ -427,26 +570,40 @@ class UserMailAiIntelligence(models.Model):
         return True
 
     def _notify_user(self, user, body):
-        """Notis på coworkern (bell) — ingen mail-leverans (undviker loop)."""
+        """Nudge användaren: Discuss-DM från boten + chatter-notis.
+
+        Digest levereras ALDRIG som mail (skulle trigga nya triage-cykler).
+        Primärväg = Discuss-DM från hjälpredans bot-användare (syns i
+        klockan/Discuss), sekundär = notis på coworkern. Chatter-posten
+        lämnas kvar som revisionsspår (digesten är arkiverad i OKF).
+        """
+        html = '<p>%s</p>' % body.replace('\n', '<br/>')
+        delivered = False
+        # 1. Discuss-DM (samma kanal som övriga nudges)
+        try:
+            self._discuss_dm(user, html)
+            delivered = True
+        except Exception as e:
+            _logger.warning('Digest discuss DM failed: %s', e)
+        # 2. Notis på coworkern (revisionsspår + bell för användaren)
         coworker = self._assistant()
-        record = coworker if coworker else self.browse()
-        if record:
+        if coworker:
             try:
-                record.message_post(
-                    body='<p>%s</p>' % body.replace('\n', '<br/>'),
-                    message_type='notification',
+                coworker.message_post(
+                    body=html, message_type='notification',
                     partner_ids=[user.partner_id.id])
-                return
+                delivered = True
             except Exception as e:
                 _logger.warning('Digest notify failed: %s', e)
-        # Fallback: posta på första triage-posten
-        try:
-            self.search([('user_id', '=', user.id)], limit=1).sudo().message_post(
-                body='<p>%s</p>' % body.replace('\n', '<br/>'),
-                message_type='notification',
-                partner_ids=[user.partner_id.id])
-        except Exception as e:
-            _logger.warning('Digest notify fallback failed: %s', e)
+        # 3. Fallback: posta på användarens första triage-post
+        if not delivered:
+            try:
+                self.search([('user_id', '=', user.id)], limit=1) \
+                    .sudo().message_post(
+                        body=html, message_type='notification',
+                        partner_ids=[user.partner_id.id])
+            except Exception as e:
+                _logger.warning('Digest notify fallback failed: %s', e)
 
     @api.model
     def _save_digest_okf(self, user, summary, daily=True):

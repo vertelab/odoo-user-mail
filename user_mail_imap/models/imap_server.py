@@ -215,16 +215,25 @@ class ImapServer(models.AbstractModel):
 
     @api.model
     def action_poll_all(self):
-        """Poll every user with imap_poll_enabled=True.
+        """Poll every user with imap_poll_enabled=True and a password.
 
         Körs av cron via user.mail.poll. Varje användare pollas med sin
         egen IMAP-identitet (with_user) och sina egna credentials. Ett fel
         för en användare blockerar aldrig övriga.
+
+        En användare utan `imap_password` hoppas över tyst: ytan nekar
+        `imap_poll_enabled` utan lösenord, så ett saknat lösenord är ett
+        normalt tillstånd — inte ett fel att logga var 5:e minut.
         """
         users = self.env['res.users'].search(
             [('imap_poll_enabled', '=', True)])
         total = 0
         for user in users:
+            if not user.imap_password:
+                _logger.info(
+                    'Mail poll: hoppar över %s — inget IMAP-lösenord satt.',
+                    user.login)
+                continue
             try:
                 total += self.with_user(user.id).action_poll_user()
             except Exception as e:

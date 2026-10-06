@@ -19,6 +19,12 @@ class ResUsers(models.Model):
     ai_profile_text = fields.Text('Intresseprofil (genererad)')
     ai_profile_embedding = fields.Text('Profil-embedding (JSON)')
     ai_profile_updated = fields.Datetime('Profil uppdaterad')
+    ai_profile_weekday = fields.Selection([
+        ('0', 'Måndag'), ('1', 'Tisdag'), ('2', 'Onsdag'),
+        ('3', 'Torsdag'), ('4', 'Fredag'), ('5', 'Lördag'),
+        ('6', 'Söndag'),
+    ], string='Veckodag för profilomräkning', default='4',
+        help='Dagen då intresseprofilen räknas om (cron kör dagligen).')
     ai_digest_enabled = fields.Boolean('Daglig digest', default=False)
     ai_digest_weekday = fields.Selection([
         ('0', 'Måndag'), ('1', 'Tisdag'), ('2', 'Onsdag'),
@@ -40,4 +46,24 @@ class ResUsers(models.Model):
             'res_model': 'user_mail_ai.rule',
             'view_mode': 'list,form',
             'domain': [('user_id', '=', self.id)],
+        }
+
+    def action_refresh_mail_memory(self):
+        """Min profil: bygg minnet för mina ännu ej indexerade mail.
+
+        Kör samma kärna som cronen (_refresh_memory) men scopad till
+        env.user — rör aldrig någon annan användares mail.
+        """
+        self.ensure_one()
+        Mail = self.env['user_mail_ai.mail']
+        done = Mail.with_user(self)._refresh_memory(self)
+        return {
+            'type': 'ir.actions.client',
+            'tag': 'display_notification',
+            'params': {
+                'title': 'Mail-minne uppdaterat',
+                'message': '%s mail synkades.' % done,
+                'type': 'success' if done else 'info',
+                'sticky': False,
+            },
         }
