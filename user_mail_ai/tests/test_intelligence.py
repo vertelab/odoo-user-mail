@@ -271,6 +271,20 @@ class TestUserMailAiIntelligence(TransactionCase):
         # men aldrig kvar på default 'pending'.
         self.assertIn(rec.memory_state, ('synced', 'failed'))
 
+    def test_ingest_creates_graph_node(self):
+        """8.3: ingest → :MailMessage-nod finns + markören satt.
+
+        Kräver fungerande AGE (search_path-fixen i ai_agent_core). Om grafen
+        inte är användbar i miljön hoppas testet över — annars är detta det
+        starka beviset att minnet byggs vid ingest.
+        """
+        rec = self._ingest(message_id='<mem-graph@example.com>')
+        if rec.memory_state != 'synced':
+            self.skipTest('AGE-grafen är inte användbar i denna miljö')
+        self.assertTrue(rec._graph_node_exists(),
+                        ':MailMessage-noden ska finnas efter ingest')
+        self.assertIsNotNone(rec.memory_synced_at)
+
     def test_memory_marker_default_pending(self):
         rec = self._ingest(message_id='<mem-2@example.com>')
         # Fältet finns och har ett värde ur selectionen.
