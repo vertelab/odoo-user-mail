@@ -205,3 +205,61 @@ class TestImap(TransactionCase):
         self.assertTrue('last_imap_sync' in self.env['res.users']._fields)
         self.assertFalse(self.env.user.imap_poll_enabled,
                          "Poll ska vara opt-in per användare")
+
+    # ── Poll-flödet med mockad IMAP (7.3-kärnan, utan riktig server) ──
+
+    def test_poll_user_updates_last_imap_sync(self):
+        """7.3: poll → last_imap_sync uppdateras.
+
+        Mockar IMAP4_SSL så hela flödet (connect → search → fetch →
+        normalisera → _on_new_messages → last_imap_sync) kan verifieras utan
+        en riktig brevlåda. Det är mekanismen 7.3 vill bekräfta; den riktiga
+        servern krävs bara för att bekräfta nätverksdelen.
+        """
+        from unittest.mock import patch, MagicMock
+        from email.message import EmailMessage
+
+        self.user.imap_password = self.user._encrypt_imap_pw('x')
+        self.user.last_imap_sync = False
+        self.user.imap_poll_enabled = True
+        # Pollern kräver postfix_mail (IMAP-login-namnet). Sätt den direkt —
+        # postfix_mail är ett compute-fält som annars kräver postfix_active.
+        self.user.postfix_mail = 'poll-test@vertel.se'
+
+        msg = EmailMessage()
+        msg['Message-ID'] = '<poll-test-1@example.com>'
+        msg['Subject'] = 'Poll-test'
+        msg['From'] = 'Anna <anna@example.com>'
+        msg['To'] = 'kalle@vertel.se'
+        msg['Date'] = 'Mon, 05 Aug 2026 10:00:00 +0200'
+        msg.set_content('Hej!')
+        raw = msg.as_bytes()
+
+        fake = MagicMock()
+        fake.select.return_value = ('OK', [b'1'])
+        fake.search.return_value = ('OK', [b'1'])
+        fake.fetch.return_value = ('OK', [(b'1 (BODY[] {123}', raw)])
+        fake.login.return_value = ('OK', [b'logged in'])
+
+        with patch('imaplib.IMAP4_SSL', return_value=fake):
+            n = self.env['user.mail.imap'].with_user(self.user).action_poll_user()
+
+        self.assertEqual(n, 1, 'ett nytt mail ska pollas')
+        self.assertTrue(self.user.last_imap_sync,
+                        'last_imap_sync ska sättas efter lyckad poll')
+        # Readonly-säkerhet: BODY.PEEK, aldrig STORE (flaggor).
+        self.assertTrue(fake.fetch.called)
+        self.assertFalse(fake.store.called, 'pollern får aldrig sätta flaggor')
+
+    def test_poll_skips_when_no_password(self):
+        """Pollern hoppar över användare utan lösenord (ingen UserError)."""
+        from unittest.mock import patch
+        self.user.imap_password = False
+        self.env.cr.execute(
+            "UPDATE res_users SET imap_poll_enabled = true, "
+            "imap_password = NULL WHERE id = %s", (self.user.id,))
+        self.user.invalidate_recordset()
+        with patch('imaplib.IMAP4_SSL') as m:
+            self.env['user.mail.imap'].action_poll_all()
+            self.assertFalse(m.called,
+                             'ingen IMAP-anslutning ska göras utan lösenord')
