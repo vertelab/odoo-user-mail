@@ -6,7 +6,7 @@
     'description': """
 Lär dig koppla upp din e-post, läsa och skicka, och använda AI-assistenten i inkorgen.
 """,
-    'author': 'Vertel AB',
+    'author': 'Vertel Sverige AB',
     'website': 'https://vertel.se',
     'license': 'LGPL-3',
     'category': 'Website/eLearning',

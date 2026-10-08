@@ -21,7 +21,7 @@ Fields synced:
     - forward_active, forward_address
     - quota, spam_kill_level
     ''',
-    'author': 'Vertel AB',
+    'author': 'Vertel Sverige AB',
     'website': 'https://vertel.se/apps/odoo-user-mail/user_scim',
     'license': 'AGPL-3',
     'depends': [

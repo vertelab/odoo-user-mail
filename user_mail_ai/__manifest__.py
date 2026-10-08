@@ -4,7 +4,7 @@
     'version': '18.0.1.4.0',
     'summary': 'Personlig AI-mailhjälpreda — IMAP-triage, Odoo Mind (graf), Teams→kalender',
     'category': 'Productivity',
-    'author': 'Vertel AB',
+    'author': 'Vertel Sverige AB',
     'website': 'https://vertel.se/apps/odoo-user-mail/user_mail_ai',
     'license': 'AGPL-3',
     'description': '''

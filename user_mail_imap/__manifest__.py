@@ -17,7 +17,7 @@ IMAP Client
         - Extends Odoo: Builds on user.mail.imap, user.mail.poll, user.mail.processed.
     ''',
     'category': 'Productivity',
-    'author': 'Vertel AB',
+    'author': 'Vertel Sverige AB',
     'website': 'https://vertel.se/apps/odoo-user-mail/user_mail_imap',
     'license': 'AGPL-3',
     'depends': ['user_mail_common', 'mail', 'web'],
