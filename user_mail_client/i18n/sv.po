@@ -46,8 +46,8 @@ msgstr "<strong>​Port</strong>"
 
 #. module: user_mail_client
 #: model_terms:ir.ui.view,arch_db:user_mail_client.mail_config_report
-msgid "<strong>​SSL/TSL</strong>"
-msgstr "<strong>​SSL/TSL</strong>"
+msgid "<strong>​SSL/TLS</strong>"
+msgstr "<strong>​SSL/TLS</strong>"
 
 #. module: user_mail_client
 #: model_terms:ir.ui.view,arch_db:user_mail_client.mail_config_report
@@ -242,3 +242,19 @@ msgstr "STARTTLS"
 #: model_terms:ir.ui.view,arch_db:user_mail_client.mail_config_report
 msgid "​Username"
 msgstr "Användarnamn"
+
+#. module: user_mail_client
+msgid "Calendar and Contacts (CalDAV / CardDAV)"
+msgstr "Kalender och kontakter (CalDAV / CardDAV)"
+
+#. module: user_mail_client
+msgid "Documents (WebDAV)"
+msgstr "Dokument (WebDAV)"
+
+#. module: user_mail_client
+msgid "Server URL"
+msgstr "Server-URL"
+
+#. module: user_mail_client
+msgid "Mount your Odoo documents directly in Finder, Explorer or Nautilus."
+msgstr "Montera dina Odoo-dokument direkt i Finder, Utforskaren eller Nautilus."
