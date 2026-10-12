@@ -6,7 +6,9 @@ export class Composer extends Component {
     static template = "user_mail_imap.Composer";
     static props = {
         type: String,
-        message: { type: Object, optional: true },
+        // Opened with `openComposer('new', null)`, so this prop receives
+        // `null` — `optional: true` alone only tolerates `undefined`.
+        message: { type: [Object, { value: null }], optional: true },
         onSend: Function,
         onClose: Function,
     };

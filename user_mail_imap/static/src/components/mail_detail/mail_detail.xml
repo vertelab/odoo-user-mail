@@ -37,7 +37,18 @@
                     </div>
                 </div>
                 <div class="flex-grow-1 overflow-auto p-3">
+                    <!--
+                        sandbox: the mail body is untrusted HTML. Without it the
+                        iframe inherits allow-scripts and a message could run
+                        scripts in the application context. allow-same-origin
+                        keeps inline images working; allow-popups lets links
+                        open a new window. Deliberately NOT allow-scripts and
+                        NOT allow-top-navigation: a message must not execute
+                        code or navigate the application away.
+                    -->
                     <iframe class="w-100 h-100 border-0"
+                        sandbox="allow-same-origin allow-popups allow-popups-to-escape-sandbox"
+                        t-on-load="onIframeLoad"
                         t-att-srcdoc="props.message.body_html"/>
                 </div>
                 <t t-if="props.message.attachments &amp;&amp; props.message.attachments.length">

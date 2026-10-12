@@ -263,3 +263,137 @@ class TestImap(TransactionCase):
             self.env['user.mail.imap'].action_poll_all()
             self.assertFalse(m.called,
                              'ingen IMAP-anslutning ska göras utan lösenord')
+
+    # ── Mail-länkar: _prepare_body_html (fix-mail-link-target) ──
+
+    def test_prepare_body_html_adds_target(self):
+        """Länkar i mail-HTML ska öppnas i nytt fönster."""
+        from odoo.addons.user_mail_imap.models.imap_server import (
+            _prepare_body_html)
+        out = _prepare_body_html('<a href="https://example.com">x</a>')
+        self.assertIn('target="_blank"', out)
+        self.assertIn('rel="noopener noreferrer"', out)
+
+    def test_prepare_body_html_preserves_existing_target(self):
+        """En länk som redan har target ska lämnas orörd."""
+        from odoo.addons.user_mail_imap.models.imap_server import (
+            _prepare_body_html)
+        src = '<a href="x" target="_self">y</a>'
+        self.assertEqual(_prepare_body_html(src), src)
+
+    def test_prepare_body_html_skips_fragments_and_anchors(self):
+        """Ankare och href utan värde ska inte få target."""
+        from odoo.addons.user_mail_imap.models.imap_server import (
+            _prepare_body_html)
+        # Rena fragmentlänkar stannar i samma dokument.
+        self.assertEqual(_prepare_body_html('<a href="#a">x</a>'),
+                         '<a href="#a">x</a>')
+        self.assertEqual(_prepare_body_html("<a href='#a'>x</a>"),
+                         "<a href='#a'>x</a>")
+        # <a name="..."> är inget länkmål.
+        self.assertEqual(_prepare_body_html('<a name="a">x</a>'),
+                         '<a name="a">x</a>')
+
+    def test_prepare_body_html_handles_single_quotes_and_case(self):
+        """Mail-HTML använder ofta enkelcitat och versaler."""
+        from odoo.addons.user_mail_imap.models.imap_server import (
+            _prepare_body_html)
+        self.assertIn('target="_blank"', _prepare_body_html("<a href='x'>y</a>"))
+        self.assertIn('target="_blank"', _prepare_body_html('<A HREF="x">y</A>'))
+
+    def test_prepare_body_html_passthrough_empty(self):
+        """Tom/None-HTML ska passera oförändrad."""
+        from odoo.addons.user_mail_imap.models.imap_server import (
+            _prepare_body_html)
+        self.assertIsNone(_prepare_body_html(None))
+        self.assertEqual(_prepare_body_html(''), '')
+
+    # ── Sökning: action_search_mails (add-imap-mail-search) ──
+
+    def test_search_mails_builds_nested_or_criteria(self):
+        """Sökningen ska täcka FROM, SUBJECT och TEXT (nästlad OR)."""
+        from unittest.mock import patch, MagicMock
+        from email.message import EmailMessage
+
+        self.user.imap_password = self.user._encrypt_imap_pw('x')
+        self.user.postfix_mail = 'search-test@vertel.se'
+
+        msg = EmailMessage()
+        msg['Message-ID'] = '<search-1@example.com>'
+        msg['Subject'] = 'Faktura 123'
+        msg['From'] = 'Anna <anna@example.com>'
+        msg['Date'] = 'Mon, 05 Aug 2026 10:00:00 +0200'
+        msg.set_content('Hej!')
+        raw = msg.as_bytes()
+
+        fake = MagicMock()
+        fake.select.return_value = ('OK', [b'1'])
+        fake.search.return_value = ('OK', [b'1'])
+        fake.fetch.return_value = ('OK', [(b'1 (BODY[] {123}', raw)])
+        fake.login.return_value = ('OK', [b'logged in'])
+
+        with patch('imaplib.IMAP4_SSL', return_value=fake):
+            res = self.env['user.mail.imap'].with_user(self.user)\
+                .action_search_mails('INBOX', 'faktura', 0, 80)
+
+        self.assertEqual(res['total'], 1)
+        self.assertEqual(res['messages'][0]['subject'], 'Faktura 123')
+        # IMAP:s OR tar två argument — tre kriterier kräver nästling.
+        criteria = fake.search.call_args[0][1]
+        self.assertIn('FROM "faktura"', criteria)
+        self.assertIn('SUBJECT "faktura"', criteria)
+        self.assertIn('TEXT "faktura"', criteria)
+        self.assertTrue(criteria.startswith('OR OR'),
+                        'tre kriterier ska nästlas som OR OR a b c')
+
+    def test_search_mails_escapes_quotes(self):
+        """Citattecken i sökordet får inte bryta IMAP-strängen."""
+        from unittest.mock import patch, MagicMock
+
+        self.user.imap_password = self.user._encrypt_imap_pw('x')
+        self.user.postfix_mail = 'search-test@vertel.se'
+
+        fake = MagicMock()
+        fake.select.return_value = ('OK', [b'1'])
+        fake.search.return_value = ('OK', [b''])
+        fake.login.return_value = ('OK', [b'logged in'])
+
+        with patch('imaplib.IMAP4_SSL', return_value=fake):
+            self.env['user.mail.imap'].with_user(self.user)\
+                .action_search_mails('INBOX', 'a"b', 0, 80)
+
+        criteria = fake.search.call_args[0][1]
+        self.assertIn('\\"', criteria, 'citattecken ska escapas')
+        self.assertNotIn('"a"b"', criteria, 'osparad sträng får inte uppstå')
+
+    def test_search_mails_empty_query_returns_nothing(self):
+        """Tom sökning ska inte öppna en IMAP-anslutning."""
+        from unittest.mock import patch
+
+        self.user.imap_password = self.user._encrypt_imap_pw('x')
+        self.user.postfix_mail = 'search-test@vertel.se'
+
+        with patch('imaplib.IMAP4_SSL') as m:
+            res = self.env['user.mail.imap'].with_user(self.user)\
+                .action_search_mails('INBOX', '   ', 0, 80)
+
+        self.assertEqual(res, {'messages': [], 'total': 0})
+        self.assertFalse(m.called, 'ingen anslutning för tom sökning')
+
+    def test_search_mails_handles_failed_search(self):
+        """Misslyckad SEARCH ska ge tomt resultat, inte krascha."""
+        from unittest.mock import patch, MagicMock
+
+        self.user.imap_password = self.user._encrypt_imap_pw('x')
+        self.user.postfix_mail = 'search-test@vertel.se'
+
+        fake = MagicMock()
+        fake.select.return_value = ('OK', [b'1'])
+        fake.search.return_value = ('NO', [b'error'])
+        fake.login.return_value = ('OK', [b'logged in'])
+
+        with patch('imaplib.IMAP4_SSL', return_value=fake):
+            res = self.env['user.mail.imap'].with_user(self.user)\
+                .action_search_mails('INBOX', 'x', 0, 80)
+
+        self.assertEqual(res, {'messages': [], 'total': 0})

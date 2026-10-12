@@ -1,11 +1,21 @@
 /** @odoo-module **/
+import { reactive } from "@odoo/owl";
 import { registry } from "@web/core/registry";
 import { rpc } from "@web/core/network/rpc";
 
 const store = {
     dependencies: [],
     start(env) {
-        let state = {
+        // `reactive` makes the state observable by OWL. Components read this
+        // object directly — no useState copy and no subscribe callback.
+        //
+        // The previous implementation did `useState(getState())` followed by
+        // `Object.assign(proxy, original)` on every notification. That is a
+        // no-op: OWL's reactive proxy compares values on write and skips the
+        // update when the value is unchanged, and `Object.assign` copies the
+        // very same object references back onto the proxy. The view therefore
+        // never re-rendered when a message was selected.
+        const state = reactive({
             folders: [],
             messages: [],
             selectedMessage: null,
@@ -15,56 +25,46 @@ const store = {
             offset: 0,
             loading: false,
             loadingDetail: false,
-        };
+            searchQuery: '',
+            searchActive: false,
+            searchTotal: 0,
+        });
 
-        // Cache: store data per folder
+        // Cache: store data per folder. Deliberately NOT part of the reactive
+        // state: the background preload writes to it without changing what is
+        // displayed, and a reactive cache would trigger renders for nothing.
         const folderCache = {};       // folderCache[folder] = { messages, total, offset }
         let foldersCached = null;
         let selectedUid = null;       // Track requested UID to prevent race conditions
-        let lastFolderRequested = null;
-
-        const listeners = new Set();
-
-        function notify() {
-            listeners.forEach(fn => fn(state));
-        }
-
-        function syncState(src) {
-            Object.assign(state, src);
-            notify();
-        }
 
         return {
-            subscribe(fn) {
-                listeners.add(fn);
-                return () => listeners.delete(fn);
-            },
-            getState() {
-                return state;
-            },
+            // The one reactive state object. Components read it directly
+            // (`this.state = this.store.state`); there is no subscribe/copy
+            // pair, which is what made the detail view miss updates.
+            state,
 
             async checkPassword() {
                 const res = await rpc('/imap/check');
-                syncState({ hasPassword: res.has_password });
+                state.hasPassword = res.has_password;
                 return res.has_password;
             },
 
             async setPassword(password) {
                 await rpc('/imap/set_password', { password });
-                syncState({ hasPassword: true });
+                state.hasPassword = true;
             },
 
             async loadFolders(force = false) {
                 // Serve cached immediately, refresh in background
                 if (foldersCached && !force) {
-                    syncState({ folders: foldersCached });
+                    state.folders = foldersCached;
                     // Background refresh
                     this._refreshFolders();
                     return foldersCached;
                 }
                 const folders = await rpc('/imap/folders');
                 foldersCached = folders;
-                syncState({ folders });
+                state.folders = folders;
                 return folders;
             },
 
@@ -73,7 +73,7 @@ const store = {
                     const folders = await rpc('/imap/folders');
                     if (JSON.stringify(folders) !== JSON.stringify(foldersCached)) {
                         foldersCached = folders;
-                        syncState({ folders });
+                        state.folders = folders;
                     }
                 } catch (e) { /* silent */ }
             },
@@ -82,7 +82,9 @@ const store = {
                 // Always show loading when switching folders
                 const switchingFolder = state.currentFolder !== folder;
                 if (switchingFolder) {
-                    syncState({ loading: true, currentFolder: folder, selectedMessage: null });
+                    state.loading = true;
+                    state.currentFolder = folder;
+                    state.selectedMessage = null;
                 }
 
                 const cacheKey = folder;
@@ -90,13 +92,11 @@ const store = {
 
                 if (offset === 0 && cached) {
                     // Return cached immediately, then background refresh
-                    syncState({
-                        messages: cached.messages,
-                        totalMessages: cached.total,
-                        offset: cached.offset,
-                        currentFolder: folder,
-                        loading: false,
-                    });
+                    state.messages = cached.messages;
+                    state.totalMessages = cached.total;
+                    state.offset = cached.offset;
+                    state.currentFolder = folder;
+                    state.loading = false;
                     this._refreshMessages(folder);
                     // Preload other folders in background
                     this._preloadFolders(folder);
@@ -104,7 +104,7 @@ const store = {
                 }
 
                 if (offset > 0) {
-                    syncState({ loading: true });
+                    state.loading = true;
                 }
 
                 try {
@@ -114,17 +114,17 @@ const store = {
                         : [...(cached?.messages || []), ...res.messages];
 
                     folderCache[cacheKey] = { messages, total: res.total, offset: offset + 80 };
-                    syncState({
-                        messages,
-                        totalMessages: res.total,
-                        offset: offset + 80,
-                        currentFolder: folder,
-                        loading: false,
-                    });
+                    // Replace the array wholesale: OWL tracks a new reference
+                    // reliably, deep in-place mutations less so.
+                    state.messages = messages;
+                    state.totalMessages = res.total;
+                    state.offset = offset + 80;
+                    state.currentFolder = folder;
+                    state.loading = false;
                     // Preload other folders in background
                     this._preloadFolders(folder);
                 } catch (e) {
-                    syncState({ loading: false });
+                    state.loading = false;
                 }
             },
 
@@ -149,31 +149,87 @@ const store = {
                     if (!cached || JSON.stringify(res.messages) !== JSON.stringify(cached.messages)) {
                         folderCache[folder] = { messages: res.messages, total: res.total, offset: 50 };
                         if (state.currentFolder === folder) {
-                            syncState({
-                                messages: res.messages,
-                                totalMessages: res.total,
-                                offset: 50,
-                            });
+                            state.messages = res.messages;
+                            state.totalMessages = res.total;
+                            state.offset = 50;
                         }
                     }
                 } catch (e) { /* silent */ }
+            },
+
+            /**
+             * Search the whole folder on the server (IMAP SEARCH), not just the
+             * messages already loaded in the list.
+             *
+             * @param {string} query   free-text query; empty clears the search
+             * @param {string} folder  folder to search, defaults to the current one
+             * @param {number} offset  pagination offset
+             */
+            async searchMails(query, folder = null, offset = 0) {
+                const targetFolder = folder || state.currentFolder;
+                const term = (query || '').trim();
+
+                if (!term) {
+                    // Clearing the search restores the normal folder listing.
+                    state.searchQuery = '';
+                    state.searchActive = false;
+                    state.searchTotal = 0;
+                    await this.loadMessages(targetFolder, 0);
+                    return;
+                }
+
+                if (offset === 0) {
+                    state.loading = true;
+                    state.currentFolder = targetFolder;
+                    state.searchQuery = term;
+                    state.searchActive = true;
+                    state.selectedMessage = null;
+                }
+
+                try {
+                    const res = await rpc('/imap/search', {
+                        folder: targetFolder,
+                        query: term,
+                        offset,
+                        limit: 80,
+                    });
+                    const messages = offset === 0
+                        ? res.messages
+                        : [...state.messages, ...res.messages];
+                    state.messages = messages;
+                    state.totalMessages = res.total;
+                    state.searchTotal = res.total;
+                    state.offset = offset + 80;
+                    state.loading = false;
+                } catch (e) {
+                    state.loading = false;
+                    state.messages = [];
+                    state.totalMessages = 0;
+                    state.searchTotal = 0;
+                }
+            },
+
+            /** Clear an active search and return to the folder listing. */
+            async clearSearch() {
+                await this.searchMails('', state.currentFolder, 0);
             },
 
             async loadMail(folder, uid) {
                 // Track the requested UID to prevent out-of-order responses
                 const requestUid = uid;
                 selectedUid = requestUid;
-                syncState({ loadingDetail: true });
+                state.loadingDetail = true;
 
                 try {
                     const msg = await rpc('/imap/mail', { folder, uid });
                     // Only apply if this is still the latest request
                     if (selectedUid === requestUid) {
-                        syncState({ selectedMessage: msg, loadingDetail: false });
+                        state.selectedMessage = msg;
+                        state.loadingDetail = false;
                     }
                 } catch (e) {
                     if (selectedUid === requestUid) {
-                        syncState({ loadingDetail: false });
+                        state.loadingDetail = false;
                     }
                 }
             },

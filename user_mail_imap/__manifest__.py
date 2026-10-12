@@ -1,6 +1,6 @@
 {
     'name': 'User Mail: IMAP Client',
-    'version': '18.0.1.3.0',
+    'version': '18.0.1.3.1',
     'summary': 'IMAP email client integrated in Odoo — with per-user poller.',
     'description': '''
 IMAP Client
@@ -42,6 +42,8 @@ IMAP Client
             'user_mail_imap/static/src/components/folder_tree/folder_tree.xml',
             'user_mail_imap/static/src/components/mail_list/mail_list.esm.js',
             'user_mail_imap/static/src/components/mail_list/mail_list.xml',
+            'user_mail_imap/static/src/components/mail_search/mail_search.esm.js',
+            'user_mail_imap/static/src/components/mail_search/mail_search.xml',
             'user_mail_imap/static/src/components/mail_detail/mail_detail.esm.js',
             'user_mail_imap/static/src/components/mail_detail/mail_detail.xml',
             'user_mail_imap/static/src/components/composer/composer.esm.js',

@@ -15,7 +15,10 @@
                     </div>
                 </t>
                 <t t-elif="!props.messages || !props.messages.length">
-                    <div class="text-center p-4 text-muted">Inga meddelanden</div>
+                    <div class="text-center p-4 text-muted">
+                        <t t-if="props.searchActive">No messages match your search</t>
+                        <t t-else="">Inga meddelanden</t>
+                    </div>
                 </t>
                 <t t-else="">
                     <t t-foreach="props.messages" t-as="msg" t-key="msg.uid">

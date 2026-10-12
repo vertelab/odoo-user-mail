@@ -18,6 +18,38 @@ _logger = logging.getLogger(__name__)
 # Simple mail detail cache
 _mail_cache = {}
 
+# Matches an opening <a> tag that has an href but no target attribute yet.
+# The lookahead requires href (so `<a name="anchor">` is left alone), skips
+# pure fragment links (href="#..." / href='#...' — they must stay in the same
+# document), and the negative lookahead preserves an existing target
+# (case-insensitively, thanks to re.IGNORECASE). Both quote styles are
+# accepted: mail HTML frequently uses single quotes.
+_LINK_RE = re.compile(
+    r'<a\s+(?=[^>]*\bhref=["\'](?!#))(?![^>]*\btarget=)([^>]*)>',
+    re.IGNORECASE,
+)
+
+
+def _prepare_body_html(html):
+    """Make links in a mail body open in a new window.
+
+    Mail HTML is rendered inside an iframe. Without this, a link click would
+    navigate the iframe itself: Odoo answers its own webclient with
+    ``X-Frame-Options: DENY``, so the browser refuses to display the target.
+    Opening in a new window keeps the mail client in place and sidesteps the
+    framing restriction entirely.
+
+    ``rel="noopener noreferrer"`` protects against the opened page reaching
+    back through ``window.opener``.
+    """
+    if not html:
+        return html
+
+    def repl(match):
+        return '<a %s target="_blank" rel="noopener noreferrer">' % match.group(1).rstrip()
+
+    return _LINK_RE.sub(repl, html)
+
 
 class ImapServer(models.AbstractModel):
     _name = 'user.mail.imap'
@@ -115,6 +147,60 @@ class ImapServer(models.AbstractModel):
         finally:
             conn.logout()
 
+    def action_search_mails(self, folder='INBOX', query='', offset=0, limit=80):
+        """Sök i en mapp med IMAP:s egna SEARCH-kommando.
+
+        Söker server-side i avsändare, rubrik och text (FROM/SUBJECT/TEXT),
+        så hela mappen täcks — inte bara de meddelanden som redan hämtats
+        till listan. Returnerar samma dict-form som action_fetch_mails.
+
+        IMAP:s ``OR`` tar exakt två söknycklar, så tre kriterier kräver
+        nästling: ``OR OR FROM "q" SUBJECT "q" TEXT "q"`` läses som
+        ``OR (OR (FROM q) (SUBJECT q)) (TEXT q)``.
+        """
+        term = (query or '').strip()
+        if not term:
+            return {'messages': [], 'total': 0}
+        # Escapa citattecken så att de inte bryter IMAP-strängen.
+        escaped = term.replace('\\', '\\\\').replace('"', '\\"')
+        criteria = 'OR OR FROM "%s" SUBJECT "%s" TEXT "%s"' % (
+            escaped, escaped, escaped)
+
+        conn = self._connect_imap()
+        try:
+            conn.select(folder)
+            typ, data = conn.search(None, criteria)
+            if typ != 'OK':
+                return {'messages': [], 'total': 0}
+            uids = data[0].split() if data and data[0] else []
+            # Nyaste först: IMAP returnerar UID i stigande ordning.
+            uids = sorted(uids, key=int, reverse=True)
+            total = len(uids)
+            page = uids[offset:offset + limit]
+            messages = []
+            for uid in page:
+                _, msg_data = conn.fetch(uid, '(FLAGS BODY.PEEK[HEADER])')
+                raw = msg_data[0]
+                if not isinstance(raw, tuple):
+                    continue
+                flags, header_raw = raw
+                msg = BytesParser(policy=policy.default).parsebytes(header_raw)
+                messages.append({
+                    'uid': int(uid),
+                    'seen': b'\\Seen' in flags,
+                    'flagged': b'\\Flagged' in flags,
+                    'from_': str(msg.get('From', '')),
+                    'subject': str(msg.get('Subject', '(No subject)')),
+                    'date': str(msg.get('Date', '')),
+                    'message_id': str(msg.get('Message-ID', '')),
+                })
+            return {
+                'messages': messages,
+                'total': total,
+            }
+        finally:
+            conn.logout()
+
     def action_fetch_mail(self, folder, uid):
         cache_key = f"{self.env.user.id}:{folder}:{uid}"
         if cache_key in _mail_cache:
@@ -154,7 +240,7 @@ class ImapServer(models.AbstractModel):
                 'cc_': str(msg.get('Cc', '')),
                 'subject': str(msg.get('Subject', '(No subject)')),
                 'date': str(msg.get('Date', '')),
-                'body_html': body_html or body_text or '(No content)',
+                'body_html': _prepare_body_html(body_html or body_text or '(No content)'),
                 'attachments': attachments,
             }
             _mail_cache[cache_key] = result

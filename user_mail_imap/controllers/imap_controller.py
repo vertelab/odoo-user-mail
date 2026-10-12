@@ -26,6 +26,11 @@ class ImapController(http.Controller):
         imap = request.env['user.mail.imap'].sudo()
         return imap.action_fetch_mails(folder, offset, limit)
 
+    @http.route('/imap/search', type='json', auth='user')
+    def search(self, folder='INBOX', query='', offset=0, limit=50):
+        imap = request.env['user.mail.imap'].sudo()
+        return imap.action_search_mails(folder, query, offset, limit)
+
     @http.route('/imap/mail', type='json', auth='user')
     def mail(self, folder, uid):
         imap = request.env['user.mail.imap'].sudo()

@@ -6,17 +6,20 @@ import { standardActionServiceProps } from "@web/webclient/actions/action_servic
 import { FolderTree } from "../components/folder_tree/folder_tree.esm.js";
 import { MailList } from "../components/mail_list/mail_list.esm.js";
 import { MailDetail } from "../components/mail_detail/mail_detail.esm.js";
+import { MailSearch } from "../components/mail_search/mail_search.esm.js";
 import { Composer } from "../components/composer/composer.esm.js";
 
 class MailImap extends Component {
     static template = "user_mail_imap.MailImap";
-    static components = { FolderTree, MailList, MailDetail, Composer };
+    static components = { FolderTree, MailList, MailDetail, MailSearch, Composer };
     static props = { ...standardActionServiceProps };
 
     setup() {
         this.store = useService("user_mail_imap.store");
-        this.state = useState(this.store.getState());
-        this.store.subscribe((s) => Object.assign(this.state, s));
+        // Read the store's reactive state directly. OWL tracks property access
+        // during render, so a change to any field re-renders the component.
+        // Copying it with useState + Object.assign would break that tracking.
+        this.state = this.store.state;
         this.showComposer = useState({ visible: false, type: 'new', message: null });
         this.passwordInput = useRef("passwordInput");
         this.mailListContainer = useRef("mailListContainer");
@@ -53,15 +56,37 @@ class MailImap extends Component {
     }
 
     async onFolderClick(folder) {
+        // Switching folder cancels any active search.
+        this.state.searchQuery = '';
+        this.state.searchActive = false;
+        this.state.searchTotal = 0;
         this.state.currentFolder = folder;
         this.state.selectedMessage = null;
         await this.store.loadMessages(folder, 0);
     }
 
+    async onSearch(query) {
+        await this.store.searchMails(query, this.state.currentFolder, 0);
+    }
+
+    async onClearSearch() {
+        await this.store.clearSearch();
+    }
+
+    loadMore() {
+        if (this.state.loading) {
+            return;
+        }
+        if (this.state.searchActive) {
+            this.store.searchMails(this.state.searchQuery, this.state.currentFolder, this.state.offset);
+        } else {
+            this.store.loadMessages(this.state.currentFolder, this.state.offset);
+        }
+    }
+
     async onMessageClick(uid) {
         await this.store.loadMail(this.state.currentFolder, uid);
     }
-
     openComposer(type, msg) {
         this.showComposer.visible = true;
         this.showComposer.type = type;
@@ -77,16 +102,14 @@ class MailImap extends Component {
         this.closeComposer();
     }
 
-    loadMore() {
-        if (!this.state.loading) {
-            this.store.loadMessages(this.state.currentFolder, this.state.offset);
-        }
-    }
-
     async onSync() {
         await this.store.sync();
         await this.store.loadFolders(true);
-        await this.store.loadMessages(this.state.currentFolder, 0);
+        if (this.state.searchActive) {
+            await this.store.searchMails(this.state.searchQuery, this.state.currentFolder, 0);
+        } else {
+            await this.store.loadMessages(this.state.currentFolder, 0);
+        }
     }
 
     startResize(ev) {
