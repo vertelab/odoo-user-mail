@@ -25,9 +25,6 @@
                             <i class="fa fa-folder-o me-1" style="width: 14px;"/>
                             <small class="text-truncate" t-out="f.name"/>
                         </div>
-                        <t t-if="!state.collapsed[f.fullName]">
-                            <!-- children rendered by walk() in next iteration -->
-                        </t>
                     </t>
                     <!-- Case 2: virtual namespace with children → expandable only, not clickable -->
                     <t t-elif="f.hasChildren and !f.isReal">

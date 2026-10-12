@@ -1,8 +1,10 @@
 /** @odoo-module **/
 import { Component } from "@odoo/owl";
+import { MailSearch } from "../mail_search/mail_search.esm.js";
 
 export class MailList extends Component {
     static template = "user_mail_imap.MailList";
+    static components = { MailSearch };
     static props = {
         messages: { type: Array, optional: true },
         total: Number,
@@ -13,6 +15,10 @@ export class MailList extends Component {
         selectedMessage: { type: [Object, { value: null }], optional: true },
         currentFolder: String,
         searchActive: { type: Boolean, optional: true },
+        searchQuery: { type: String, optional: true },
+        searchTotal: { type: Number, optional: true },
+        onSearch: Function,
+        onClearSearch: Function,
         onMessageClick: Function,
         loadMore: Function,
         openComposer: Function,

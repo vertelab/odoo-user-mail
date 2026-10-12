@@ -6,20 +6,30 @@ import { standardActionServiceProps } from "@web/webclient/actions/action_servic
 import { FolderTree } from "../components/folder_tree/folder_tree.esm.js";
 import { MailList } from "../components/mail_list/mail_list.esm.js";
 import { MailDetail } from "../components/mail_detail/mail_detail.esm.js";
-import { MailSearch } from "../components/mail_search/mail_search.esm.js";
 import { Composer } from "../components/composer/composer.esm.js";
 
 class MailImap extends Component {
     static template = "user_mail_imap.MailImap";
-    static components = { FolderTree, MailList, MailDetail, MailSearch, Composer };
+    static components = { FolderTree, MailList, MailDetail, Composer };
     static props = { ...standardActionServiceProps };
 
     setup() {
         this.store = useService("user_mail_imap.store");
-        // Read the store's reactive state directly. OWL tracks property access
-        // during render, so a change to any field re-renders the component.
-        // Copying it with useState + Object.assign would break that tracking.
-        this.state = this.store.state;
+        // Wrap the store's state in useState so that this component's render
+        // function is registered as a subscriber.
+        //
+        // The store creates its state with `reactive({...})` and no callback.
+        // In OWL 2, `reactive()` with no callback uses NO_CALLBACK, and
+        // `observeTargetKey()` returns immediately for NO_CALLBACK — so merely
+        // reading `this.store.state` subscribes to nothing. Writes to the store
+        // then update the data without re-rendering: the mail list, the detail
+        // pane and the search results all stayed stale until the component was
+        // recreated (leaving the view and coming back).
+        //
+        // `useState(reactive(x))` returns a proxy over the *same* underlying
+        // target but bound to this component's render callback, which is the
+        // pattern Odoo core uses (`this.ui = useState(useService("ui"))`).
+        this.state = useState(this.store.state);
         this.showComposer = useState({ visible: false, type: 'new', message: null });
         this.passwordInput = useRef("passwordInput");
         this.mailListContainer = useRef("mailListContainer");

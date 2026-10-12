@@ -8,6 +8,18 @@
                     <span class="text-muted small ms-2" t-if="props.total">(<t t-out="props.total"/>)</span>
                 </h6>
             </div>
+            <!--
+                The search field belongs to the mail list, not to the folder
+                tree: it searches the *current folder*. It is rendered here, as
+                a sibling of the list header, so the visual order reads
+                "folder name → search → messages". Previously it sat above the
+                list header, which made it look like a global search.
+            -->
+            <MailSearch query="props.searchQuery"
+                active="props.searchActive"
+                total="props.searchTotal"
+                onSearch="props.onSearch"
+                onClear="props.onClearSearch"/>
             <div class="flex-grow-1 overflow-auto">
                 <t t-if="props.loading">
                     <div class="text-center p-4 text-muted">

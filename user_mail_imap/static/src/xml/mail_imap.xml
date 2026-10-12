@@ -26,17 +26,16 @@
                     openComposer="() => this.openComposer('new', null)"/>
                 <div class="d-flex flex-grow-1" style="min-width: 0; position: relative;">
                     <div class="d-flex flex-column" t-ref="mailListContainer" style="width: 380px; min-width: 200px;">
-                        <MailSearch query="state.searchQuery"
-                            active="state.searchActive"
-                            total="state.searchTotal"
-                            onSearch="(q) => this.onSearch(q)"
-                            onClear="() => this.onClearSearch()"/>
                         <MailList messages="state.messages"
                             total="state.totalMessages"
                             loading="state.loading"
                             selectedMessage="state.selectedMessage"
                             currentFolder="state.currentFolder"
                             searchActive="state.searchActive"
+                            searchQuery="state.searchQuery"
+                            searchTotal="state.searchTotal"
+                            onSearch="(q) => this.onSearch(q)"
+                            onClearSearch="() => this.onClearSearch()"
                             onMessageClick="(uid) => this.onMessageClick(uid)"
                             loadMore="() => this.loadMore()"
                             openComposer="(type, msg) => this.openComposer(type, msg)"/>

@@ -17,14 +17,21 @@ export class FolderTree extends Component {
 
     get tree() {
         const t = this._buildTree(this.props.folders || []);
-        // Debug: log tree structure
-        if (t.length) {
-            console.log('FolderTree: input', this.props.folders?.length, 'items, output:', t.length, 'items');
-            for (const f of t.slice(0, 5)) {
-                console.log('  ', f.depth, f.isReal ? 'REAL' : 'VIRT', f.hasChildren ? 'HASCHILD' : 'LEAF', f.name, '→', f.fullName);
+        // Hide the descendants of a collapsed node. `_buildTree` returns a flat
+        // list where every node carries its `depth`, so a node is visible only
+        // if no ancestor is collapsed. Walking the list in order and tracking
+        // the depth below which everything is hidden is enough; the list is
+        // already in pre-order (parents before their children).
+        let hiddenBelowDepth = Infinity;
+        const visible = [];
+        for (const f of t) {
+            if (f.depth > hiddenBelowDepth) {
+                continue;
             }
+            visible.push(f);
+            hiddenBelowDepth = this.state.collapsed[f.fullName] ? f.depth : Infinity;
         }
-        return t;
+        return visible;
     }
 
     _buildTree(folders) {
