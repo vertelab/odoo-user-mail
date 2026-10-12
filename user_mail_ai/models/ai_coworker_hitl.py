@@ -44,6 +44,12 @@ class AICoworkerHITLMail(models.Model):
                         user.write({'ai_newsletter_move_enabled': True})
                     if triage:
                         triage._move_to_ai_newsletters()
+                elif rec.action_type == 'create_object':
+                    if triage:
+                        triage._do_create_object_from_hitl(rec)
+                elif rec.action_type == 'create_activity':
+                    if triage:
+                        triage._do_create_activity_from_hitl(rec)
             except Exception as e:
                 _logger.error('HITL approve dispatch failed (%s): %s',
                               rec.action_type, e)

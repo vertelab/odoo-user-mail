@@ -222,6 +222,12 @@ class UserMailAiIntelligence(models.Model):
                     else False
                 if self._try_handoff_to(specialist):
                     handled = True
+            elif rule.action == 'create_object':
+                if self._create_object(rule):
+                    handled = True
+            elif rule.action == 'create_activity':
+                if self._create_activity_on_object(rule):
+                    handled = True
             if handled:
                 break
         return handled, nudged
@@ -719,20 +725,24 @@ class UserMailAiIntelligence(models.Model):
         Idempotent: en användare får varje seed-regel en gång.
         """
         root = self.env.ref('base.user_root')
-        templates = self.env['user_mail_ai.rule'].search([
-            ('source', '=', 'seed'),
-            ('user_id', '=', root.id),
-        ])
+        # active_test=False: templates 4–7 are inactive in probe mode and
+        # would otherwise be filtered out by the ORM's active filter.
+        templates = self.env['user_mail_ai.rule'].with_context(
+            active_test=False).search([
+                ('source', '=', 'seed'),
+                ('user_id', '=', root.id),
+            ])
         if not templates:
             return 0
         users = self.env['res.users'].search([
             ('imap_poll_enabled', '=', True)])
         created = 0
         for user in users:
-            existing = set(self.env['user_mail_ai.rule'].search([
-                ('user_id', '=', user.id),
-                ('source', '=', 'seed'),
-            ]).mapped('name'))
+            existing = set(self.env['user_mail_ai.rule'].with_context(
+                active_test=False).search([
+                    ('user_id', '=', user.id),
+                    ('source', '=', 'seed'),
+                ]).mapped('name'))
             for t in templates:
                 if t.name in existing:
                     continue
@@ -744,6 +754,7 @@ class UserMailAiIntelligence(models.Model):
                     'condition_text': t.condition_text,
                     'action': t.action,
                     'action_config': t.action_config,
+                    'active': t.active,
                     'source': 'seed',
                 })
                 created += 1

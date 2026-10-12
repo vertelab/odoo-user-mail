@@ -5,12 +5,42 @@ Utvärdering: deterministisk pre-filter (sender/subject/category) + LLM
 för condition_kind='llm' (regeltexten injiceras i klassificeringsprompten).
 Standing rules från ai.coworker.hitl-trust-ladder importeras med
 source='trust_ladder'.
+
+action_config-schema (JSON):
+
+    create_object — skapa ett Odoo-objekt från mailet (deklarativt):
+        {
+          "model": "crm.lead",          # krävs — målmodell
+          "defaults": {"type": "opportunity"},   # statiska fältvärden
+          "partner": {                  # valfritt: hitta/skapa res.partner
+            "mode": "link_or_create",  # link | create | link_or_create
+            "create_company": true,     # skapa företag från domänen
+            "contact_from_sender": true # skapa kontakt från avsändaren
+          },
+          "activity": {                 # valfritt: mail.activity på objektet
+            "type": "Call",             # mail.activity.type-namn
+            "summary": "Följ upp",
+            "deadline_days": 2,
+            "user": "owner"             # alltid mailägaren (self.user_id)
+          },
+          "hitl": true,                 # kräv godkännande (provläge)
+          "llm_fields": {"name": "..."} # LLM-extraherade fält (filtreras)
+        }
+
+    create_activity — lägg en aktivitet på ett befintligt objekt:
+        {
+          "model": "res.partner",      # krävs (annars mailens kopplade objekt)
+          "res_id": 123,                # valfritt (annars kopplat objekt)
+          "activity": {...},            # som ovan
+          "hitl": true
+        }
 """
 
 import json
 import logging
 
-from odoo import models, fields
+from odoo import api, models, fields
+from odoo.exceptions import ValidationError
 
 _logger = logging.getLogger(__name__)
 
@@ -44,10 +74,18 @@ class UserMailAiRule(models.Model):
         ('draft_reply', 'Dra svarsutkast'),
         ('block', 'Blockera'),
         ('send_to_specialist', 'Skicka till specialist'),
+        ('create_object', 'Skapa Odoo-objekt'),
+        ('create_activity', 'Skapa aktivitet'),
     ], string='Åtgärd', required=True)
     action_config = fields.Text(
         'Åtgärdskonfig (JSON)', default='{}',
-        help='T.ex. {"folder": "AI/Arkiv"} för move_to_folder.')
+        help='T.ex. {"folder": "AI/Arkiv"} för move_to_folder.\n'
+             'create_object: {"model": "crm.lead", "defaults": {...}, '
+             '"partner": {"mode": "link_or_create"}, '
+             '"activity": {...}, "hitl": true, '
+             '"llm_fields": {"name": "..."}}.\n'
+             'create_activity: {"model": "res.partner", "activity": '
+             '{...}, "hitl": true}.')
     source = fields.Selection([
         ('user', 'Användare'),
         ('seed', 'Default'),
@@ -58,6 +96,19 @@ class UserMailAiRule(models.Model):
         ('unique_user_name', 'unique(user_id, name)',
          'Regelnamnet måste vara unikt per användare!'),
     ]
+
+    @api.constrains('action', 'action_config')
+    def _check_create_object_config(self):
+        """create_object/create_activity requires a target model."""
+        for rule in self:
+            if rule.action not in ('create_object', 'create_activity'):
+                continue
+            cfg = rule._parse_config()
+            if not cfg.get('model'):
+                raise ValidationError(
+                    'Regeln "%s" saknar "model" i action_config — '
+                    'åtgärden %s kräver en målmodell.'
+                    % (rule.name, rule.action))
 
     def _parse_config(self):
         try:

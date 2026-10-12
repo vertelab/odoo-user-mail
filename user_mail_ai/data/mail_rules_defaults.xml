@@ -34,6 +34,54 @@
             <field name="source">seed</field>
             <field name="user_id" ref="base.user_root"/>
         </record>
+
+        <!-- Objektskapande regler (4–7) — provläge: inaktiva + HITL.
+             Användaren aktiverar regeln och stänger av HITL först när den
+             är utprovad (ingen automatisk autonomi). -->
+        <record id="default_rule_quote_opportunity" model="user_mail_ai.rule">
+            <field name="name">Offertförfrågan → affärsmöjlighet</field>
+            <field name="priority" eval="4"/>
+            <field name="active" eval="False"/>
+            <field name="condition_kind">llm</field>
+            <field name="condition_text">Mail med en offertförfrågan från en kund</field>
+            <field name="action">create_object</field>
+            <field name="action_config">{"model": "crm.lead", "defaults": {"type": "opportunity"}, "partner": {"mode": "link_or_create", "create_company": true, "contact_from_sender": true}, "activity": {"type": "Call", "summary": "Följ upp offertförfrågan", "deadline_days": 2, "user": "owner"}, "hitl": true, "llm_fields": {"name": "Kort rubrik för affärsmöjligheten", "description": "Sammanfattning av förfrågan"}}</field>
+            <field name="source">seed</field>
+            <field name="user_id" ref="base.user_root"/>
+        </record>
+        <record id="default_rule_support_ticket" model="user_mail_ai.rule">
+            <field name="name">Hjälpbegäran från känd partner → supportärende</field>
+            <field name="priority" eval="5"/>
+            <field name="active" eval="False"/>
+            <field name="condition_kind">llm</field>
+            <field name="condition_text">Mail där en känd partner ber om hjälp eller support</field>
+            <field name="action">create_object</field>
+            <field name="action_config">{"model": "helpdesk.ticket", "partner": {"mode": "link_or_create", "create_company": true, "contact_from_sender": true}, "activity": {"type": "To-Do", "summary": "Följ upp supportärendet", "deadline_days": 1, "user": "owner"}, "hitl": true, "llm_fields": {"name": "Kort rubrik för ärendet", "description": "Beskrivning av problemet och ett lösningsförslag"}}</field>
+            <field name="source">seed</field>
+            <field name="user_id" ref="base.user_root"/>
+        </record>
+        <record id="default_rule_vendor_invoice" model="user_mail_ai.rule">
+            <field name="name">Leverantörsfaktura → bokförbar post</field>
+            <field name="priority" eval="6"/>
+            <field name="active" eval="False"/>
+            <field name="condition_kind">llm</field>
+            <field name="condition_text">Mail med en leverantörsfaktura som bilaga</field>
+            <field name="action">create_object</field>
+            <field name="action_config">{"model": "account.move", "defaults": {"move_type": "in_invoice"}, "partner": {"mode": "link_or_create", "create_company": true, "contact_from_sender": true}, "hitl": true, "llm_fields": {"ref": "Fakturanummer eller referens"}}</field>
+            <field name="source">seed</field>
+            <field name="user_id" ref="base.user_root"/>
+        </record>
+        <record id="default_rule_meeting_note" model="user_mail_ai.rule">
+            <field name="name">Mötesprotokoll → kunskapsanteckning</field>
+            <field name="priority" eval="7"/>
+            <field name="active" eval="False"/>
+            <field name="condition_kind">llm</field>
+            <field name="condition_text">Mail med mötesprotokoll eller anteckningar att spara</field>
+            <field name="action">create_object</field>
+            <field name="action_config">{"model": "joplin.note", "defaults": {"source": "mail", "source_application": "user_mail_ai"}, "hitl": true, "llm_fields": {"title": "Kort rubrik för anteckningen", "body": "Mailet sammanfattat som Markdown"}}</field>
+            <field name="source">seed</field>
+            <field name="user_id" ref="base.user_root"/>
+        </record>
     </data>
 
     <!-- Seed-default-regler per användare vid aktivering (install + update) -->

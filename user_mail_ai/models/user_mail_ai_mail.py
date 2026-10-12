@@ -35,6 +35,15 @@ _TEAMS_KEYWORDS = (
     'meeting invitation', 'teams', 'join meeting',
 )
 
+# Free mail providers — never create a "company" partner for these domains.
+_FREE_MAIL_DOMAINS = frozenset((
+    'gmail.com', 'googlemail.com', 'outlook.com', 'hotmail.com',
+    'live.com', 'live.se', 'msn.com', 'yahoo.com', 'yahoo.se',
+    'icloud.com', 'me.com', 'mac.com', 'aol.com', 'gmx.com', 'gmx.net',
+    'proton.me', 'protonmail.com', 'telia.com', 'bredband.net',
+    'comhem.se', 'spray.se', 'swipnet.se',
+))
+
 
 class UserMailAiMail(models.Model):
     _name = 'user_mail_ai.mail'
@@ -1027,6 +1036,443 @@ class UserMailAiMail(models.Model):
                      % (cand['model'], cand['res_id']),
         })
         return True
+
+    # ── Objektskapande (create_object / create_activity, HITL-gat) ──
+
+    def _create_object(self, rule):
+        """Create an Odoo object from the mail per the rule's action_config.
+
+        Thin dispatcher: the target model and field values are declarative
+        (action_config), not hardcoded per object type. Returns True when an
+        object was created or a HITL proposal was raised.
+        """
+        self.ensure_one()
+        cfg = rule._parse_config()
+        model = cfg.get('model')
+        if not model or model not in self.env:
+            _logger.warning(
+                'create_object: unknown model %s (rule %s)', model, rule.name)
+            return False
+
+        # ① LLM-extracted fields (name/description) — best effort
+        fields_vals = self._llm_extract_fields(
+            cfg.get('llm_fields') or {}, model=model)
+
+        # ② Partner (link or create company + contact)
+        partner = self._resolve_sender_partner(cfg.get('partner') or {})
+
+        # ③ Merge defaults + LLM + partner
+        vals = dict(cfg.get('defaults') or {})
+        vals.update(fields_vals)
+        if partner and 'partner_id' in self.env[model]._fields:
+            vals['partner_id'] = partner.id
+
+        # ④ HITL gate — always while the rule is in probe mode
+        if cfg.get('hitl', True):
+            return self._propose_object_creation(rule, model, vals)
+
+        return self._do_create_object(rule, model, vals, cfg)
+
+    def _create_activity(self, res_model, res_id, acfg):
+        """Schedule a mail.activity on an existing object.
+
+        The activity owner is always the mail owner (self.user_id) — in a
+        cron run env.user is OdooBot, which would put the activity in the
+        wrong user's to-do list.
+        """
+        self.ensure_one()
+        if not acfg or not res_model or not res_id:
+            return self.env['mail.activity']
+        atype = self.env['mail.activity.type'].search(
+            [('name', '=ilike', acfg.get('type', 'To-Do'))], limit=1)
+        if not atype:
+            atype = self.env.ref(
+                'mail.mail_activity_data_todo', raise_if_not_found=False)
+        deadline = fields.Date.today() + timedelta(
+            days=int(acfg.get('deadline_days', 2)))
+        owner = self.user_id if acfg.get('user', 'owner') == 'owner' \
+            else self.env.user
+        # mail.activity.res_model_id is NOT NULL — resolve it explicitly,
+        # create() does not derive it from the res_model string.
+        model_rec = self.env['ir.model']._get(res_model)
+        return self.env['mail.activity'].with_user(self.user_id).create({
+            'res_model': res_model,
+            'res_model_id': model_rec.id if model_rec else False,
+            'res_id': res_id,
+            'activity_type_id': atype.id if atype else False,
+            'summary': acfg.get('summary') or 'Follow up mail',
+            'note': acfg.get('note') or (
+                '<p>Från mail: %s</p>' % (self.subject or '')),
+            'user_id': owner.id,
+            'date_deadline': deadline,
+        })
+
+    def _create_activity_on_object(self, rule):
+        """Standalone create_activity action: activity on an existing object.
+
+        The target is the mail's linked object (object_link_candidate or
+        object_model/object_res_id).
+        """
+        self.ensure_one()
+        cfg = rule._parse_config()
+        model = cfg.get('model')
+        res_id = cfg.get('res_id')
+        if not model or not res_id:
+            cand = self._linked_object()
+            if not cand:
+                _logger.warning(
+                    'create_activity: no linked object for mail %s '
+                    '(rule %s)', self.subject, rule.name)
+                return False
+            model = cand.get('model')
+            res_id = cand.get('res_id')
+        if not model or model not in self.env or not res_id:
+            _logger.warning(
+                'create_activity: unknown model %s (rule %s)', model, rule.name)
+            return False
+        if not self.env[model].browse(res_id).exists():
+            _logger.warning(
+                'create_activity: %s #%s does not exist (rule %s)',
+                model, res_id, rule.name)
+            return False
+        if cfg.get('hitl', True):
+            return self._propose_activity(rule, model, res_id, cfg)
+        self._create_activity(model, res_id, cfg.get('activity') or {})
+        return True
+
+    def _linked_object(self):
+        """Return {model, res_id} for the mail's linked object, or None."""
+        self.ensure_one()
+        if self.object_model and self.object_res_id:
+            return {'model': self.object_model, 'res_id': self.object_res_id}
+        try:
+            cand = json.loads(self.object_link_candidate or 'null')
+        except Exception:
+            cand = None
+        if cand and cand.get('model') and cand.get('res_id'):
+            return {'model': cand['model'], 'res_id': cand['res_id']}
+        return None
+
+    def _is_free_mail(self, domain):
+        """True when the domain belongs to a free mail provider.
+
+        Prevents creating a bogus "company" for every private individual.
+        """
+        return (domain or '').strip().lower() in _FREE_MAIL_DOMAINS
+
+    def _resolve_sender_partner(self, pcfg):
+        """Find or create res.partner for the sender.
+
+        mode:
+          'link'           — only link if the partner exists (else none)
+          'create'         — always create
+          'link_or_create' — link if possible, else create (default)
+        """
+        self.ensure_one()
+        if not pcfg or not self.from_email:
+            return self.env['res.partner']
+        mode = pcfg.get('mode', 'link_or_create')
+        email = (self.from_email or '').strip().lower()
+        Partner = self.env['res.partner'].with_user(self.user_id)
+
+        # 1. Exact e-mail match (case-insensitive)
+        partner = Partner.search([('email', '=ilike', email)], limit=1)
+        if partner:
+            return partner
+        if mode == 'link':
+            return self.env['res.partner']
+
+        # 2. Create: company from domain + contact from sender
+        name = self.from_name or email.split('@')[0]
+        company = self.env['res.partner']
+        if pcfg.get('create_company', True):
+            domain = email.split('@')[-1]
+            if domain and not self._is_free_mail(domain):
+                company = Partner.search([
+                    ('is_company', '=', True),
+                    ('email', '=ilike', '%@' + domain),
+                ], limit=1)
+                if not company:
+                    company = Partner.create({
+                        'name': domain.split('.')[0].title(),
+                        'is_company': True,
+                    })
+        vals = {'name': name, 'email': email}
+        if company:
+            vals['parent_id'] = company.id
+        if pcfg.get('contact_from_sender', True):
+            return Partner.create(vals)
+        return company or self.env['res.partner']
+
+    def _llm_extract_fields(self, schema, model=None):
+        """Extract object fields from the mail with a targeted LLM call.
+
+        Best effort: on any failure an empty dict is returned so the object
+        is still created from action_config.defaults.
+        """
+        self.ensure_one()
+        if not schema:
+            return {}
+        provider = model_rec = None
+        if ProviderFactory is not None:
+            try:
+                provider, model_rec = ProviderFactory.from_coworker(
+                    self._assistant())
+            except Exception:
+                provider = model_rec = None
+        if not provider or not model_rec:
+            return {}
+        prompt = (
+            'Extrahera fält för ett %s från mailet nedan. Svara ENDAST med '
+            'JSON, ingen annan text.\n'
+            'Fält: %s\n\nFrån: %s\nÄmne: %s\n\n%s'
+            % (model or self.object_model or 'objekt', json.dumps(schema),
+               self.from_email or '?', self.subject or '',
+               self._get_body_text(3000)))
+        try:
+            resp = asyncio.run(provider.chat(
+                model_rec.api_name or model_rec.name,
+                [{'role': 'user', 'content': prompt}],
+                temperature=0.0, max_tokens=600,
+            ))
+            data = self._parse_classification_json(resp.text)
+        except Exception as e:
+            _logger.warning(
+                'LLM field extraction failed for %s: %s', self.subject, e)
+            return {}
+        if not isinstance(data, dict):
+            return {}
+        # Only keep keys the caller asked for
+        return {k: v for k, v in data.items() if k in schema}
+
+    def _filter_vals(self, model, vals):
+        """Drop keys not present in the target model's _fields."""
+        valid = self.env[model]._fields
+        return {k: v for k, v in vals.items() if k in valid}
+
+    def _find_duplicate(self, model, vals, days=30):
+        """Find an existing object matching this mail (dedup, 30 days).
+
+        Currently implemented for helpdesk.ticket: same partner_email +
+        name created within the window.
+        """
+        self.ensure_one()
+        if model != 'helpdesk.ticket':
+            return self.env[model]
+        name = vals.get('name')
+        email = self.from_email
+        if not name or not email:
+            return self.env[model]
+        cutoff = fields.Datetime.now() - timedelta(days=days)
+        return self.env[model].with_user(self.user_id).search([
+            ('partner_email', '=ilike', email),
+            ('name', '=', name),
+            ('create_date', '>=', cutoff),
+        ], limit=1)
+
+    def _do_create_object(self, rule, model, vals, cfg=None):
+        """Create the object, attach the mail and schedule the activity.
+
+        ``cfg`` defaults to the rule's own action_config, so callers cannot
+        silently lose the rule defaults by passing an empty dict.
+        """
+        self.ensure_one()
+        if cfg is None:
+            cfg = rule._parse_config() if rule else {}
+        if model not in self.env:
+            _logger.warning(
+                'create_object: unknown model %s (rule %s)', model, rule.name)
+            return False
+        vals = self._filter_vals(model, vals)
+
+        # Dedup: link the mail to an existing object instead of duplicating
+        duplicate = self._find_duplicate(model, vals)
+        if duplicate:
+            self._link_mail_to_object(model, duplicate.id)
+            self.write({
+                'status': 'processed',
+                'object_model': model,
+                'object_res_id': duplicate.id,
+                'notes': 'Länkad till befintligt %s #%s (regel: %s).'
+                         % (model, duplicate.id, rule.name),
+            })
+            return True
+
+        # helpdesk.ticket: configurable team, fallback to the first team
+        if model == 'helpdesk.ticket' and not vals.get('team_id'):
+            team = self.env['helpdesk.ticket.team'].search([], limit=1)
+            if team:
+                vals['team_id'] = team.id
+                _logger.warning(
+                    'user_mail_ai.rule %s: no team_id in action_config — '
+                    'using the first team (%s)', rule.id, team.id)
+
+        # Required fields without a default: fall back to the mail itself so
+        # the object is still created when LLM extraction yields nothing.
+        if model == 'helpdesk.ticket' and not vals.get('description'):
+            vals['description'] = self._mail_as_html()
+
+        # Owner: models with a required user_id (joplin.note) must be owned
+        # by the mail owner — never by env.user (OdooBot in cron).
+        if 'user_id' in self.env[model]._fields and not vals.get('user_id'):
+            vals['user_id'] = self.user_id.id
+
+        # Required text fields with no default (joplin.note.title): fall back
+        # to the mail subject so a failed LLM extraction cannot abort the
+        # create with a NOT NULL violation.
+        for fname in ('title', 'name'):
+            fld = self.env[model]._fields.get(fname)
+            if fld and fld.required and not vals.get(fname):
+                vals[fname] = self._fallback_text(fname)
+
+        try:
+            obj = self.env[model].with_user(self.user_id).create(vals)
+        except Exception as e:
+            _logger.error(
+                'create_object failed for %s (%s, rule %s): %s',
+                self.subject, model, rule.name, e)
+            self.write({'notes': 'Objektskapande misslyckades (%s): %s'
+                                 % (model, e)})
+            return False
+
+        self._link_mail_to_object(model, obj.id)
+        self._create_activity(model, obj.id, cfg.get('activity') or {})
+        self.write({
+            'status': 'processed',
+            'object_model': model,
+            'object_res_id': obj.id,
+            'notes': 'Skapade %s #%s (regel: %s).'
+                     % (model, obj.id, rule.name),
+        })
+        return True
+
+    def _mail_as_html(self):
+        """Render the mail body as HTML (fallback for required fields)."""
+        self.ensure_one()
+        msg, body_text = self._parse_raw_mail()
+        if msg is not None:
+            for part in msg.walk():
+                if part.get_content_type() == 'text/html':
+                    try:
+                        return part.get_content() or ''
+                    except Exception:
+                        pass
+        return '<p>%s</p>' % (body_text or '').replace('\n', '<br/>')
+
+    def _fallback_text(self, fname):
+        """Fallback for a required text field the LLM did not fill.
+
+        Keeps create_object from aborting on a NOT NULL violation when the
+        extraction returns nothing (e.g. joplin.note.title).
+        """
+        self.ensure_one()
+        subject = (self.subject or '').strip()
+        if subject:
+            return subject
+        return 'Mail från %s' % (self.from_email or 'okänd avsändare')
+
+    def _link_mail_to_object(self, model, res_id):
+        """Post the mail as a mail.message on the object's chatter."""
+        self.ensure_one()
+        body_html = self._mail_as_html()
+        try:
+            self.env['mail.message'].sudo().create({
+                'model': model,
+                'res_id': res_id,
+                'body': body_html,
+                'author_id': self.partner_id.id if self.partner_id else False,
+                'email_from': self.from_email or False,
+                'message_type': 'email',
+                'subtype_id': self.env.ref(
+                    'mail.mt_comment', raise_if_not_found=False).id or False,
+                'message_id': self.message_id or False,
+            })
+        except Exception as e:
+            _logger.warning(
+                'Link mail to %s #%s failed: %s', model, res_id, e)
+        return True
+
+    def _propose_object_creation(self, rule, model, vals):
+        """Raise a HITL request for creating the object (probe mode)."""
+        self.ensure_one()
+        coworker = self._assistant()
+        if not coworker:
+            return False
+        hitl = coworker._request_hitl(
+            'create_object',
+            'Skapa %s från mail "%s" (%s)?'
+            % (model, self.subject or '', self.from_email or '?'),
+            context={
+                'model': model,
+                'mail_id': self.id,
+                'rule_id': rule.id,
+                'vals': self._json_safe(vals),
+            },
+            risk_level='high',
+            user_id=self.user_id.id,
+        )
+        return bool(hitl)
+
+    def _propose_activity(self, rule, model, res_id, cfg):
+        """Raise a HITL request for scheduling an activity (probe mode)."""
+        self.ensure_one()
+        coworker = self._assistant()
+        if not coworker:
+            return False
+        hitl = coworker._request_hitl(
+            'create_activity',
+            'Lägg aktivitet på %s #%s från mail "%s"?'
+            % (model, res_id, self.subject or ''),
+            context={
+                'model': model,
+                'res_id': res_id,
+                'mail_id': self.id,
+                'rule_id': rule.id,
+                'activity': cfg.get('activity') or {},
+            },
+            risk_level='high',
+            user_id=self.user_id.id,
+        )
+        return bool(hitl)
+
+    def _do_create_object_from_hitl(self, hitl):
+        """HITL dispatch: approved create_object → create it."""
+        self.ensure_one()
+        try:
+            ctx = json.loads(hitl.context or '{}')
+        except Exception:
+            ctx = {}
+        model = ctx.get('model')
+        vals = ctx.get('vals') or {}
+        rule = self.env['user_mail_ai.rule'].browse(
+            ctx.get('rule_id')) if ctx.get('rule_id') else False
+        cfg = rule._parse_config() if rule else {}
+        return self._do_create_object(rule, model, vals, cfg)
+
+    def _do_create_activity_from_hitl(self, hitl):
+        """HITL dispatch: approved create_activity → schedule it."""
+        self.ensure_one()
+        try:
+            ctx = json.loads(hitl.context or '{}')
+        except Exception:
+            ctx = {}
+        model = ctx.get('model')
+        res_id = ctx.get('res_id')
+        if not model or not res_id:
+            return False
+        self._create_activity(model, res_id, ctx.get('activity') or {})
+        return True
+
+    @staticmethod
+    def _json_safe(vals):
+        """Make vals JSON-serialisable (recordsets → ids)."""
+        safe = {}
+        for key, value in (vals or {}).items():
+            if isinstance(value, models.BaseModel):
+                safe[key] = value.id
+            else:
+                safe[key] = value
+        return safe
 
     # ── Svarsutkast (proaktivt, IMAP-Drafts) ────────────────────────
 
