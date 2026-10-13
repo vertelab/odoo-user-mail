@@ -1,21 +1,36 @@
-# -*- coding: utf-8 -*-
+# Copyright (C) 2026 Vertel Sverige AB (<https://vertel.se>).
+# License AGPL-3.0 or later (http://www.gnu.org/licenses/agpl).
 {
-    'name': 'E-post i Vertel',
-    'version': '18.0.1.0.0',
+    'name': 'User Mail: Onboarding (LMS)',
+    'version': '18.0.2.0.0',
     'summary': 'Onboardingskurs: e-postklienten (IMAP/SMTP) och webmail',
     'description': """
-Lär dig koppla upp din e-post, läsa och skicka, och använda AI-assistenten i inkorgen.
-""",
+E-post i Vertel
+===============
+
+Onboardingskurs som lär ut hur du kopplar upp och arbetar med din e-post
+i Odoo — i webbläsaren, i mobilen och i skrivbordsklienter.
+
+4 sektioner, 12 slides (7 article, 1 infographic, 4 quiz):
+
+- Sektion 1: Grunderna — e-post i Odoo, IMAP vs SMTP
+- Sektion 2: Koppla upp ditt konto — Odoo, Android, iOS
+- Sektion 3: Arbeta med e-posten — mappar, sökning, bilagor
+- Sektion 4: AI-assistenten i inkorgen — vad den gör och inte gör
+
+Innehållet ligger i data/ (inte demo/) så att det laddas i alla databaser.
+    """,
     'author': 'Vertel Sverige AB',
-    'website': 'https://vertel.se',
-    'license': 'LGPL-3',
+    'website': 'https://vertel.se/apps/odoo-user-mail/user_mail_onboarding',
+    'license': 'AGPL-3',
     'category': 'Website/eLearning',
     'depends': ['website_slides'],
     'data': [
-        'views/slide_channel_data.xml',
-    ],
-    'demo': [
-        'demo/slide_slide_demo.xml',
+        'data/slide_channel.xml',
+        'data/slide_slides_s1.xml',
+        'data/slide_slides_s2.xml',
+        'data/slide_slides_s3.xml',
+        'data/slide_slides_s4.xml',
     ],
     'installable': True,
     'auto_install': False,

@@ -1,0 +1,241 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <data noupdate="0">
+
+    <!-- ═══════════════════════════════════════════════════════════════════
+         SEKTION 2: Koppla upp ditt konto
+         ═══════════════════════════════════════════════════════════════════ -->
+
+    <record id="slide_category_mail_s2" model="slide.slide">
+        <field name="name">2. Koppla upp ditt konto</field>
+        <field name="is_category" eval="True"/>
+        <field name="channel_id" ref="user_mail_onboarding.slide_channel_user_mail"/>
+        <field name="sequence">100</field>
+    </record>
+
+    <record id="slide_mail_s2_01" model="slide.slide">
+        <field name="name">Första uppkopplingen</field>
+        <field name="sequence">110</field>
+        <field name="slide_category">article</field>
+        <field name="channel_id" ref="user_mail_onboarding.slide_channel_user_mail"/>
+        <field name="is_published" eval="True"/>
+        <field name="is_preview" eval="True"/>
+        <field name="completion_time">0.35</field>
+        <field name="html_content" type="html">
+<section class="s_cover o_cc o_cc3 pt160 pb160">
+    <div class="container">
+        <h1 class="display-3-fs" style="text-align: center;">Första uppkopplingen</h1>
+        <p class="lead" style="text-align: center;">Fem uppgifter och du är igång.</p>
+    </div>
+</section>
+
+<section class="s_text_block pt64 pb40">
+    <div class="container s_allow_columns">
+        <h2>Vad du behöver</h2>
+        <p>Innan du börjar: se till att du har dina inloggningsuppgifter till hands. Du får dem av IT om du inte redan har dem.</p>
+        <table class="table table-bordered">
+            <thead>
+                <tr><th>Uppgift</th><th>Exempel på form</th></tr>
+            </thead>
+            <tbody>
+                <tr><td><strong>E-postadress</strong></td><td>fornamn.efternamn@vertel.se</td></tr>
+                <tr><td><strong>Lösenord</strong></td><td>Ditt vanliga Odoo-lösenord</td></tr>
+                <tr><td><strong>IMAP-server</strong></td><td>Serveradress för inkommande</td></tr>
+                <tr><td><strong>SMTP-server</strong></td><td>Serveradress för utgående</td></tr>
+                <tr><td><strong>Portar</strong></td><td>993 (IMAP, SSL) och 587 (SMTP, STARTTLS)</td></tr>
+            </tbody>
+        </table>
+        <p class="small text-muted">Använd alltid de krypterade portarna. Okrypterad e-post är inte acceptabelt.</p>
+    </div>
+</section>
+
+<section class="s_text_block pt32 pb64">
+    <div class="container s_allow_columns">
+        <h2>Lägg upp kontot i Odoo</h2>
+        <ol>
+            <li>Gå till <strong>Inställningar</strong> → <strong>E-post</strong> (eller motsvarande meny för ditt konto).</li>
+            <li>Välj <strong>Lägg till konto</strong> och fyll i uppgifterna ovan.</li>
+            <li>Kontrollera att <strong>SSL/TLS</strong> är påslaget för båda servrarna.</li>
+            <li>Spara och vänta medan systemet verifierar anslutningen.</li>
+            <li>Klart — din första synkronisering startar automatiskt.</li>
+        </ol>
+        <p class="small text-muted">Har du många mejl kan den första hämtningen ta några minuter. Det är normalt.</p>
+    </div>
+</section>
+
+<section class="s_call_to_action o_cc o_cc5 pt48 pb48">
+    <div class="container">
+        <div class="row">
+            <div class="col-lg-9">
+                <h3>Använd rätt lösenord</h3>
+                <p class="lead">Använd ditt vanliga Odoo-lösenord. Har ni tvåfaktorsautentisering påslaget kan vissa klienter kräva ett separat app-lösenord — hör av dig till IT i så fall.</p>
+            </div>
+        </div>
+    </div>
+</section>
+        </field>
+        <field name="description">Steg-för-steg för att lägga upp ditt e-postkonto i Odoo: vilka uppgifter du behöver, vilka portar som gäller och hur du verifierar att det fungerar.</field>
+    </record>
+
+    <record id="slide_mail_s2_02" model="slide.slide">
+        <field name="name">Koppla upp mobilen</field>
+        <field name="sequence">120</field>
+        <field name="slide_category">article</field>
+        <field name="channel_id" ref="user_mail_onboarding.slide_channel_user_mail"/>
+        <field name="is_published" eval="True"/>
+        <field name="is_preview" eval="True"/>
+        <field name="completion_time">0.30</field>
+        <field name="html_content" type="html">
+<section class="s_text_block pt64 pb40">
+    <div class="container s_allow_columns">
+        <h2>Mobilen har inbyggt stöd</h2>
+        <p>Till skillnad från kalendern behöver du ingen extra app för e-posten. Både Android och iOS har inbyggda mailklienter som klarar IMAP och SMTP.</p>
+        <p>Du kan förstås också använda en annan klient om du föredrar det — Gmail-appen, Outlook-appen eller något annat. Inställningarna är desamma.</p>
+    </div>
+</section>
+
+<section class="s_text_image pt32 pb64">
+    <div class="container">
+        <div class="row align-items-center">
+            <div class="col-lg-6 pt16 pb16">
+                <h2 class="h3-fs">Android</h2>
+                <ol class="small">
+                    <li><strong>Inställningar</strong> → <strong>Konton</strong> → <strong>Lägg till konto</strong></li>
+                    <li>Välj <strong>E-post</strong> eller <strong>Annat</strong></li>
+                    <li>Ange adress och lösenord</li>
+                    <li>Välj <strong>IMAP</strong> (inte POP3)</li>
+                    <li>Fyll i server och portar — samma som i Odoo</li>
+                </ol>
+            </div>
+            <div class="col-lg-6 pt16 pb16">
+                <h2 class="h3-fs">iPhone och iPad</h2>
+                <ol class="small">
+                    <li><strong>Inställningar</strong> → <strong>Mail</strong> → <strong>Konton</strong></li>
+                    <li><strong>Lägg till konto</strong> → <strong>Annat</strong></li>
+                    <li><strong>Lägg till e-postkonto</strong></li>
+                    <li>Ange namn, adress, lösenord och beskrivning</li>
+                    <li>Välj <strong>IMAP</strong> och fyll i servrarna</li>
+                </ol>
+            </div>
+        </div>
+    </div>
+</section>
+
+<section class="s_text_block pt40 pb64">
+    <div class="container s_allow_columns">
+        <h2>Samma konto i flera klienter</h2>
+        <p>Du kan ha kontot uppkopplat i mobilen, i Odoo och i Outlook samtidigt. Eftersom IMAP låter meddelandena ligga kvar på servern ser alla klienter samma sak.</p>
+        <table class="table table-bordered">
+            <thead>
+                <tr><th>Du gör detta</th><th>Ser ut så här i de andra</th></tr>
+            </thead>
+            <tbody>
+                <tr><td>Läser ett mejl i mobilen</td><td>Visas som läst</td></tr>
+                <tr><td>Flyttar ett mejl till en mapp</td><td>Ligger i mappen</td></tr>
+                <tr><td>Tar bort ett mejl</td><td>Försvinner</td></tr>
+                <tr><td>Skickar ett svar</td><td>Hamnar i Skickat</td></tr>
+            </tbody>
+        </table>
+    </div>
+</section>
+        </field>
+        <field name="description">Koppla upp e-posten på Android och iPhone med de inbyggda klienterna. Hur samma konto kan användas i flera klienter samtidigt.</field>
+    </record>
+
+    <record id="slide_mail_s2_03" model="slide.slide">
+        <field name="name">🧪 Testa dina kunskaper — Uppkopplingen</field>
+        <field name="sequence">130</field>
+        <field name="slide_category">quiz</field>
+        <field name="channel_id" ref="user_mail_onboarding.slide_channel_user_mail"/>
+        <field name="is_published" eval="True"/>
+        <field name="completion_time">0.25</field>
+        <field name="quiz_first_attempt_reward">100</field>
+        <field name="quiz_second_attempt_reward">75</field>
+        <field name="quiz_third_attempt_reward">50</field>
+        <field name="quiz_fourth_attempt_reward">25</field>
+        <field name="description">Testa att du kan koppla upp ett e-postkonto — i Odoo och i mobilen.</field>
+    </record>
+
+    <record id="slide_mail_s2_03_q1" model="slide.question">
+        <field name="question">Vilken port används normalt för IMAP med SSL?</field>
+        <field name="sequence">1</field>
+        <field name="slide_id" ref="slide_mail_s2_03"/>
+    </record>
+    <record id="slide_mail_s2_03_q1_a1" model="slide.answer">
+        <field name="text_value">587</field>
+        <field name="sequence">1</field>
+        <field name="is_correct" eval="False"/>
+        <field name="comment">Nej — 587 är SMTP med STARTTLS.</field>
+        <field name="question_id" ref="slide_mail_s2_03_q1"/>
+    </record>
+    <record id="slide_mail_s2_03_q1_a2" model="slide.answer">
+        <field name="text_value">993</field>
+        <field name="sequence">2</field>
+        <field name="is_correct" eval="True"/>
+        <field name="comment">Rätt! 993 är standardporten för IMAP över SSL.</field>
+        <field name="question_id" ref="slide_mail_s2_03_q1"/>
+    </record>
+    <record id="slide_mail_s2_03_q1_a3" model="slide.answer">
+        <field name="text_value">25</field>
+        <field name="sequence">3</field>
+        <field name="is_correct" eval="False"/>
+        <field name="comment">Nej — 25 är den gamla okrypterade SMTP-porten och används inte.</field>
+        <field name="question_id" ref="slide_mail_s2_03_q1"/>
+    </record>
+
+    <record id="slide_mail_s2_03_q2" model="slide.question">
+        <field name="question">Vilket protokoll ska du välja när mobilen frågar?</field>
+        <field name="sequence">2</field>
+        <field name="slide_id" ref="slide_mail_s2_03"/>
+    </record>
+    <record id="slide_mail_s2_03_q2_a1" model="slide.answer">
+        <field name="text_value">POP3</field>
+        <field name="sequence">1</field>
+        <field name="is_correct" eval="False"/>
+        <field name="comment">Nej — POP3 laddar ner och tar bort, då tappar du synkroniseringen mellan enheter.</field>
+        <field name="question_id" ref="slide_mail_s2_03_q2"/>
+    </record>
+    <record id="slide_mail_s2_03_q2_a2" model="slide.answer">
+        <field name="text_value">IMAP</field>
+        <field name="sequence">2</field>
+        <field name="is_correct" eval="True"/>
+        <field name="comment">Rätt! IMAP håller meddelandena på servern så alla enheter ser samma sak.</field>
+        <field name="question_id" ref="slide_mail_s2_03_q2"/>
+    </record>
+    <record id="slide_mail_s2_03_q2_a3" model="slide.answer">
+        <field name="text_value">Exchange</field>
+        <field name="sequence">3</field>
+        <field name="is_correct" eval="False"/>
+        <field name="comment">Nej — det är Microsofts eget protokoll, inte det vi använder.</field>
+        <field name="question_id" ref="slide_mail_s2_03_q2"/>
+    </record>
+
+    <record id="slide_mail_s2_03_q3" model="slide.question">
+        <field name="question">Du läser ett mejl i mobilen. Vad händer i Odoo?</field>
+        <field name="sequence">3</field>
+        <field name="slide_id" ref="slide_mail_s2_03"/>
+    </record>
+    <record id="slide_mail_s2_03_q3_a1" model="slide.answer">
+        <field name="text_value">Ingenting — de är separata kopior</field>
+        <field name="sequence">1</field>
+        <field name="is_correct" eval="False"/>
+        <field name="comment">Nej — med IMAP är det samma brevlåda.</field>
+        <field name="question_id" ref="slide_mail_s2_03_q3"/>
+    </record>
+    <record id="slide_mail_s2_03_q3_a2" model="slide.answer">
+        <field name="text_value">Mejlet visas som läst även där</field>
+        <field name="sequence">2</field>
+        <field name="is_correct" eval="True"/>
+        <field name="comment">Rätt! IMAP synkroniserar lässtatus, mappar och borttagningar mellan alla klienter.</field>
+        <field name="question_id" ref="slide_mail_s2_03_q3"/>
+    </record>
+    <record id="slide_mail_s2_03_q3_a3" model="slide.answer">
+        <field name="text_value">Mejlet raderas från servern</field>
+        <field name="sequence">3</field>
+        <field name="is_correct" eval="False"/>
+        <field name="comment">Nej — att läsa raderar ingenting.</field>
+        <field name="question_id" ref="slide_mail_s2_03_q3"/>
+    </record>
+
+    </data>
+</odoo>

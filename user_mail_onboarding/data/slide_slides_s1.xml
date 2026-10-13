@@ -1,0 +1,245 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <data noupdate="0">
+
+    <!-- ═══════════════════════════════════════════════════════════════════
+         SEKTION 1: Grunderna
+         ═══════════════════════════════════════════════════════════════════ -->
+
+    <record id="slide_category_mail_s1" model="slide.slide">
+        <field name="name">1. Grunderna</field>
+        <field name="is_category" eval="True"/>
+        <field name="channel_id" ref="user_mail_onboarding.slide_channel_user_mail"/>
+        <field name="sequence">0</field>
+    </record>
+
+    <record id="slide_mail_s1_01" model="slide.slide">
+        <field name="name">E-post i Odoo — vad det innebär</field>
+        <field name="sequence">10</field>
+        <field name="slide_category">article</field>
+        <field name="channel_id" ref="user_mail_onboarding.slide_channel_user_mail"/>
+        <field name="is_published" eval="True"/>
+        <field name="is_preview" eval="True"/>
+        <field name="completion_time">0.25</field>
+        <field name="html_content" type="html">
+<section class="s_cover parallax o_cc o_cc5 pt200 pb200" data-scroll-background-ratio="1">
+    <div class="container">
+        <h1 class="display-3-fs" style="text-align: center;">E-post i Odoo — vad det innebär</h1>
+        <p class="lead" style="text-align: center;">Din e-post i samma system som resten av arbetet.</p>
+    </div>
+</section>
+
+<section class="s_text_block pt64 pb40">
+    <div class="container s_allow_columns">
+        <h2>Skillnaden mot en vanlig mailklient</h2>
+        <p>En traditionell mailklient — Outlook, Thunderbird, Apple Mail — hanterar <em>bara</em> e-post. I Vertel ligger e-posten i Odoo, tillsammans med uppgifter, projekt, kunder och dokument.</p>
+        <p>Det innebär att du kan koppla ett mejl till en uppgift, se en kunds hela historik när du läser hens brev, och låta AI-assistenten hjälpa till att sortera. E-posten blir en del av sammanhanget istället för en separat ö.</p>
+    </div>
+</section>
+
+<section class="s_features pt32 pb64">
+    <div class="container">
+        <div class="row">
+            <div class="col-lg-4">
+                <i class="s_features_icon fa fa-inbox mb-3 rounded bg-o-color-3"/>
+                <div class="overflow-hidden">
+                    <h3 class="h5-fs">Inkorgen</h3>
+                    <p>Läs, svara och organisera. Mappar, sökning och bilagor precis som du är van vid.</p>
+                </div>
+            </div>
+            <div class="col-lg-4">
+                <i class="s_features_icon fa fa-link mb-3 rounded bg-o-color-3"/>
+                <div class="overflow-hidden">
+                    <h3 class="h5-fs">Kopplingen</h3>
+                    <p>Mejl kan knytas till uppgifter, projekt och kunder — historiken hamnar på rätt ställe.</p>
+                </div>
+            </div>
+            <div class="col-lg-4">
+                <i class="s_features_icon fa fa-magic mb-3 rounded bg-o-color-3"/>
+                <div class="overflow-hidden">
+                    <h3 class="h5-fs">Assistenten</h3>
+                    <p>AI hjälper till att triagera, sammanfatta och föreslå svar när inkorgen svämmar över.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<section class="s_call_to_action o_cc o_cc5 pt48 pb48">
+    <div class="container">
+        <div class="row">
+            <div class="col-lg-9">
+                <h3>Du behöver inte byta vana</h3>
+                <p class="lead">Föredrar du Outlook eller Thunderbird? Det går bra. Samma konto kan kopplas upp i flera klienter samtidigt — de läser och skriver mot samma brevlåda.</p>
+            </div>
+        </div>
+    </div>
+</section>
+        </field>
+        <field name="description">Vad e-post i Odoo innebär och hur det skiljer sig från en vanlig mailklient. Varför kopplingen till uppgifter och kunder är poängen.</field>
+    </record>
+
+    <record id="slide_mail_s1_02" model="slide.slide">
+        <field name="name">IMAP och SMTP — vad är skillnaden?</field>
+        <field name="sequence">20</field>
+        <field name="slide_category">article</field>
+        <field name="channel_id" ref="user_mail_onboarding.slide_channel_user_mail"/>
+        <field name="is_published" eval="True"/>
+        <field name="is_preview" eval="True"/>
+        <field name="completion_time">0.25</field>
+        <field name="html_content" type="html">
+<section class="s_text_block pt64 pb40">
+    <div class="container s_allow_columns">
+        <h2>Två protokoll — två riktningar</h2>
+        <p>E-post använder två olika protokoll beroende på om du <em>hämtar</em> eller <em>skickar</em>. Det är därför ett konto alltid har två uppsättningar serverinställningar.</p>
+    </div>
+</section>
+
+<section class="s_text_image pt32 pb64">
+    <div class="container">
+        <div class="row align-items-center">
+            <div class="col-lg-6 pt16 pb16">
+                <h2 class="h3-fs">IMAP — inkommande</h2>
+                <p><strong>I</strong> som i <em>Inkommande</em>. IMAP hämtar din e-post från servern.</p>
+                <p>Poängen med IMAP är att meddelandena <strong>ligger kvar på servern</strong>. Läser du ett mejl i mobilen visas det som läst i datorn också. Skapar du en mapp i den ena klienten finns den i den andra.</p>
+                <p class="small text-muted">Det gamla alternativet POP3 laddar ner och tar bort — det använder vi inte.</p>
+            </div>
+            <div class="col-lg-6 pt16 pb16">
+                <h2 class="h3-fs">SMTP — utgående</h2>
+                <p><strong>S</strong> som i <em>Skicka</em>. SMTP ansvarar för att få iväg dina meddelanden.</p>
+                <p>När du trycker på <em>Skicka</em> lämnar SMTP-servern brevet till mottagarens server. Den hanterar också autentisering så att inte vem som helst kan skicka i ditt namn.</p>
+                <p class="small text-muted">SMTP kräver alltid krypterad anslutning och inloggning.</p>
+            </div>
+        </div>
+    </div>
+</section>
+
+<section class="s_text_block pt40 pb64">
+    <div class="container s_allow_columns">
+        <h2>Varför du bör känna till det</h2>
+        <p>När du kopplar upp en ny klient — mobil, Outlook eller Thunderbird — får du fylla i serveradresser för båda protokollen. Vet du vad de betyder går uppsättningen snabbare och du kan felsöka själv om något inte fungerar.</p>
+        <table class="table table-bordered">
+            <thead>
+                <tr><th>Fråga</th><th>Protokoll</th></tr>
+            </thead>
+            <tbody>
+                <tr><td>”Mina mejl syns inte i telefonen”</td><td>IMAP</td></tr>
+                <tr><td>”Jag kan läsa men inte skicka”</td><td>SMTP</td></tr>
+                <tr><td>”Mappar synkas inte mellan enheter”</td><td>IMAP</td></tr>
+                <tr><td>”Fel lösenord vid utskick”</td><td>SMTP</td></tr>
+            </tbody>
+        </table>
+    </div>
+</section>
+        </field>
+        <field name="description">Skillnaden mellan IMAP (inkommande, meddelanden stannar på servern) och SMTP (utgående). Varför du behöver känna till båda för att felsöka.</field>
+    </record>
+
+    <record id="slide_mail_s1_03" model="slide.slide">
+        <field name="name">Översikt — e-postens väg</field>
+        <field name="sequence">30</field>
+        <field name="slide_category">infographic</field>
+        <field name="channel_id" ref="user_mail_onboarding.slide_channel_user_mail"/>
+        <field name="is_published" eval="True"/>
+        <field name="is_preview" eval="True"/>
+        <field name="completion_time">0.10</field>
+        <field name="description">Flödesschema: hur ett inkommande brev färdas via IMAP in i Odoo, och hur ett utgående går via SMTP — med klienterna runt omkring.</field>
+    </record>
+
+    <record id="slide_mail_s1_04" model="slide.slide">
+        <field name="name">🧪 Testa dina kunskaper — Grunderna</field>
+        <field name="sequence">40</field>
+        <field name="slide_category">quiz</field>
+        <field name="channel_id" ref="user_mail_onboarding.slide_channel_user_mail"/>
+        <field name="is_published" eval="True"/>
+        <field name="completion_time">0.25</field>
+        <field name="quiz_first_attempt_reward">100</field>
+        <field name="quiz_second_attempt_reward">75</field>
+        <field name="quiz_third_attempt_reward">50</field>
+        <field name="quiz_fourth_attempt_reward">25</field>
+        <field name="description">Testa dina kunskaper om IMAP, SMTP och hur e-posten är uppbyggd i Vertel.</field>
+    </record>
+
+    <record id="slide_mail_s1_04_q1" model="slide.question">
+        <field name="question">Vilket protokoll hämtar din inkommande e-post?</field>
+        <field name="sequence">1</field>
+        <field name="slide_id" ref="slide_mail_s1_04"/>
+    </record>
+    <record id="slide_mail_s1_04_q1_a1" model="slide.answer">
+        <field name="text_value">SMTP</field>
+        <field name="sequence">1</field>
+        <field name="is_correct" eval="False"/>
+        <field name="comment">Nej — SMTP skickar utgående post.</field>
+        <field name="question_id" ref="slide_mail_s1_04_q1"/>
+    </record>
+    <record id="slide_mail_s1_04_q1_a2" model="slide.answer">
+        <field name="text_value">IMAP</field>
+        <field name="sequence">2</field>
+        <field name="is_correct" eval="True"/>
+        <field name="comment">Rätt! IMAP hämtar inkommande och låter meddelandena ligga kvar på servern.</field>
+        <field name="question_id" ref="slide_mail_s1_04_q1"/>
+    </record>
+    <record id="slide_mail_s1_04_q1_a3" model="slide.answer">
+        <field name="text_value">POP3</field>
+        <field name="sequence">3</field>
+        <field name="is_correct" eval="False"/>
+        <field name="comment">Nej — POP3 är det äldre protokollet som laddar ner och tar bort. Vi använder IMAP.</field>
+        <field name="question_id" ref="slide_mail_s1_04_q1"/>
+    </record>
+
+    <record id="slide_mail_s1_04_q2" model="slide.question">
+        <field name="question">Du kan läsa mejl men inte skicka. Vilket protokoll ska du kontrollera?</field>
+        <field name="sequence">2</field>
+        <field name="slide_id" ref="slide_mail_s1_04"/>
+    </record>
+    <record id="slide_mail_s1_04_q2_a1" model="slide.answer">
+        <field name="text_value">IMAP</field>
+        <field name="sequence">1</field>
+        <field name="is_correct" eval="False"/>
+        <field name="comment">Nej — IMAP fungerar ju, eftersom du kan läsa.</field>
+        <field name="question_id" ref="slide_mail_s1_04_q2"/>
+    </record>
+    <record id="slide_mail_s1_04_q2_a2" model="slide.answer">
+        <field name="text_value">SMTP</field>
+        <field name="sequence">2</field>
+        <field name="is_correct" eval="True"/>
+        <field name="comment">Rätt! Utgående post går via SMTP — kontrollera server, port och lösenord.</field>
+        <field name="question_id" ref="slide_mail_s1_04_q2"/>
+    </record>
+    <record id="slide_mail_s1_04_q2_a3" model="slide.answer">
+        <field name="text_value">CardDAV</field>
+        <field name="sequence">3</field>
+        <field name="is_correct" eval="False"/>
+        <field name="comment">Nej — det är kontaktsynk, inte e-post.</field>
+        <field name="question_id" ref="slide_mail_s1_04_q2"/>
+    </record>
+
+    <record id="slide_mail_s1_04_q3" model="slide.question">
+        <field name="question">Varför är IMAP bättre än POP3 när du har flera enheter?</field>
+        <field name="sequence">3</field>
+        <field name="slide_id" ref="slide_mail_s1_04"/>
+    </record>
+    <record id="slide_mail_s1_04_q3_a1" model="slide.answer">
+        <field name="text_value">Meddelandena ligger kvar på servern och syns i alla klienter</field>
+        <field name="sequence">1</field>
+        <field name="is_correct" eval="True"/>
+        <field name="comment">Rätt! Läser du i mobilen visas det som läst i datorn också.</field>
+        <field name="question_id" ref="slide_mail_s1_04_q3"/>
+    </record>
+    <record id="slide_mail_s1_04_q3_a2" model="slide.answer">
+        <field name="text_value">IMAP är snabbare</field>
+        <field name="sequence">2</field>
+        <field name="is_correct" eval="False"/>
+        <field name="comment">Nej — hastigheten är inte den avgörande skillnaden.</field>
+        <field name="question_id" ref="slide_mail_s1_04_q3"/>
+    </record>
+    <record id="slide_mail_s1_04_q3_a3" model="slide.answer">
+        <field name="text_value">IMAP krypterar meddelandena</field>
+        <field name="sequence">3</field>
+        <field name="is_correct" eval="False"/>
+        <field name="comment">Nej — krypteringen sköts av anslutningen (TLS), inte av protokollet i sig.</field>
+        <field name="question_id" ref="slide_mail_s1_04_q3"/>
+    </record>
+
+    </data>
+</odoo>
