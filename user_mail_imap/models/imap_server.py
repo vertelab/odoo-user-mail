@@ -148,7 +148,101 @@ class ImapServer(models.AbstractModel):
             conn.logout()
 
     def action_search_mails(self, folder='INBOX', query='', offset=0, limit=80):
-        """Sök i en mapp med IMAP:s egna SEARCH-kommando.
+        """Search the current folder, OKF-backed when available.
+
+        Returns the same dict shape as ``action_fetch_mails``
+        (``{'messages': [...], 'total': n}``).
+
+        When ``ai.okf.concept`` is installed the query is resolved through
+        OKF hybrid search over the user's personal archive (one indexed SQL
+        query) and the hits are mapped back to mail rows via
+        ``user_mail_ai.mail``. This replaces the old live IMAP ``SEARCH``,
+        which scanned every message body (``TEXT``) on each call. Without
+        the OKF model the method falls back to the IMAP ``SEARCH``
+        implementation, so ``user_mail_imap`` stays standalone.
+        """
+        term = (query or '').strip()
+        if not term:
+            return {'messages': [], 'total': 0}
+        if 'ai.okf.concept' in self.env:
+            return self._search_mails_okf(folder, term, offset, limit)
+        return self._search_mails_imap(folder, term, offset, limit)
+
+    def _search_mails_okf(self, folder, term, offset=0, limit=80):
+        """Resolve the query through OKF hybrid search (personal scope).
+
+        The OKF concept stores only ``source_ref`` (= the mail's
+        Message-ID); folder/uid live in ``user_mail_ai.mail``. Hits are
+        joined back on ``message_id``, scoped to the current user and folder,
+        and emitted in OKF relevance order. Hits with no matching ingested
+        mail row are dropped, and ``total`` counts only resolved rows.
+
+        ``offset`` is applied to the relevance-ordered result. OKF search has
+        no native offset, so ``limit + offset`` hits are fetched and the
+        window is sliced out — best-effort paging, matching the design's
+        stated trade-off.
+        """
+        Concept = self.env['ai.okf.concept']
+        if 'user_mail_ai.mail' not in self.env:
+            # OKF present but the mail model is not: nothing to resolve.
+            return {'messages': [], 'total': 0}
+        Mail = self.env['user_mail_ai.mail']
+        hits = Concept._okf_search(
+            query=term, scope='personal', owner_id=self.env.user.id,
+            limit=limit + max(0, offset))
+        if not hits:
+            return {'messages': [], 'total': 0}
+        # Message-IDs in relevance order; source_ref is the concept's stored
+        # Message-ID. Keep the order to emit rows ranked, not by UID.
+        message_ids = []
+        for concept in hits:
+            message_id = (concept.source_ref or '').strip()
+            if message_id and message_id not in message_ids:
+                message_ids.append(message_id)
+        if not message_ids:
+            return {'messages': [], 'total': 0}
+        mail_rows = Mail.search_read(
+            [('user_id', '=', self.env.user.id),
+             ('message_id', 'in', message_ids),
+             ('source_folder', '=', folder)],
+            ['message_id', 'source_uid', 'source_folder', 'subject',
+             'from_email', 'from_name', 'received_at'])
+        by_message_id = {row['message_id']: row for row in mail_rows}
+        resolved = []
+        for message_id in message_ids:
+            row = by_message_id.get(message_id)
+            if not row:
+                # OKF hit without an ingested mail row: omit (never a broken
+                # row), and it does not count toward the total.
+                continue
+            resolved.append(row)
+        total = len(resolved)
+        page = resolved[offset:offset + limit]
+        messages = [self._okf_mail_row(row) for row in page]
+        return {'messages': messages, 'total': total}
+
+    @staticmethod
+    def _okf_mail_row(row):
+        """Map an ``user_mail_ai.mail`` row to a mail-list entry."""
+        from_ = row.get('from_email') or ''
+        if row.get('from_name') and from_:
+            from_ = '%s <%s>' % (row['from_name'], from_)
+        elif row.get('from_name'):
+            from_ = row['from_name']
+        received = row.get('received_at')
+        return {
+            'uid': row.get('source_uid') or 0,
+            'seen': False,
+            'flagged': False,
+            'from_': from_,
+            'subject': row.get('subject') or '(No subject)',
+            'date': received.strftime('%a, %d %b %Y %H:%M:%S %z')
+                    if hasattr(received, 'strftime') else str(received or ''),
+            'message_id': row.get('message_id') or '',
+        }
+
+    def _search_mails_imap(self, folder, term, offset=0, limit=80):
+        """Sök i en mapp med IMAP:s egna SEARCH-kommando (fallback).
 
         Söker server-side i avsändare, rubrik och text (FROM/SUBJECT/TEXT),
         så hela mappen täcks — inte bara de meddelanden som redan hämtats
@@ -158,9 +252,6 @@ class ImapServer(models.AbstractModel):
         nästling: ``OR OR FROM "q" SUBJECT "q" TEXT "q"`` läses som
         ``OR (OR (FROM q) (SUBJECT q)) (TEXT q)``.
         """
-        term = (query or '').strip()
-        if not term:
-            return {'messages': [], 'total': 0}
         # Escapa citattecken så att de inte bryter IMAP-strängen.
         escaped = term.replace('\\', '\\\\').replace('"', '\\"')
         criteria = 'OR OR FROM "%s" SUBJECT "%s" TEXT "%s"' % (
