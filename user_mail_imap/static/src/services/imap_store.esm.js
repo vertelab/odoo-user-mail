@@ -6,8 +6,16 @@ import { rpc } from "@web/core/network/rpc";
 const store = {
     dependencies: [],
     start(env) {
-        // `reactive` makes the state observable by OWL. Components read this
-        // object directly — no useState copy and no subscribe callback.
+        // `reactive()` makes the state observable by OWL. All mutations go
+        // through this proxy (`state.x = y`); nothing mutates the raw target
+        // around it.
+        //
+        // Note the callback default: `reactive(target, callback = NO_CALLBACK)`.
+        // With NO_CALLBACK, `observeTargetKey()` returns immediately, so merely
+        // reading this proxy subscribes to nothing. A component must bind the
+        // state to its render callback with `useState(this.store.state)` —
+        // which re-wraps the *same* raw target with the render callback. See
+        // `mail_imap.esm.js` for the full explanation.
         //
         // The previous implementation did `useState(getState())` followed by
         // `Object.assign(proxy, original)` on every notification. That is a
@@ -38,9 +46,11 @@ const store = {
         let selectedUid = null;       // Track requested UID to prevent race conditions
 
         return {
-            // The one reactive state object. Components read it directly
-            // (`this.state = this.store.state`); there is no subscribe/copy
-            // pair, which is what made the detail view miss updates.
+            // The one reactive state object — the single source of truth.
+            // Consumers bind it to their render callback:
+            // `this.state = useState(this.store.state)`. There is no
+            // subscribe/copy pair; `Object.assign` copies are what made the
+            // detail view miss updates before.
             state,
 
             async checkPassword() {
