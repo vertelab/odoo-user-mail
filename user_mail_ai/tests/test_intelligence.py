@@ -4,6 +4,7 @@ heartbeat."""
 
 import json
 from datetime import datetime, timedelta
+from unittest.mock import patch
 
 from odoo.tests.common import TransactionCase
 
@@ -318,8 +319,16 @@ class TestUserMailAiIntelligence(TransactionCase):
         Regression 2026-10-14: knappen visade "0 mail synkades" både när
         allt redan var synkat och när allt misslyckats. Anroparen måste
         kunna skilja lägena.
+
+        Testet tvingar fram ett OSYNKAT läge: `_ingest_message` sätter
+        redan `synced`, så utan återställningen finns inget för
+        `_refresh_memory` att göra och `synced` blir 0 av rätt skäl.
         """
-        self._ingest(message_id='<mem-stats@example.com>')
+        rec = self._ingest(message_id='<mem-stats@example.com>')
+        rec.write({'memory_state': 'pending'})
+        self.env['ai.okf.concept'].sudo().search([
+            ('source_ref', '=', '<mem-stats@example.com>'),
+        ]).unlink()
         stats = self.Mail.with_user(self.user)._refresh_memory(self.user)
         self.assertIsInstance(stats, dict)
         for key in ('synced', 'failed', 'pending', 'total'):
@@ -338,6 +347,40 @@ class TestUserMailAiIntelligence(TransactionCase):
         self.assertEqual(stats['synced'], 0)
         self.assertGreater(stats['total'], 0,
                            'total ska visa att mail finns, även vid 0 synkade')
+
+    def test_rebuild_memory_survives_embedding_failure(self):
+        """Ett embedding-fel får inte sätta mailet till 'failed'.
+
+        Regression 2026-10-14: `create_from_mail` skapar konceptet FÖRST och
+        embeddar SEDAN. Kastar embeddingen (provider nere, extern HTTP
+        blockerad i tester) kastade hela anropet — och `_rebuild_memory`
+        satte `failed`, fast konceptet fanns och mailet är sökbart via BM25.
+        Statusen ska avgöras av vad som FINNS, inte av att anropet kastade.
+        """
+        if 'ai.okf.concept' not in self.env:
+            self.skipTest('OKF inte installerat')
+        rec = self._ingest(message_id='<mem-embed-fail@example.com>')
+        rec.write({'memory_state': 'pending'})
+        self.env['ai.okf.concept'].sudo().search([
+            ('source_ref', '=', '<mem-embed-fail@example.com>'),
+        ]).unlink()
+        # Tvinga fram exakt det läge buggen handlade om: konceptet skapas,
+        # men embeddingen kastar. Konceptet finns kvar efter anropet.
+        Concept = self.env['ai.okf.concept']
+        real_create = Concept.create_from_mail
+
+        def _create_then_raise(*args, **kwargs):
+            real_create(*args, **kwargs)
+            raise RuntimeError('embedding provider nere (simulerat)')
+
+        with patch.object(type(Concept), 'create_from_mail',
+                          side_effect=_create_then_raise):
+            ok = rec._rebuild_memory()
+        rec.invalidate_recordset()
+        self.assertTrue(
+            ok, 'konceptet finns och mailet är sökbart — då är det synkat')
+        self.assertEqual(rec.memory_state, 'synced')
+        self.assertTrue(rec._okf_concept_exists())
 
     def test_rebuild_memory_no_version_on_existing_concept(self):
         rec = self._ingest(message_id='<mem-3@example.com>')

@@ -91,9 +91,16 @@ class UserMailAiIntelligence(models.Model):
                     source_ref=self.message_id,
                 )
         except Exception as e:
+            # Ett kast här betyder INTE att konceptet uteblev. `create_from_mail`
+            # skapar konceptet först och embeddar sedan; misslyckas embeddingen
+            # (provider nere, extern HTTP blockerad i tester) kastar anropet
+            # EFTERÅT — men konceptet finns och mailet är sökbart via BM25.
+            # Därför avgör en efterkontroll, inte undantaget (2026-10-14).
             _logger.warning('Memory repair: OKF failed for %s: %s',
                             self.subject, e)
-            okf_ok = False
+        # Sanningen är vad som FINNS i databasen, inte vad anropet svarade.
+        if 'ai.okf.concept' in self.env:
+            okf_ok = self._okf_concept_exists()
         # ② Graf-nod + kant — sekundärt. Misslyckas den är mailet ändå
         #    sökbart via OKF:en, så det får inte fälla statusen.
         graph_ok = self._sync_graph_node()
