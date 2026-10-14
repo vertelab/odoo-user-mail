@@ -1,6 +1,46 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
 
+    <record id="user_mail_ai_rule_search" model="ir.ui.view">
+        <field name="name">user.mail.ai.rule.search</field>
+        <field name="model">user_mail_ai.rule</field>
+        <field name="arch" type="xml">
+            <search string="Mail-regler">
+                <field name="name"/>
+                <field name="condition_text"/>
+                <field name="action"/>
+                <!-- Seed-reglerna 4-7 skapas inaktiva (provläge). Utan
+                     detta filter går de inte att hitta i listan — den
+                     döljer inaktiva poster. "Inaktiva" visar dem så de
+                     kan aktiveras manuellt. -->
+                <filter name="inactive" string="Inaktiva"
+                        domain="[('active', '=', False)]"/>
+                <filter name="active" string="Aktiva"
+                        domain="[('active', '=', True)]"/>
+                <separator/>
+                <filter name="seed" string="Standardregler"
+                        domain="[('source', '=', 'seed')]"/>
+                <filter name="own" string="Egna"
+                        domain="[('source', '!=', 'seed')]"/>
+                <group expand="0" string="Gruppera">
+                    <filter name="g_active" string="Aktiv"
+                            domain="[]" context="{'group_by': 'active'}"/>
+                    <filter name="g_source" string="Källa"
+                            domain="[]" context="{'group_by': 'source'}"/>
+                    <filter name="g_action" string="Åtgärd"
+                            domain="[]" context="{'group_by': 'action'}"/>
+                    <filter name="g_condition_kind" string="Villkorstyp"
+                            domain="[]"
+                            context="{'group_by': 'condition_kind'}"/>
+                    <filter name="g_priority" string="Prioritet"
+                            domain="[]" context="{'group_by': 'priority'}"/>
+                    <filter name="g_user" string="Användare"
+                            domain="[]" context="{'group_by': 'user_id'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+
     <record id="user_mail_ai_rule_list" model="ir.ui.view">
         <field name="name">user.mail.ai.rule.list</field>
         <field name="model">user_mail_ai.rule</field>
@@ -47,6 +87,10 @@
         <field name="res_model">user_mail_ai.rule</field>
         <field name="view_mode">list,form</field>
         <field name="domain">[('user_id', '=', uid)]</field>
+        <!-- Standard: visa ALLA regler, även inaktiva. Annars ser man bara
+             tre av sju och tror att seed-reglerna saknas. `active_test`
+             stänger av ORM:ens automatiska active-filter för vyn. -->
+        <field name="context">{'active_test': False}</field>
     </record>
 
     <menuitem id="menu_user_mail_ai_rules"
