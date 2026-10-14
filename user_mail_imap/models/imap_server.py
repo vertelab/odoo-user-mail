@@ -177,6 +177,14 @@ class ImapServer(models.AbstractModel):
         and emitted in OKF relevance order. Hits with no matching ingested
         mail row are dropped, and ``total`` counts only resolved rows.
 
+        ``semantic=False`` (2026-10-14) — this is an INTERACTIVE search box,
+        so the query embedding is skipped. That embedding is a synchronous
+        HTTP call to an external provider (timeout 20 s x 3 attempts, so up
+        to 60 s when the provider hangs), which made the search feel broken.
+        Swedish FTS (BM25) answers in milliseconds and is what "find the mail
+        with the invoice" needs. Agent retrieval, where recall outweighs
+        latency, keeps the default (``semantic=True``).
+
         ``offset`` is applied to the relevance-ordered result. OKF search has
         no native offset, so ``limit + offset`` hits are fetched and the
         window is sliced out — best-effort paging, matching the design's
@@ -189,7 +197,7 @@ class ImapServer(models.AbstractModel):
         Mail = self.env['user_mail_ai.mail']
         hits = Concept._okf_search(
             query=term, scope='personal', owner_id=self.env.user.id,
-            limit=limit + max(0, offset))
+            limit=limit + max(0, offset), semantic=False)
         if not hits:
             return {'messages': [], 'total': 0}
         # Message-IDs in relevance order; source_ref is the concept's stored

@@ -60,6 +60,16 @@ class UserMailAiIntelligence(models.Model):
         markören (D2): OKF-koncept skapas BARA om det saknas (D4, mail är
         immutabla — ingen versionering), grafen upsertas (idempotent) och
         kanter körs om så sena partner-noder läks (D3).
+
+        **OKF och grafen är OBEROENDE steg (2026-10-14).** Tidigare krävdes
+        båda (`if okf_ok and graph_ok`) för `synced`. Är grafen otillgänglig
+        (AGE saknas, `graph.node.definition` ej laddad) blev mailet `failed`
+        för alltid — trots att OKF-konceptet skapades och mailet DÄRMED är
+        sökbart. Knappen rapporterade 0 utan att säga varför. OKF är det som
+        gör mailet sökbart; grafen är en sekundär berikning och får inte
+        blockera statusen.
+
+        Returnerar True om OKF-delen lyckades (det som ger sökbarhet).
         """
         self.ensure_one()
         okf_ok = True
@@ -84,9 +94,15 @@ class UserMailAiIntelligence(models.Model):
             _logger.warning('Memory repair: OKF failed for %s: %s',
                             self.subject, e)
             okf_ok = False
-        # ② Graf-nod + kant
+        # ② Graf-nod + kant — sekundärt. Misslyckas den är mailet ändå
+        #    sökbart via OKF:en, så det får inte fälla statusen.
         graph_ok = self._sync_graph_node()
-        if okf_ok and graph_ok:
+        if graph_ok is False:
+            _logger.info(
+                'Memory repair: graf-nod kunde inte skapas för %s '
+                '(grafen otillgänglig?) — OKF-status behålls',
+                self.subject)
+        if okf_ok:
             self.write({
                 'memory_synced_at': fields.Datetime.now(),
                 'memory_state': 'synced',
@@ -100,32 +116,61 @@ class UserMailAiIntelligence(models.Model):
 
         Anropas av knappen i Min profil (env.user) och av cronen (per
         användare). Bounded batch — resten tas nästa varv (D6).
+
+        Returnerar en statistik-dict i stället för ett bart tal
+        (2026-10-14): knappen visade "0 mail synkades" både när allt redan
+        var synkat och när allt misslyckats — två helt olika lägen. Nu får
+        anroparen veta vilket.
+
+            {'synced': n, 'failed': n, 'pending': n, 'total': n}
         """
         pending = self.search([
             ('user_id', '=', user.id),
             ('memory_state', '!=', 'synced'),
         ], limit=batch_size)
-        done = 0
+        synced = 0
+        failed = 0
         for rec in pending:
             try:
                 if rec._rebuild_memory():
-                    done += 1
+                    synced += 1
+                else:
+                    failed += 1
             except Exception as e:
                 _logger.warning('Memory refresh failed for %s: %s',
                                 rec.subject, e)
                 rec.write({'memory_state': 'failed'})
-        return done
+                failed += 1
+        # Kvarvarande icke-synkade efter denna batch (bounded — D6).
+        remaining = self.search_count([
+            ('user_id', '=', user.id),
+            ('memory_state', '!=', 'synced'),
+        ])
+        return {
+            'synced': synced,
+            'failed': failed,
+            'pending': remaining,
+            'total': self.search_count([('user_id', '=', user.id)]),
+        }
 
     @api.model
     def _repair_memory_all(self, batch_size=50):
-        """Cron: reparera minnet för användare med pollning aktiverad."""
+        """Cron: reparera minnet för användare med pollning aktiverad.
+
+        Returnerar antalet synkade mail (cronen loggar talet).
+        """
         users = self.env['res.users'].search([
             ('imap_poll_enabled', '=', True)])
         total = 0
         for user in users:
             try:
-                total += self.with_user(user.id)._refresh_memory(
+                stats = self.with_user(user.id)._refresh_memory(
                     user, batch_size=batch_size)
+                total += stats.get('synced', 0)
+                if stats.get('failed'):
+                    _logger.warning(
+                        'Memory repair: %s mail misslyckades för %s',
+                        stats['failed'], user.login)
             except Exception as e:
                 _logger.error(
                     'Memory repair failed for %s: %s', user.login, e)

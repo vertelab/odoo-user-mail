@@ -312,6 +312,33 @@ class TestUserMailAiIntelligence(TransactionCase):
         self.assertIn(self.Mail.browse(mine.id).memory_state,
                       ('synced', 'failed'))
 
+    def test_refresh_memory_returns_stats(self):
+        """_refresh_memory ska ge en statistik-dict, inte ett bart tal.
+
+        Regression 2026-10-14: knappen visade "0 mail synkades" både när
+        allt redan var synkat och när allt misslyckats. Anroparen måste
+        kunna skilja lägena.
+        """
+        self._ingest(message_id='<mem-stats@example.com>')
+        stats = self.Mail.with_user(self.user)._refresh_memory(self.user)
+        self.assertIsInstance(stats, dict)
+        for key in ('synced', 'failed', 'pending', 'total'):
+            self.assertIn(key, stats)
+        self.assertGreaterEqual(stats['total'], 1)
+        self.assertGreaterEqual(stats['synced'], 1)
+
+    def test_refresh_memory_stats_when_all_synced(self):
+        """Redan synkat ska ge synced=0 men total>0 — inte en tyst nolla."""
+        rec = self._ingest(message_id='<mem-all-synced@example.com>')
+        self.Mail.with_user(self.user)._refresh_memory(self.user)
+        rec.invalidate_recordset()
+        if rec.memory_state != 'synced':
+            self.skipTest('mail blev inte synkat i denna miljö')
+        stats = self.Mail.with_user(self.user)._refresh_memory(self.user)
+        self.assertEqual(stats['synced'], 0)
+        self.assertGreater(stats['total'], 0,
+                           'total ska visa att mail finns, även vid 0 synkade')
+
     def test_rebuild_memory_no_version_on_existing_concept(self):
         rec = self._ingest(message_id='<mem-3@example.com>')
         if 'ai.okf.concept' not in self.env:
