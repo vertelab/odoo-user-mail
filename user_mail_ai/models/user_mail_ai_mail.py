@@ -178,13 +178,17 @@ class UserMailAiMail(models.Model):
     # ── Ingest ───────────────────────────────────────────────────────
 
     @api.model
-    def _ingest_message(self, normalized_dict, user=None):
+    def _ingest_message(self, normalized_dict, user=None, raw_bytes=None):
         """Gemensam ingestion för normaliserade mail.
 
         normalized_dict: samma form som pollerns _normalize_message
         (message_id, subject, from_, to_, date, body_text, body_html,
-        attachments, folder, raw). Används av IMAP-pollen (Skiva 1) och
-        mailgatewayen (Skiva 2).
+        attachments, folder, thread_refs). Används av IMAP-pollen
+        (Skiva 1) och mailgatewayen (Skiva 2).
+
+        raw_bytes: meddelandets råbytes, om anroparen har dem. De används
+        för `.eml`-arkivering och trådmatchning och släpps när metoden
+        returnerar — de bärs aldrig genom pipelinen (INC-2026-10-19).
         """
         user = user or self.env.user
         message_id = (normalized_dict.get('message_id') or '').strip() \
@@ -216,16 +220,21 @@ class UserMailAiMail(models.Model):
             'status': 'new',
         })
 
-        # Rå .eml som källa till sanningen (klassificerare + teams-handler)
-        raw = normalized_dict.get('raw')
-        if raw:
+        # Rå .eml som källa till sanningen (klassificerare + teams-handler).
+        # Bytesen kan komma in via parametern (mailgatewayen) eller från
+        # pollerns `raw_sink`-kö (`_stash_raw`), som fylldes medan de ännu
+        # fanns i handen.
+        if not raw_bytes:
+            raw_bytes = self._pop_stashed_raw(message_id)
+        if raw_bytes:
             self.env['ir.attachment'].create({
                 'name': (record.subject or 'email')[:120] + '.eml',
-                'datas': base64.b64encode(raw).decode(),
+                'datas': base64.b64encode(raw_bytes).decode(),
                 'mimetype': 'message/rfc822',
                 'res_model': 'user_mail_ai.mail',
                 'res_id': record.id,
             })
+            raw_bytes = None
 
         # ── Skiva 2: källa + objekt + tråd-matchning ──
         extra = {
@@ -242,15 +251,27 @@ class UserMailAiMail(models.Model):
             extra['object_model'] = normalized_dict['object_model']
             extra['object_res_id'] = normalized_dict['object_res_id']
         # Deterministisk tråd-matchning (References/In-Reply-To) — starkare
-        # än LLM-kandidaten, bevaras i _classify.
-        if raw and not extra.get('object_model'):
-            try:
-                parsed = BytesParser(policy=policy.default).parsebytes(raw)
-                cand = self._find_object_by_thread(parsed)
+        # än LLM-kandidaten, bevaras i _classify. Referenserna bärs som
+        # korta strängar i det normaliserade mailet, så vi slipper parsa om
+        # hela meddelandet här.
+        if not extra.get('object_model'):
+            refs = normalized_dict.get('thread_refs')
+            if refs is None and raw_bytes:
+                # Bakåtkompatibelt: anropare som skickar råbytes men inte
+                # thread_refs (t.ex. mailgatewayen) får referenserna härifrån.
+                try:
+                    parsed = BytesParser(policy=policy.default).parsebytes(
+                        raw_bytes)
+                    refs = []
+                    for header in ('References', 'In-Reply-To'):
+                        val = parsed.get(header) or ''
+                        refs += re.findall(r'<[^>]+>', str(val))
+                except Exception:
+                    refs = []
+            if refs:
+                cand = self._find_object_by_refs(refs)
                 if cand:
                     extra['object_link_candidate'] = json.dumps(cand)
-            except Exception:
-                pass
         if extra:
             record.write(extra)
 
@@ -329,7 +350,6 @@ class UserMailAiMail(models.Model):
                 {'filename': a.name, 'content_type': a.mimetype}
                 for a in message.attachment_ids],
             'folder': 'mailgateway',
-            'raw': None,
             'raw_message_id': message.id,
             'object_model': message.model,
             'object_res_id': message.res_id,
@@ -891,15 +911,45 @@ class UserMailAiMail(models.Model):
     # SKIVA 2 — interaktion: promotion, utkast, mappar, routing
     # ══════════════════════════════════════════════════════════════
 
+    # ── Råbytes-kö (pollerns raw_sink → ingest) ────────────────────
+    #
+    # Pollern anropar `_on_new_message_raw` med råbytesen medan de ännu
+    # finns i handen. De läggs här och plockas upp av `_ingest_message`
+    # millisekunder senare, i samma poll. Kön är avsiktligt liten och
+    # töms på allt som inte konsumerats när poll-körningen är slut —
+    # annars vore den bara en ny plats att läcka minne på.
+
+    _RAW_STASH = {}
+    _RAW_STASH_MAX = 64
+
+    @api.model
+    def _stash_raw(self, message_id, raw_bytes):
+        """Lägg råbytes på kö för nästa `_ingest_message`."""
+        if not message_id:
+            return
+        if len(self._RAW_STASH) >= self._RAW_STASH_MAX:
+            # Skyddsnät: kön ska aldrig växa. Äldsta posten släpps.
+            self._RAW_STASH.pop(next(iter(self._RAW_STASH)), None)
+        self._RAW_STASH[message_id] = raw_bytes
+
+    @api.model
+    def _pop_stashed_raw(self, message_id):
+        """Ta ut (och glöm) råbytes för ett message_id."""
+        return self._RAW_STASH.pop(message_id, None)
+
+    @api.model
+    def _clear_raw_stash(self):
+        """Töm kön — anropas när en poll-körning är slut."""
+        self._RAW_STASH.clear()
+
     # ── Tråd-matchning (deterministisk objektkoppling) ──────────────
 
-    def _find_object_by_thread(self, parsed_msg):
-        """References/In-Reply-To → mail.message.message_id → (model, res_id)."""
-        refs = []
-        for header in ('References', 'In-Reply-To'):
-            val = parsed_msg.get(header) or ''
-            refs += re.findall(r'<[^>]+>', val)
-        for ref in refs:
+    def _find_object_by_refs(self, refs):
+        """References/In-Reply-To-lista → mail.message.message_id → (model, res_id).
+
+        Tar referenserna direkt, så anroparen slipper parsa om meddelandet.
+        """
+        for ref in refs or []:
             m = self.env['mail.message'].search(
                 [('message_id', '=', ref)], limit=1)
             if m and m.model and m.res_id:
@@ -908,6 +958,14 @@ class UserMailAiMail(models.Model):
                     'confidence': 1.0, 'source': 'thread',
                 }
         return None
+
+    def _find_object_by_thread(self, parsed_msg):
+        """References/In-Reply-To → mail.message.message_id → (model, res_id)."""
+        refs = []
+        for header in ('References', 'In-Reply-To'):
+            val = parsed_msg.get(header) or ''
+            refs += re.findall(r'<[^>]+>', val)
+        return self._find_object_by_refs(refs)
 
     def _thread_candidate(self):
         """Återberäkna tråd-kandidaten från råa eml (för _classify-överlagring)."""

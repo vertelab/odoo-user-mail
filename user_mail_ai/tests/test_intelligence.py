@@ -27,8 +27,10 @@ class TestUserMailAiIntelligence(TransactionCase):
         msg['From'] = frm
         msg['To'] = 'kalle@vertel.se'
         msg.set_content('Hej!')
-        norm = self.imap._normalize_message(msg.as_bytes(), folder='INBOX')
-        return self.Mail._ingest_message(norm, user=self.user)
+        raw = msg.as_bytes()
+        norm = self.imap._normalize_message(raw, folder='INBOX')
+        return self.Mail._ingest_message(
+            norm, user=self.user, raw_bytes=raw)
 
     # ── Regel-modell ─────────────────────────────────────────────────
 
@@ -212,8 +214,9 @@ class TestUserMailAiIntelligence(TransactionCase):
         msg['To'] = 'kalle@vertel.se'
         msg['References'] = '<thread-1@example.com>'
         msg.set_content('Svar i tråden')
-        norm = self.imap._normalize_message(msg.as_bytes(), folder='INBOX')
-        rec = self.Mail._ingest_message(norm, user=self.user)
+        raw = msg.as_bytes()
+        norm = self.imap._normalize_message(raw, folder='INBOX')
+        rec = self.Mail._ingest_message(norm, user=self.user, raw_bytes=raw)
 
         # Simulera att LLM-svaret saknade kandidat → skriv nolla
         rec.write({'object_link_candidate': False})
@@ -233,8 +236,9 @@ class TestUserMailAiIntelligence(TransactionCase):
         msg['From'] = 'a@example.com'
         msg['To'] = 'b@example.com'
         msg.set_content('x')
-        norm = self.imap._normalize_message(msg.as_bytes(), folder='INBOX')
-        rec = self.Mail._ingest_message(norm, user=self.user)
+        raw = msg.as_bytes()
+        norm = self.imap._normalize_message(raw, folder='INBOX')
+        rec = self.Mail._ingest_message(norm, user=self.user, raw_bytes=raw)
         rec.write({
             'object_model': 'project.task', 'object_res_id': 1,
             'object_link_candidate': json.dumps({
@@ -303,9 +307,10 @@ class TestUserMailAiIntelligence(TransactionCase):
         msg['From'] = 'Bo <bo@example.com>'
         msg['To'] = 'other@vertel.se'
         msg.set_content('Hej')
+        raw = msg.as_bytes()
         theirs = self.Mail.with_user(other)._ingest_message(
-            self.imap._normalize_message(msg.as_bytes(), folder='INBOX'),
-            user=other)
+            self.imap._normalize_message(raw, folder='INBOX'),
+            user=other, raw_bytes=raw)
         self.Mail.with_user(self.user)._refresh_memory(self.user)
         # Den andra användarens mail får inte ha rörts av min refresh.
         self.assertNotEqual(

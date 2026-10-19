@@ -30,7 +30,8 @@ class TestOkfMail(TransactionCase):
         raw = make_raw_email(**kw)
         norm = self.imap._normalize_message(raw, folder=kw.get('folder',
                                                                'INBOX'))
-        return self.Mail._ingest_message(norm, user=self.user)
+        return self.Mail._ingest_message(
+            norm, user=self.user, raw_bytes=raw)
 
     # ── 2.1/2.2 mixin-arv ───────────────────────────────────────────
 

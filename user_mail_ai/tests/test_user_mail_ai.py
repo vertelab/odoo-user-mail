@@ -43,8 +43,14 @@ class TestUserMailAi(TransactionCase):
         self.imap_model = self.env['user.mail.imap']
 
     def _ingest_raw(self, raw, user=None):
+        """Normalisera + ingesta, med råbytesen skickade som parameter.
+
+        Pollern skickar dem via `raw_sink` (se `_on_new_message_raw`); här
+        går de direkt till `_ingest_message`, vilket är samma kontrakt.
+        """
         norm = self.imap_model._normalize_message(raw, folder='INBOX')
-        return self.Mail._ingest_message(norm, user=user or self.user)
+        return self.Mail._ingest_message(
+            norm, user=user or self.user, raw_bytes=raw)
 
     # ── Modell & livscykel ──────────────────────────────────────────
 
@@ -187,3 +193,40 @@ class TestUserMailAi(TransactionCase):
             ('model_id.model', '=', 'user_mail_ai.mail')], limit=1)
         self.assertTrue(rule)
         self.assertIn('user_id', rule.domain_force or '')
+
+    # ── INC-2026-10-19: råbytes bärs inte genom pipelinen ───────────
+
+    def test_ingest_without_raw_bytes_still_works(self):
+        """Ingest ska fungera utan råbytes — de är inte ett krav."""
+        raw = make_raw_email(message_id='<no-raw@example.com>')
+        norm = self.imap_model._normalize_message(raw, folder='INBOX')
+        self.assertNotIn('raw', norm)
+        rec = self.Mail._ingest_message(norm, user=self.user)
+        self.assertTrue(rec)
+        self.assertEqual(rec.message_id, '<no-raw@example.com>')
+
+    def test_normalized_mail_carries_no_raw_bytes(self):
+        """Den normaliserade formen får inte bära meddelandets råbytes."""
+        raw = make_raw_email()
+        norm = self.imap_model._normalize_message(raw, folder='INBOX')
+        self.assertNotIn('raw', norm)
+        self.assertIn('thread_refs', norm)
+
+    def test_stashed_raw_is_consumed_by_ingest(self):
+        """Pollerns raw_sink-kö konsumeras av ingest och lämnas tom."""
+        raw = make_raw_email(message_id='<stash@example.com>')
+        norm = self.imap_model._normalize_message(raw, folder='INBOX')
+        self.Mail._stash_raw('<stash@example.com>', raw)
+        rec = self.Mail._ingest_message(norm, user=self.user)
+        att = self.env['ir.attachment'].search([
+            ('res_model', '=', 'user_mail_ai.mail'),
+            ('res_id', '=', rec.id)], limit=1)
+        self.assertTrue(att, '.eml ska skapas från den stashade råbytesen')
+        self.assertEqual(self.Mail._RAW_STASH, {},
+                         'kön ska vara tom efter konsumtion')
+
+    def test_raw_stash_cleared_after_batch(self):
+        """Kön får inte växa — den töms när batchen är slut."""
+        self.Mail._stash_raw('<leftover@example.com>', b'x' * 1024)
+        self.imap._on_new_messages([])
+        self.assertEqual(self.Mail._RAW_STASH, {})

@@ -30,14 +30,43 @@ def _safe_logout(conn):
     try:
         conn.logout()
     except Exception as e:
-        _logger.warning('IMAP logout failed (ignored): %s', e)
+        # Räknas per poll och rapporteras sammanfattat (se
+        # `_report_logout_failures`). En kvarglömd meddelandekropp i
+        # LOGOUT-svaret är en känd, ofarlig avvikelse: 55 separata
+        # varningar per dag gör loggen oläsbar och döljer verkliga fel.
+        _LOGOUT_FAILURES.append(str(e)[:160])
         try:
             conn.shutdown()
         except Exception:
             pass
 
-# Simple mail detail cache
+
+def _report_logout_failures(user_login=None):
+    """Logga LOGOUT-fel sammanfattat och töm räknaren.
+
+    Ett nytt, annorlunda felmeddelande loggas separat — annars drunknar en
+    verklig avvikelse i den kända. Tyst när inget fel inträffat.
+    """
+    if not _LOGOUT_FAILURES:
+        return
+    counts = {}
+    for msg in _LOGOUT_FAILURES:
+        counts[msg] = counts.get(msg, 0) + 1
+    del _LOGOUT_FAILURES[:]
+    for msg, n in counts.items():
+        _logger.info(
+            'IMAP logout failed (ignored) x%d for %s: %s',
+            n, user_login or '?', msg)
+
+
+# LOGOUT-fel ackumuleras per poll (se `_safe_logout`).
+_LOGOUT_FAILURES = []
+
+# Maildetalj-cache: cache_key -> (monotonic_timestamp, result).
+# Tidsstämpeln gör att poster kan rensas även när inga nya läggs till —
+# en storleksgräns ensam håller dem kvar så länge cachen inte fylls.
 _mail_cache = {}
+_MAIL_CACHE_TTL = 900  # sekunder
 
 # Matches an opening <a> tag that has an href but no target attribute yet.
 # The lookahead requires href (so `<a name="anchor">` is left alone), skips
@@ -49,6 +78,21 @@ _LINK_RE = re.compile(
     r'<a\s+(?=[^>]*\bhref=["\'](?!#))(?![^>]*\btarget=)([^>]*)>',
     re.IGNORECASE,
 )
+
+
+def _purge_mail_cache(ttl=None):
+    """Ta bort cache-poster äldre än TTL.
+
+    Körs vid varje läsning, inte bara vid insättning: en cache som bara
+    töms när den passerar ett antal poster håller sina poster kvar så
+    länge ingen ny post läggs till — och `body_html` för 500 mail är
+    inte trivialt.
+    """
+    ttl = _MAIL_CACHE_TTL if ttl is None else ttl
+    now = time.monotonic()
+    stale = [k for k, (ts, _r) in _mail_cache.items() if now - ts > ttl]
+    for k in stale:
+        _mail_cache.pop(k, None)
 
 
 def _prepare_body_html(html):
@@ -323,8 +367,10 @@ class ImapServer(models.AbstractModel):
 
     def action_fetch_mail(self, folder, uid):
         cache_key = f"{self.env.user.id}:{folder}:{uid}"
-        if cache_key in _mail_cache:
-            return _mail_cache[cache_key]
+        _purge_mail_cache()
+        hit = _mail_cache.get(cache_key)
+        if hit is not None:
+            return hit[1]
 
         conn = self._connect_imap()
         try:
@@ -363,8 +409,8 @@ class ImapServer(models.AbstractModel):
                 'body_html': _prepare_body_html(body_html or body_text or '(No content)'),
                 'attachments': attachments,
             }
-            _mail_cache[cache_key] = result
-            # Limit cache size
+            _mail_cache[cache_key] = (time.monotonic(), result)
+            # Limit cache size (TTL-purge sker vid varje läsning).
             if len(_mail_cache) > 500:
                 keys = list(_mail_cache.keys())
                 for k in keys[:100]:
@@ -492,6 +538,11 @@ class ImapServer(models.AbstractModel):
         Dedup sker på headers INNAN full body hämtas, så redan processade
         mail kostar inget. Budgeten kontrolleras mellan meddelanden —
         aldrig mitt i ett.
+
+        Minne: råbytes bärs aldrig i den normaliserade listan. De går via
+        `raw_sink` till `_on_new_message_raw()` medan de ännu finns i
+        handen, så att en poll av N mail inte ackumulerar N meddelanden
+        i minnet samtidigt (INC-2026-10-19).
         """
         user = self.env.user
         budget = self._poll_param('poll_budget_seconds', 30)
@@ -523,7 +574,6 @@ class ImapServer(models.AbstractModel):
             parse_errors = 0
             fetched = 0
             messages = []
-            new_uids = []
             highest = cursor
             for uid in uids:
                 if time.monotonic() >= deadline:
@@ -547,7 +597,8 @@ class ImapServer(models.AbstractModel):
                 _flags_raw, raw = msg_data[0]
                 try:
                     norm = self._normalize_message(
-                        raw, folder='INBOX', uid=uid)
+                        raw, folder='INBOX', uid=uid,
+                        raw_sink=self._on_new_message_raw)
                 except Exception as e:
                     parse_errors += 1
                     reason = '%s: %s' % (type(e).__name__, e)
@@ -560,32 +611,51 @@ class ImapServer(models.AbstractModel):
                         failed=True, failure_reason=reason)
                     highest = max(highest, uid)
                     continue
+                # Släpp råbytes direkt — de behövs inte längre.
+                del raw
                 if not norm:
                     continue
                 messages.append(norm)
-                new_uids.append(uid)
                 highest = max(highest, uid)
                 if len(messages) >= chunk:
                     break
-            if messages:
-                self._on_new_messages(messages)
-                self._record_processed(user.id, messages)
+            # Framstegsmarkören skrivs FÖRE konsumtionen. Kraschar den (som
+            # LOGOUT-felen gjorde 2026-10-19) hämtas annars samma mail igen
+            # nästa körning — och minnesfotavtrycket upprepas utan att något
+            # nytt tillförs. Dedup-tabellen `user.mail.processed` är
+            # retry-vägen för ett mail som bearbetats men inte konsumerats.
             remaining = len([u for u in uids if u > highest])
             user.write({
                 'last_imap_sync': fields.Datetime.now(),
                 'last_imap_uid': highest,
                 'last_imap_uidvalidity': uidvalidity,
             })
+            if messages:
+                self._on_new_messages(messages)
+                self._record_processed(user.id, messages)
             elapsed = time.monotonic() - started
             _logger.info(
                 'IMAP poll: user=%s candidates=%d new=%d dedup_skipped=%d '
-                'parse_errors=%d elapsed=%.1fs remaining=%d resync=%s',
+                'parse_errors=%d fetched=%d elapsed=%.1fs remaining=%d resync=%s',
                 user.login, len(uids), len(messages), dedup_skipped,
-                parse_errors, elapsed, remaining, resync)
+                parse_errors, fetched, elapsed, remaining, resync)
             self._report_progress(len(messages), remaining)
             return len(messages)
         finally:
             _safe_logout(conn)
+            _report_logout_failures(user.login)
+
+    def _on_new_message_raw(self, norm, raw_bytes):
+        """Hook: ett normaliserat mail + dess råbytes, medan de finns.
+
+        Anropas av `_normalize_message` via `raw_sink` — INNAN det
+        normaliserade mailet läggs i poll-listan. Bryggmoduler som behöver
+        `.eml`-arkivering (user_mail_ai) kan skriva bilagan här i stället
+        för att bära bytesen genom hela pipelinen.
+
+        Default: no-op. Råbytesen släpps när anropet returnerar.
+        """
+        return None
 
     def _get_processed_message_ids(self, user_id):
         """Alla redan processade dedup-nycklar för användaren."""
@@ -710,12 +780,23 @@ class ImapServer(models.AbstractModel):
         return 'h:' + hashlib.md5(
             raw.encode('utf-8', 'ignore')).hexdigest()
 
-    def _normalize_message(self, raw_bytes, folder='INBOX', uid=None):
+    def _normalize_message(self, raw_bytes, folder='INBOX', uid=None,
+                           raw_sink=None):
         """Parsa en rå RFC822-message till den normaliserade dict-formen.
 
         Returns dict: message_id, subject, from_, to_, date, body_text,
         body_html, attachments (list of {filename, content_type}), folder,
-        raw (bytes) och dedup_key.
+        thread_refs och dedup_key.
+
+        **Råbytes bärs INTE med.** Fältet `raw` kopierade hela meddelandet
+        (inklusive bilagor) in i dict:en, och eftersom en poll bygger en
+        lista av alla normaliserade mail låg hela brevlådan i minnet
+        samtidigt. Mätt 2026-10-19: RSS 500 MB -> 2 336 MB på sju minuter,
+        med `virtual memory limit reached` 0,1-0,3 s efter pollens slut.
+
+        Den som behöver råbytes (för `.eml`-arkivering) skickar in dem via
+        `raw_sink` — en callable som tar emot bytesen medan de ännu finns
+        i handen, i stället för att de ackumuleras i listan.
         """
         msg = BytesParser(policy=policy.default).parsebytes(raw_bytes)
         body_text = ''
@@ -737,6 +818,13 @@ class ImapServer(models.AbstractModel):
                 body_html = msg.get_content() or ''
             else:
                 body_text = msg.get_content() or ''
+        # Trådreferenser behövs för objektmatchning. De är korta strängar —
+        # att bära dem kostar inget, och det gör att konsumenten slipper
+        # parsa om hela meddelandet.
+        thread_refs = []
+        for header in ('References', 'In-Reply-To'):
+            val = msg.get(header) or ''
+            thread_refs += re.findall(r'<[^>]+>', str(val))
         norm = {
             'uid': uid,
             'message_id': str(msg.get('Message-ID', '')).strip(),
@@ -748,9 +836,19 @@ class ImapServer(models.AbstractModel):
             'body_html': body_html,
             'attachments': attachments,
             'folder': folder,
-            'raw': raw_bytes,
+            'thread_refs': thread_refs,
         }
         norm['dedup_key'] = self._dedup_key(norm)
+        # Råbytes lämnas vidare HÄR, medan de ännu finns i handen. Att
+        # returnera dem i dict:en vore att ackumulera hela brevlådan i
+        # minnet under en poll (se docstringen ovan).
+        if raw_sink is not None:
+            try:
+                raw_sink(norm, raw_bytes)
+            except Exception as e:
+                _logger.warning(
+                    'Raw sink failed uid=%s: %s: %s',
+                    uid, type(e).__name__, e)
         return norm
 
 

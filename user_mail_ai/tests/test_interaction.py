@@ -42,7 +42,8 @@ class TestUserMailAiInteraction(TransactionCase):
 
     def _ingest(self, raw):
         norm = self.imap._normalize_message(raw, folder='INBOX', uid=42)
-        return self.Mail._ingest_message(norm, user=self.user)
+        return self.Mail._ingest_message(
+            norm, user=self.user, raw_bytes=raw)
 
     # ── Tråd-matchning & objektkoppling ──────────────────────────────
 

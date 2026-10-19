@@ -38,7 +38,8 @@ class TestRulesObjects(TransactionCase):
     def _ingest(self, raw=None, frm='Anna <anna@example.com>', **kw):
         raw = raw or make_raw_email(frm=frm, **kw)
         norm = self.imap._normalize_message(raw, folder='INBOX')
-        return self.Mail._ingest_message(norm, user=self.user)
+        return self.Mail._ingest_message(
+            norm, user=self.user, raw_bytes=raw)
 
     def _rule(self, model, **cfg):
         action_config = dict(cfg)

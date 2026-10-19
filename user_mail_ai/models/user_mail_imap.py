@@ -33,4 +33,27 @@ class UserMailImapAI(models.AbstractModel):
             except Exception as e:
                 _logger.error('Mail pipeline failed for %s: %s',
                               self.env.user.login, e)
+        # Kön ska vara tom när batchen är konsumerad. Det som ligger kvar
+        # hör till mail som inte kunde ingesteras — att hålla dem kvar
+        # vore att läcka minne i modulnivå-state.
+        Mail._clear_raw_stash()
         return ingested
+
+    def _on_new_message_raw(self, norm, raw_bytes):
+        """Arkivera `.eml` medan råbytesen ännu finns i handen.
+
+        Pollern anropar denna via `raw_sink` INNAN det normaliserade mailet
+        läggs i listan. Att skriva bilagan här i stället för i ingest gör att
+        poll av N mail inte behöver bära N meddelanden i minnet samtidigt
+        (INC-2026-10-19: RSS 500 MB -> 2 336 MB på sju minuter).
+
+        Bilagan kopplas till `user_mail_ai.mail`-posten när den skapas i
+        ingest — här lagras bytesen på en kö som ingest plockar upp via
+        meddelandets `message_id`.
+        """
+        if not raw_bytes:
+            return
+        message_id = (norm.get('message_id') or norm.get('dedup_key') or '')
+        if not message_id:
+            return
+        self.env['user_mail_ai.mail']._stash_raw(message_id, raw_bytes)

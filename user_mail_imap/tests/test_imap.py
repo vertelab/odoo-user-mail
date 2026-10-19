@@ -651,3 +651,167 @@ class TestImap(TransactionCase):
         for key in ('last_run', 'last_ok', 'truncated',
                     'parse_errors_24h', 'backlog_estimate'):
             self.assertIn(key, health[user.login])
+
+    # ── INC-2026-10-19: minnesfotavtryck ────────────────────────────
+
+    def test_normalize_message_carries_no_raw_bytes(self):
+        """Råbytes får inte bäras i den normaliserade formen.
+
+        Fältet `raw` kopierade hela meddelandet (inkl. bilagor) in i
+        dict:en, och en poll bygger en lista av alla normaliserade mail —
+        hela brevlådan låg i minnet samtidigt (RSS 500 MB -> 2 336 MB på
+        sju minuter, `virtual memory limit reached` 0,1-0,3 s efter
+        pollens slut).
+        """
+        raw = self._make_raw_email()
+        norm = self.imap._normalize_message(raw, folder='INBOX')
+        self.assertNotIn('raw', norm,
+                         'normaliserat mail får inte bära råbytes')
+
+    def test_normalize_message_hands_raw_to_sink(self):
+        """Råbytes lämnas till raw_sink medan de ännu finns i handen."""
+        raw = self._make_raw_email()
+        seen = []
+
+        def sink(norm, raw_bytes):
+            seen.append((norm['message_id'], raw_bytes))
+
+        norm = self.imap._normalize_message(
+            raw, folder='INBOX', raw_sink=sink)
+        self.assertEqual(len(seen), 1)
+        self.assertEqual(seen[0][0], '<test-1@example.com>')
+        self.assertEqual(seen[0][1], raw)
+        self.assertNotIn('raw', norm)
+
+    def test_normalize_message_carries_thread_refs(self):
+        """Trådreferenser bärs som korta strängar — inte som råbytes."""
+        from email.message import EmailMessage
+        msg = EmailMessage()
+        msg['Message-ID'] = '<reply@example.com>'
+        msg['Subject'] = 'Re: Hej'
+        msg['From'] = 'Anna <anna@example.com>'
+        msg['To'] = 'kalle@vertel.se'
+        msg['Date'] = 'Mon, 05 Aug 2026 10:00:00 +0200'
+        msg['In-Reply-To'] = '<parent@example.com>'
+        msg['References'] = '<parent@example.com> <grandparent@example.com>'
+        msg.set_content('Svar')
+        norm = self.imap._normalize_message(msg.as_bytes())
+        self.assertIn('<parent@example.com>', norm['thread_refs'])
+        self.assertIn('<grandparent@example.com>', norm['thread_refs'])
+
+    def test_raw_sink_failure_does_not_break_normalization(self):
+        """En trasig sink får inte fälla normaliseringen."""
+        raw = self._make_raw_email()
+
+        def broken_sink(norm, raw_bytes):
+            raise RuntimeError('sink is broken')
+
+        norm = self.imap._normalize_message(
+            raw, folder='INBOX', raw_sink=broken_sink)
+        self.assertEqual(norm['message_id'], '<test-1@example.com>')
+
+    def test_mail_cache_purges_by_ttl(self):
+        """Cachen ska rensa på tid, inte bara på storlek.
+
+        En cache som bara töms när den passerar ett antal poster håller
+        sina poster kvar så länge ingen ny post läggs till — och
+        `body_html` för 500 mail är inte trivialt.
+        """
+        from odoo.addons.user_mail_imap.models import imap_server
+        imap_server._mail_cache.clear()
+        imap_server._mail_cache['stale'] = (0.0, {'body_html': 'gammal'})
+        imap_server._mail_cache['fresh'] = (
+            imap_server.time.monotonic(), {'body_html': 'ny'})
+        imap_server._purge_mail_cache(ttl=60)
+        self.assertNotIn('stale', imap_server._mail_cache)
+        self.assertIn('fresh', imap_server._mail_cache)
+        imap_server._mail_cache.clear()
+
+    def _capture_logs(self, logger_name):
+        """Fånga loggrader oberoende av Odoos log_handler.
+
+        Odoo kör tester med `-l test`, som sätter loggernivån så att INFO
+        undertrycks. `assertLogs` fångar bara det som faktiskt når loggern,
+        så vi hänger på en egen handler och höjer nivån under testet.
+        """
+        import logging
+        logger = logging.getLogger(logger_name)
+        records = []
+
+        class _Handler(logging.Handler):
+            def emit(self, record):
+                records.append(record)
+
+        handler = _Handler()
+        old_level = logger.level
+        logger.addHandler(handler)
+        logger.setLevel(logging.DEBUG)
+        return logger, handler, records, old_level
+
+    def test_logout_failures_are_reported_summarized(self):
+        """Upprepade LOGOUT-fel ska ge en loggrad, inte en per förekomst."""
+        from odoo.addons.user_mail_imap.models import imap_server
+        imap_server._LOGOUT_FAILURES.clear()
+        for _ in range(20):
+            imap_server._LOGOUT_FAILURES.append('LOGOUT => Return-Path: x')
+        logger, handler, records, old_level = self._capture_logs(
+            'odoo.addons.user_mail_imap.models.imap_server')
+        try:
+            imap_server._report_logout_failures('anna@example.com')
+        finally:
+            logger.removeHandler(handler)
+            logger.setLevel(old_level)
+        self.assertEqual(
+            len(records), 1,
+            'tjugo identiska LOGOUT-fel ska bli EN sammanfattande rad')
+        self.assertIn('x20', records[0].getMessage())
+        self.assertEqual(imap_server._LOGOUT_FAILURES, [],
+                         'räknaren ska nollställas efter rapportering')
+
+    def test_poll_writes_progress_before_consuming(self):
+        """Framstegsmarkören skrivs FÖRE konsumtionen.
+
+        Kraschar konsumtionen (som LOGOUT-felen gjorde 2026-10-19) hämtas
+        annars samma mail igen nästa körning — och minnesfotavtrycket
+        upprepas utan att något nytt tillförs.
+        """
+        import inspect
+        src = inspect.getsource(self.imap.action_poll_user)
+        idx_write = src.find("'last_imap_sync'")
+        idx_consume = src.find('_on_new_messages(')
+        self.assertGreater(idx_write, -1)
+        self.assertGreater(idx_consume, -1)
+        self.assertLess(
+            idx_write, idx_consume,
+            'last_imap_sync ska skrivas innan _on_new_messages anropas')
+
+    def test_poll_reports_logout_failures_in_finally(self):
+        """LOGOUT-fel rapporteras i finally, även när poller kastar."""
+        import inspect
+        src = inspect.getsource(self.imap.action_poll_user)
+        idx_finally = src.find('finally:')
+        idx_report = src.find('_report_logout_failures')
+        self.assertGreater(idx_finally, -1)
+        self.assertGreater(
+            idx_report, idx_finally,
+            '_report_logout_failures ska anropas i finally-blocket')
+
+    def test_logout_failures_distinct_messages_logged_separately(self):
+        """Ett nytt, annorlunda fel får inte drunkna i det kända."""
+        from odoo.addons.user_mail_imap.models import imap_server
+        imap_server._LOGOUT_FAILURES.clear()
+        for _ in range(5):
+            imap_server._LOGOUT_FAILURES.append('LOGOUT => Return-Path: x')
+        imap_server._LOGOUT_FAILURES.append('ConnectionResetError: boom')
+        logger, handler, records, old_level = self._capture_logs(
+            'odoo.addons.user_mail_imap.models.imap_server')
+        try:
+            imap_server._report_logout_failures('anna@example.com')
+        finally:
+            logger.removeHandler(handler)
+            logger.setLevel(old_level)
+        self.assertEqual(len(records), 2)
+        joined = '\n'.join(r.getMessage() for r in records)
+        self.assertIn('x5', joined)
+        self.assertIn('ConnectionResetError', joined)
+        imap_server._LOGOUT_FAILURES.clear()
