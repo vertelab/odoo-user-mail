@@ -14,7 +14,7 @@ model._poll_cron()
         <field name="name">User Mail: IMAP Poll (hjälpredan)</field>
         <field name="cron_name">User Mail: IMAP Poll (hjälpredan)</field>
         <field name="ir_actions_server_id" ref="ir_actions_server_poll_imap"/>
-        <field name="interval_number">5</field>
+        <field name="interval_number">15</field>
         <field name="interval_type">minutes</field>
         <field name="active">True</field>
     </record>

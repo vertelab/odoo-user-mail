@@ -236,10 +236,25 @@ class TestImap(TransactionCase):
         raw = msg.as_bytes()
 
         fake = MagicMock()
-        fake.select.return_value = ('OK', [b'1'])
+        fake.select.return_value = ('OK', [b'1', b'UIDVALIDITY 42'])
         fake.search.return_value = ('OK', [b'1'])
         fake.fetch.return_value = ('OK', [(b'1 (BODY[] {123}', raw)])
         fake.login.return_value = ('OK', [b'logged in'])
+
+        def _uid(cmd, *args):
+            if cmd == 'SEARCH':
+                return ('OK', [b'1'])
+            if cmd == 'FETCH':
+                spec = args[1]
+                if 'HEADER.FIELDS' in spec:
+                    return ('OK', [(b'1 (UID 1 BODY[HEADER] {1}',
+                                    b'Message-ID: <poll-test-1@example.com>\r\n'
+                                    b'Subject: Poll-test\r\n'
+                                    b'From: Anna <anna@example.com>\r\n'
+                                    b'Date: Mon, 05 Aug 2026 10:00:00 +0200\r\n\r\n')])
+                return ('OK', [(b'1 (UID 1 BODY[] {123}', raw)])
+            return ('OK', [b''])
+        fake.uid.side_effect = _uid
 
         with patch('imaplib.IMAP4_SSL', return_value=fake):
             n = self.env['user.mail.imap'].with_user(self.user).action_poll_user()
@@ -248,7 +263,11 @@ class TestImap(TransactionCase):
         self.assertTrue(self.user.last_imap_sync,
                         'last_imap_sync ska sättas efter lyckad poll')
         # Readonly-säkerhet: BODY.PEEK, aldrig STORE (flaggor).
-        self.assertTrue(fake.fetch.called)
+        fetch_calls = [c for c in fake.uid.call_args_list
+                       if c[0][0] == 'FETCH']
+        self.assertTrue(fetch_calls, 'pollern ska hämta meddelandet')
+        self.assertTrue(any('BODY.PEEK' in str(c[0][2]) for c in fetch_calls),
+                        'hämtning ska använda BODY.PEEK')
         self.assertFalse(fake.store.called, 'pollern får aldrig sätta flaggor')
 
     def test_poll_skips_when_no_password(self):
@@ -397,3 +416,238 @@ class TestImap(TransactionCase):
                 .action_search_mails('INBOX', 'x', 0, 80)
 
         self.assertEqual(res, {'messages': [], 'total': 0})
+
+    # ── Poll-budget: cursor, dedup-före-fetch, budget (fix-imap-poll-cron-backlog) ──
+
+    def _poll_user(self):
+        """Pollande testanvändare med postfix_mail satt (compute annars)."""
+        self.user.imap_password = self.user._encrypt_imap_pw('x')
+        self.user.imap_poll_enabled = True
+        self.env.flush_all()
+        self.user.postfix_mail = 'budget-test@vertel.se'
+        self.user.last_imap_sync = False
+        self.user.last_imap_uid = 0
+        self.user.last_imap_uidvalidity = False
+        return self.user
+
+    @staticmethod
+    def _fake_conn(uids, headers=None, bodies=None, uidvalidity='42'):
+        """Minimal IMAP-dubbel som svarar på UID SEARCH/FETCH och SELECT."""
+        from unittest.mock import MagicMock
+        fake = MagicMock()
+        fake.select.return_value = (
+            'OK', [str(len(uids)).encode(),
+                   ('UIDVALIDITY %s' % uidvalidity).encode()])
+        fake.login.return_value = ('OK', [b'logged in'])
+        fake.uid.return_value = ('OK', [b' '.join(str(u).encode() for u in uids)])
+
+        headers = headers or {}
+        bodies = bodies or {}
+
+        def _uid(cmd, *args):
+            if cmd == 'SEARCH':
+                return ('OK', [b' '.join(str(u).encode() for u in uids)])
+            if cmd == 'FETCH':
+                uid_set, spec = args[0], args[1]
+                ids = [int(x) for x in str(uid_set).split(',')]
+                if 'HEADER.FIELDS' in spec:
+                    out = []
+                    for u in ids:
+                        if u in headers:
+                            out.append((b'%d (UID %d BODY[HEADER] {1}' % (u, u),
+                                        headers[u]))
+                    return ('OK', out)
+                out = []
+                for u in ids:
+                    if u in bodies:
+                        out.append((b'%d (UID %d BODY[] {1}' % (u, u), bodies[u]))
+                return ('OK', out)
+            return ('OK', [b''])
+        fake.uid.side_effect = _uid
+        return fake
+
+    @staticmethod
+    def _header_bytes(message_id, subject='Test', sender='a@b.se'):
+        return ('Message-ID: %s\r\nSubject: %s\r\nFrom: %s\r\n'
+                'Date: Mon, 05 Aug 2026 10:00:00 +0200\r\n\r\n'
+                % (message_id, subject, sender)).encode()
+
+    @staticmethod
+    def _body_bytes(message_id, subject='Test'):
+        from email.message import EmailMessage
+        msg = EmailMessage()
+        msg['Message-ID'] = message_id
+        msg['Subject'] = subject
+        msg['From'] = 'a@b.se'
+        msg['Date'] = 'Mon, 05 Aug 2026 10:00:00 +0200'
+        msg.set_content('Hej!')
+        return msg.as_bytes()
+
+    def test_cursor_uses_uid_search_not_since(self):
+        """Med satt cursor ska pollern göra UID SEARCH UID n+1:* — inte SINCE."""
+        from unittest.mock import patch
+        user = self._poll_user()
+        user.last_imap_uid = 100
+        user.last_imap_uidvalidity = '42'
+        fake = self._fake_conn([], uidvalidity='42')
+
+        with patch('imaplib.IMAP4_SSL', return_value=fake):
+            self.env['user.mail.imap'].with_user(user).action_poll_user()
+
+        search_args = [c for c in fake.uid.call_args_list
+                       if c[0][0] == 'SEARCH']
+        self.assertTrue(search_args, 'pollern ska göra UID SEARCH')
+        self.assertIn('UID 101:*', str(search_args[0][0]))
+        self.assertFalse(fake.search.called,
+                         'SINCE-vägen får inte användas när cursor finns')
+
+    def test_no_cursor_falls_back_to_all(self):
+        """Utan cursor görs en engångs-omsynkronisering (SEARCH ALL)."""
+        from unittest.mock import patch
+        user = self._poll_user()
+        fake = self._fake_conn([], uidvalidity='42')
+
+        with patch('imaplib.IMAP4_SSL', return_value=fake):
+            self.env['user.mail.imap'].with_user(user).action_poll_user()
+
+        search_args = [c for c in fake.uid.call_args_list
+                       if c[0][0] == 'SEARCH']
+        self.assertIn('ALL', str(search_args[0][0]))
+
+    def test_uidvalidity_change_resets_cursor(self):
+        """Ändrad UIDVALIDITY ska nollställa cursorn (resync)."""
+        from unittest.mock import patch
+        user = self._poll_user()
+        user.last_imap_uid = 500
+        user.last_imap_uidvalidity = 'OLD'
+        self.env.flush_all()
+        fake = self._fake_conn([], uidvalidity='NEW')
+
+        with patch('imaplib.IMAP4_SSL', return_value=fake):
+            self.env['user.mail.imap'].with_user(user).action_poll_user()
+
+        user.invalidate_recordset()
+        self.assertEqual(user.last_imap_uidvalidity, 'NEW')
+        search_args = [c for c in fake.uid.call_args_list
+                       if c[0][0] == 'SEARCH']
+        self.assertIn('ALL', str(search_args[0][0]),
+                      'resync ska söka ALL, inte UID 501:*')
+
+    def test_dedup_before_full_body_fetch(self):
+        """Redan processat mail får aldrig ett BODY.PEEK[]-anrop."""
+        from unittest.mock import patch
+        user = self._poll_user()
+        user.last_imap_uid = 0
+        user.last_imap_uidvalidity = '42'
+        self.env['user.mail.processed'].create({
+            'user_id': user.id,
+            'message_id': '<seen-1@example.com>',
+        })
+        self.env.flush_all()
+        self.assertEqual(
+            self.env['user.mail.imap']._dedup_key(
+                {'message_id': '<seen-1@example.com>'}),
+            '<seen-1@example.com>',
+            'dedup-nyckeln ska vara Message-ID när det finns')
+        headers = {1: self._header_bytes('<seen-1@example.com>')}
+        fake = self._fake_conn([1], headers=headers,
+                               bodies={1: self._body_bytes('<seen-1@example.com>')})
+
+        with patch('imaplib.IMAP4_SSL', return_value=fake):
+            n = self.env['user.mail.imap'].with_user(user).action_poll_user()
+
+        self.assertEqual(n, 0, 'redan processat mail ska inte räknas som nytt')
+        full_fetches = [c for c in fake.uid.call_args_list
+                        if c[0][0] == 'FETCH' and 'HEADER.FIELDS' not in c[0][2]]
+        self.assertFalse(full_fetches,
+                         'dedup ska ske före full body-fetch')
+
+    def test_budget_zero_processes_nothing(self):
+        """Budget 0 s: inga meddelanden bearbetas, inget kastas."""
+        from unittest.mock import patch
+        user = self._poll_user()
+        user.last_imap_uid = 0
+        user.last_imap_uidvalidity = '42'
+        self.env['ir.config_parameter'].sudo().set_param(
+            'user_mail_imap.poll_budget_seconds', '0')
+        headers = {1: self._header_bytes('<b1@example.com>')}
+        fake = self._fake_conn([1], headers=headers,
+                               bodies={1: self._body_bytes('<b1@example.com>')})
+
+        with patch('imaplib.IMAP4_SSL', return_value=fake):
+            n = self.env['user.mail.imap'].with_user(user).action_poll_user()
+
+        self.assertEqual(n, 0)
+
+    def test_poison_message_advances_cursor(self):
+        """Ett mail som inte kan normaliseras blockar inte brevlådan."""
+        from unittest.mock import patch
+        user = self._poll_user()
+        user.last_imap_uid = 0
+        user.last_imap_uidvalidity = '42'
+        headers = {7: self._header_bytes('<poison@example.com>')}
+        poison = (b'Message-ID: <poison@example.com>\r\n'
+                  b'Subject: x\r\n'
+                  b'Content-Type: text/plain; charset="x-unknown-charset"\r\n'
+                  b'Content-Transfer-Encoding: base64\r\n\r\n'
+                  b'!!!not-base64!!!\r\n')
+        fake = self._fake_conn([7], headers=headers, bodies={7: poison})
+        self.env.flush_all()
+
+        with patch('imaplib.IMAP4_SSL', return_value=fake):
+            self.env['user.mail.imap'].with_user(user).action_poll_user()
+
+        user.invalidate_recordset()
+        self.assertEqual(user.last_imap_uid, 7,
+                         'cursorn ska avancera förbi det trasiga mailet')
+        row = self.env['user.mail.processed'].search([
+            ('user_id', '=', user.id),
+            ('message_id', '=', '<poison@example.com>'),
+        ])
+        self.assertTrue(row, 'det trasiga mailet ska spåras')
+        self.assertTrue(row.failed, 'raden ska vara markerad som misslyckad')
+        self.assertTrue(row.failure_reason,
+                        'felorsaken ska vara läsbar utan att läsa loggen')
+
+    def test_poll_health_reports_parse_errors(self):
+        """_poll_health() ska räkna misslyckade mail senaste dygnet."""
+        user = self.env['res.users'].create({
+            'name': 'Poll Health User',
+            'login': 'poll-health@vertel.se',
+            'password': 'x',
+        })
+        user.imap_password = user._encrypt_imap_pw('x')
+        self.env.flush_all()
+        self.env.cr.execute(
+            "UPDATE res_users SET imap_poll_enabled = true WHERE id = %s",
+            (user.id,))
+        user.invalidate_recordset()
+        self.env.cr.execute(
+            "SELECT imap_poll_enabled FROM res_users WHERE id = %s",
+            (user.id,))
+        self.assertTrue(self.env.cr.fetchone()[0],
+                        'testanvändaren ska vara pollande i DB')
+        self.env.invalidate_all()
+        self.env['user.mail.processed'].create({
+            'user_id': user.id,
+            'message_id': '<fail@example.com>',
+            'failed': True,
+            'failure_reason': 'MessageError: boom',
+        })
+        self.env.cr.execute(
+            "SELECT id, imap_poll_enabled, active FROM res_users "
+            "WHERE imap_poll_enabled = true")
+        rows = self.env.cr.fetchall()
+        self.assertIn(user.id, [r[0] for r in rows],
+                      'DB ska visa användaren som pollande: %r' % (rows,))
+        found = self.env['res.users'].sudo().search(
+            [('imap_poll_enabled', '=', True)])
+
+        self.assertIn(user, found,
+                      'användaren ska hittas av samma sökning som _poll_health gör')
+        health = self.env['user.mail.poll']._poll_health()
+        self.assertIn(user.login, health)
+        self.assertEqual(health[user.login]['parse_errors_24h'], 1)
+        for key in ('last_run', 'last_ok', 'truncated',
+                    'parse_errors_24h', 'backlog_estimate'):
+            self.assertIn(key, health[user.login])

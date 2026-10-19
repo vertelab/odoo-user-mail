@@ -20,6 +20,14 @@ class UserMailProcessed(models.Model):
         string='Message-ID / dedup-nyckel', required=True, index=True)
     processed_at = fields.Datetime(
         string='Processad', default=fields.Datetime.now)
+    failed = fields.Boolean(
+        string='Misslyckad', default=False, index=True,
+        help='Satt när meddelandet inte kunde bearbetas (t.ex. '
+             'normaliseringsfel). Raden finns ändå — cursorn ska kunna '
+             'avancera förbi ett trasigt meddelande.')
+    failure_reason = fields.Char(
+        string='Felorsak',
+        help='Undantagsklass och feltext, för felsökning utan att läsa loggen.')
 
     _sql_constraints = [
         ('unique_user_message',

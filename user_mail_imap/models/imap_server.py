@@ -419,84 +419,170 @@ class ImapServer(models.AbstractModel):
     # Polling (cron, per-user) — mail-infrastruktur, ingen AI
     # ══════════════════════════════════════════════════════════════
 
+    # ── Budget, chunkning och progress ────────────────────────────
+
+    def _poll_param(self, key, default):
+        """Läs en poll-inställning ur ir.config_parameter (sträng → typ)."""
+        raw = self.env['ir.config_parameter'].sudo().get_param(
+            'user_mail_imap.%s' % key, default)
+        try:
+            return type(default)(raw)
+        except (TypeError, ValueError):
+            return default
+
+    def _report_progress(self, done, remaining):
+        """Rapportera framsteg till Odoo 18:s cron-progress-API.
+
+        `ir_cron._run_job()` committar progress-raden FÖRE varje anrop och
+        schemalägger om direkt (`PARTIALLY_DONE`) så länge `remaining > 0`.
+        Utanför cron (manuell trigger, tester) saknas `ir_cron_progress_id`
+        i context — då är anropet en tyst no-op.
+        """
+        if not self.env.context.get('ir_cron_progress_id'):
+            return
+        self._notify_progress(done=done, remaining=remaining)
+
     @api.model
     def action_poll_all(self):
-        """Poll every user with imap_poll_enabled=True and a password.
+        """Polla alla användare med imap_poll_enabled=True och lösenord.
 
-        Körs av cron via user.mail.poll. Varje användare pollas med sin
-        egen IMAP-identitet (with_user) och sina egna credentials. Ett fel
-        för en användare blockerar aldrig övriga.
+        Körs av cron via user.mail.poll. Arbetet är **chunkat och
+        budgeterat**: en körning tar aldrig längre tid än
+        `poll_budget_seconds`, och det som återstår rapporteras via
+        progress-API:t så att cron schemalägger om direkt.
 
         En användare utan `imap_password` hoppas över tyst: ytan nekar
         `imap_poll_enabled` utan lösenord, så ett saknat lösenord är ett
         normalt tillstånd — inte ett fel att logga var 5:e minut.
         """
+        budget = self._poll_param('poll_budget_seconds', 30)
+        deadline = time.monotonic() + budget
         users = self.env['res.users'].search(
             [('imap_poll_enabled', '=', True)])
         total = 0
-        for user in users:
+        pending = list(users)
+        while pending:
+            if time.monotonic() >= deadline:
+                # Budgeten är slut: räkna resten som återstående arbete.
+                self._report_progress(total, len(pending))
+                return total
+            user = pending.pop(0)
             if not user.imap_password:
                 _logger.info(
                     'Mail poll: hoppar över %s — inget IMAP-lösenord satt.',
                     user.login)
                 continue
             try:
-                total += self.with_user(user.id).action_poll_user()
+                total += self.with_user(user.id).action_poll_user(
+                    deadline=deadline)
             except Exception as e:
                 _logger.error(
-                    'Mail poll failed for user %s (%s): %s',
-                    user.login, user.id, e)
+                    'Mail poll failed for user %s (%s): %s: %s',
+                    user.login, user.id, type(e).__name__, e)
+        self._report_progress(total, 0)
         return total
 
-    def action_poll_user(self):
+    def action_poll_user(self, deadline=None):
         """Poll ONE user's INBOX (env.user = target user).
 
         Readonly-säker: använder BODY.PEEK så att \\Seen aldrig sätts och
-        inga flaggor/mappar ändras. Hämtar mail sedan last_imap_sync,
-        normaliserar, deduplicerar via Message-ID, anropar
-        _on_new_messages() per batch och uppdaterar last_imap_sync.
+        inga flaggor/mappar ändras.
+
+        Inkrementellt: hämtar endast UID:n efter användarens cursor.
+        Dedup sker på headers INNAN full body hämtas, så redan processade
+        mail kostar inget. Budgeten kontrolleras mellan meddelanden —
+        aldrig mitt i ett.
         """
         user = self.env.user
-        since = user.last_imap_sync
+        budget = self._poll_param('poll_budget_seconds', 30)
+        chunk = self._poll_param('poll_chunk_size', 25)
+        if deadline is None:
+            deadline = time.monotonic() + budget
+        started = time.monotonic()
         conn = self._connect_imap()
         try:
-            conn.select('INBOX')
-            if since:
-                date_str = since.strftime('%d-%b-%Y')
-                typ, data = conn.search(None, '(SINCE %s)' % date_str)
-            else:
-                typ, data = conn.search(None, 'ALL')
-            if typ != 'OK':
-                return 0
-            uids = data[0].split() if data and data[0] else []
+            uidvalidity = self._uidvalidity(conn, 'INBOX')
+            cursor = user.last_imap_uid or 0
+            resync = False
+            if user.last_imap_uidvalidity and uidvalidity \
+                    and user.last_imap_uidvalidity != uidvalidity:
+                # UID:n är inte längre jämförbara — börja om från början.
+                _logger.info(
+                    'IMAP poll: resync for %s — UIDVALIDITY %s -> %s',
+                    user.login, user.last_imap_uidvalidity, uidvalidity)
+                cursor = 0
+                resync = True
+            uids = self._candidate_uids(conn, cursor, 'INBOX')
+            if not user.last_imap_uid:
+                _logger.info(
+                    'IMAP poll: resync for %s — no cursor (candidates=%d)',
+                    user.login, len(uids))
             processed = set(self._get_processed_message_ids(user.id))
+            headers = self._fetch_headers(conn, uids)
+            dedup_skipped = 0
+            parse_errors = 0
+            fetched = 0
             messages = []
+            new_uids = []
+            highest = cursor
             for uid in uids:
-                typ2, msg_data = conn.fetch(uid, '(BODY.PEEK[])')
+                if time.monotonic() >= deadline:
+                    break
+                hdr = headers.get(uid) or {}
+                key = self._dedup_key({
+                    'message_id': hdr.get('message_id', ''),
+                    'from_': hdr.get('from_', ''),
+                    'subject': hdr.get('subject', ''),
+                    'date': hdr.get('date', ''),
+                })
+                if key and key in processed:
+                    dedup_skipped += 1
+                    highest = max(highest, uid)
+                    continue
+                typ2, msg_data = conn.uid('FETCH', str(uid), '(BODY.PEEK[])')
+                fetched += 1
                 if (typ2 != 'OK' or not msg_data
                         or not isinstance(msg_data[0], tuple)):
                     continue
                 _flags_raw, raw = msg_data[0]
                 try:
                     norm = self._normalize_message(
-                        raw, folder='INBOX', uid=int(uid))
+                        raw, folder='INBOX', uid=uid)
                 except Exception as e:
+                    parse_errors += 1
+                    reason = '%s: %s' % (type(e).__name__, e)
                     _logger.warning(
                         'Normalize failed for %s uid=%s: %s',
-                        user.login, uid, e)
+                        user.login, uid, reason)
+                    # Poison-policy: framsteg framför fullständighet.
+                    self._record_processed(
+                        user.id, [{'dedup_key': key or 'uid:%d' % uid}],
+                        failed=True, failure_reason=reason)
+                    highest = max(highest, uid)
                     continue
                 if not norm:
                     continue
-                key = norm.get('dedup_key')
-                if key and key in processed:
-                    continue
-                if key:
-                    processed.add(key)
                 messages.append(norm)
+                new_uids.append(uid)
+                highest = max(highest, uid)
+                if len(messages) >= chunk:
+                    break
             if messages:
                 self._on_new_messages(messages)
                 self._record_processed(user.id, messages)
-            user.write({'last_imap_sync': fields.Datetime.now()})
+            remaining = len([u for u in uids if u > highest])
+            user.write({
+                'last_imap_sync': fields.Datetime.now(),
+                'last_imap_uid': highest,
+                'last_imap_uidvalidity': uidvalidity,
+            })
+            elapsed = time.monotonic() - started
+            _logger.info(
+                'IMAP poll: user=%s candidates=%d new=%d dedup_skipped=%d '
+                'parse_errors=%d elapsed=%.1fs remaining=%d',
+                user.login, len(uids), len(messages), dedup_skipped,
+                parse_errors, elapsed, remaining)
+            self._report_progress(len(messages), remaining)
             return len(messages)
         finally:
             _safe_logout(conn)
@@ -506,14 +592,107 @@ class ImapServer(models.AbstractModel):
         return self.env['user.mail.processed'].sudo().search(
             [('user_id', '=', user_id)]).mapped('message_id')
 
-    def _record_processed(self, user_id, messages):
+    # ── Cursor (UID) ──────────────────────────────────────────────
+
+    def _uidvalidity(self, conn, folder='INBOX'):
+        """Läs mappens UIDVALIDITY ur SELECT-svaret.
+
+        UID:n är bara jämförbara inom samma UIDVALIDITY. Ändras värdet
+        (mappen återskapad, Dovecot-omindexering) måste cursorn nollställas
+        — annars hoppar vi tyst över mail.
+        """
+        res = conn.select(folder)
+        if not isinstance(res, tuple) or len(res) != 2:
+            return None
+        typ, data = res
+        if typ != 'OK' or not data:
+            return None
+        parts = data if isinstance(data, (list, tuple)) else [data]
+        for part in parts:
+            if isinstance(part, bytes):
+                part = part.decode('utf-8', 'ignore')
+            m = re.search(r'UIDVALIDITY\s+(\w+)', str(part or ''))
+            if m:
+                return m.group(1)
+        return None
+
+    def _candidate_uids(self, conn, cursor, folder='INBOX'):
+        """UID:n efter cursorn — O(nya mail), inte O(brevlåda).
+
+        `UID SEARCH UID <n+1>:*` är svaret på "vad är nytt sedan sist".
+        Utan cursor (första körningen eller efter UIDVALIDITY-byte) faller
+        vi tillbaka på ALL och gör en engångs-omsynkronisering.
+        """
+        crit = 'UID %d:*' % (cursor + 1) if cursor else 'ALL'
+        res = conn.uid('SEARCH', crit)
+        if not isinstance(res, tuple) or len(res) != 2:
+            return []
+        typ, data = res
+        if typ != 'OK' or not data:
+            return []
+        raw = data[0]
+        if not raw:
+            return []
+        if isinstance(raw, bytes):
+            raw = raw.decode('utf-8', 'ignore')
+        return [int(u) for u in str(raw).split() if str(u).isdigit()]
+
+    def _fetch_headers(self, conn, uids):
+        """Hämta bara Message-ID/from/subject/date för en UID-mängd.
+
+        Dedup ska ske INNAN full body hämtas. Ett enda FETCH för hela
+        mängden ger oss dedup-nycklarna billigt; full body hämtas sedan
+        endast för de UID:n som är nya.
+
+        Returns dict: uid -> {message_id, from_, subject, date}
+        """
+        if not uids:
+            return {}
+        uid_set = ','.join(str(u) for u in uids)
+        typ, data = conn.uid(
+            'FETCH', uid_set,
+            '(UID BODY.PEEK[HEADER.FIELDS (MESSAGE-ID FROM SUBJECT DATE)])')
+        if typ != 'OK':
+            return {}
+        out = {}
+        current_uid = None
+        for item in data or []:
+            if isinstance(item, tuple):
+                meta, raw = item[0], item[1]
+                if isinstance(meta, bytes):
+                    meta = meta.decode('utf-8', 'ignore')
+                m = re.search(r'UID\s+(\d+)', meta or '')
+                if not m:
+                    continue
+                current_uid = int(m.group(1))
+                try:
+                    msg = BytesParser(policy=policy.default).parsebytes(raw)
+                    out[current_uid] = {
+                        'message_id': str(msg.get('Message-ID', '')).strip(),
+                        'from_': str(msg.get('From', '')),
+                        'subject': str(msg.get('Subject', '')),
+                        'date': str(msg.get('Date', '')),
+                    }
+                except Exception as e:
+                    _logger.warning(
+                        'Header parse failed uid=%s: %s: %s',
+                        current_uid, type(e).__name__, e)
+        return out
+
+    def _record_processed(self, user_id, messages, failed=False,
+                          failure_reason=None):
         """Beständig dedup: spara Message-ID/dedup-nyckel per användare."""
         vals = []
         for m in messages:
             key = m.get('dedup_key')
             if not key:
                 continue
-            vals.append({'user_id': user_id, 'message_id': key})
+            vals.append({
+                'user_id': user_id,
+                'message_id': key,
+                'failed': failed,
+                'failure_reason': failure_reason,
+            })
         if vals:
             self.env['user.mail.processed'].sudo().create(vals)
 

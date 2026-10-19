@@ -19,6 +19,15 @@ class ResUsers(models.Model):
     last_imap_sync = fields.Datetime(
         string='Senaste IMAP-synk',
         help='Tidpunkt för senaste lyckade pollning (inkrementell hämtning).')
+    last_imap_uid = fields.Integer(
+        string='IMAP-cursor (UID)', index=True,
+        help='Högsta UID som pollern har processat i INBOX. Nästa körning '
+             'hämtar endast UID:n efter denna. NULL = full omsynkronisering.')
+    last_imap_uidvalidity = fields.Char(
+        string='IMAP UIDVALIDITY',
+        help='Mappens UIDVALIDITY när cursorn sattes. Ändras den (mappen '
+             'återskapad, omindexering) nollställs cursorn — UID:n är då '
+             'inte längre jämförbara.')
 
     # ── Min profil: exponera mail-fälten i preferences-dialogen ───────
     # base.view_users_form_simple_modif filtrerar sin arch mot dessa två
@@ -28,7 +37,8 @@ class ResUsers(models.Model):
     @property
     def SELF_READABLE_FIELDS(self):
         return super().SELF_READABLE_FIELDS + [
-            'imap_password', 'imap_poll_enabled', 'last_imap_sync']
+            'imap_password', 'imap_poll_enabled', 'last_imap_sync',
+            'last_imap_uid', 'last_imap_uidvalidity']
 
     @property
     def SELF_WRITEABLE_FIELDS(self):

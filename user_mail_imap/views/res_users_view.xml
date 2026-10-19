@@ -34,6 +34,8 @@
                     <field name="imap_poll_enabled"
                            readonly="not imap_password"/>
                     <field name="last_imap_sync" readonly="1"/>
+                    <field name="last_imap_uid" readonly="1"/>
+                    <field name="last_imap_uidvalidity" readonly="1"/>
                 </group>
             </page>
         </field>
