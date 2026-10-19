@@ -48,8 +48,14 @@ _FREE_MAIL_DOMAINS = frozenset((
 class UserMailAiMail(models.Model):
     _name = 'user_mail_ai.mail'
     _description = 'Mail-hjälpredan: triage'
-    _inherit = ['mail.thread']
+    _inherit = ['mail.thread', 'ai.okf.mixin']
     _order = 'received_at desc, id desc'
+
+    # OKF-taggar: egen relationstabell (en many2many kan inte ligga på en
+    # abstrakt mixin — den ger samma tabell för alla ärvande modeller).
+    okf_tags = fields.Many2many(
+        'ai.okf.tag', 'user_mail_ai_mail_okf_tag_rel', 'res_id', 'tag_id',
+        string='OKF Tags')
 
     # ── Identitet / källa ────────────────────────────────────────────
     user_id = fields.Many2one(
@@ -248,38 +254,17 @@ class UserMailAiMail(models.Model):
         if extra:
             record.write(extra)
 
-        # OKF-arkiv (personligt scope) — får aldrig blockera ingestion
-        okf_ok = False
-        try:
-            if 'ai.okf.concept' in self.env:
-                self.env['ai.okf.concept'].create_from_mail(
-                    subject=record.subject,
-                    body=(normalized_dict.get('body_text')
-                          or normalized_dict.get('body_html') or ''),
-                    from_email=record.from_email,
-                    from_name=record.from_name,
-                    user=user,
-                    eml_data=(base64.b64encode(raw).decode()
-                              if raw else None),
-                    source_ref=record.message_id,
-                )
-                okf_ok = True
-        except Exception as e:
-            _logger.warning('OKF archive failed for %s: %s',
-                            record.subject, e)
+        # OKF-arkiv: sätt bara dirty-flaggan. Indexeraren (cron_okf_index_dirty)
+        # arkiverar via mixinen — ingen LLM, ingen filoperation i ingest.
+        # Den gamla vägen (`create_from_mail`) embeddade synkront här och
+        # bröt mot okf-indexable-mixins krav att inget AI-arbete sker i
+        # create() (mail-okf-indexing D1).
+        record._set_okf_dirty()
 
-        # Graf: :MailMessage-nod + SENT_BY-kant (F1). Byggs här så grafen
-        # inte släpar efter — cronen blir reparatör, inte byggare.
-        graph_ok = record._sync_graph_node()
-
-        # Markör sist: synced bara när alla steg lyckats.
-        if okf_ok and graph_ok:
-            record.write({
-                'memory_synced_at': fields.Datetime.now(),
-                'memory_state': 'synced',
-            })
-        else:
-            record.write({'memory_state': 'failed'})
+        # Graf: :MailMessage-noden skrivs av den gemensamma graf-skrivvägen,
+        # driven av postens dirty-flagga — inte synkront här (D1/spec).
+        # Markören sätts när indexeraren har byggt minnet.
+        record.write({'memory_state': 'pending'})
         return record
 
     def _sync_graph_node(self):

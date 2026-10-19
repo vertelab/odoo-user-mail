@@ -57,9 +57,9 @@ class UserMailAiIntelligence(models.Model):
         """Bygg det som saknas för detta mail (idempotent).
 
         Verifierar vad som faktiskt finns i stället för att lita blint på
-        markören (D2): OKF-koncept skapas BARA om det saknas (D4, mail är
-        immutabla — ingen versionering), grafen upsertas (idempotent) och
-        kanter körs om så sena partner-noder läks (D3).
+        markören (D2): OKF-konceptet byggs av indexeraren (dirty-flaggan),
+        grafen upsertas (idempotent) och kanter körs om så sena
+        partner-noder läks (D3).
 
         **OKF och grafen är OBEROENDE steg (2026-10-14).** Tidigare krävdes
         båda (`if okf_ok and graph_ok`) för `synced`. Är grafen otillgänglig
@@ -69,38 +69,21 @@ class UserMailAiIntelligence(models.Model):
         gör mailet sökbart; grafen är en sekundär berikning och får inte
         blockera statusen.
 
+        **OKF-vägen (mail-okf-indexing D1):** reparationen skapar INTE
+        längre konceptet synkront (`create_from_mail`). Den sätter
+        `okf_dirty` och låter `cron_okf_index_dirty` arkivera via mixinen —
+        samma väg som allt annat. Om konceptet redan finns (arkiverat av
+        den gamla vägen) är nyckeln `mail:<message_id>` identisk, så
+        indexeraren hittar kedjan och skapar ingen dubblett.
+
         Returnerar True om OKF-delen lyckades (det som ger sökbarhet).
         """
         self.ensure_one()
-        okf_ok = True
-        # ① OKF — bara om konceptet saknas (ingen ny version)
-        try:
-            if 'ai.okf.concept' in self.env and not self._okf_concept_exists():
-                eml = self.env['ir.attachment'].sudo().search([
-                    ('res_model', '=', 'user_mail_ai.mail'),
-                    ('res_id', '=', self.id),
-                    ('mimetype', '=', 'message/rfc822'),
-                ], limit=1)
-                self.env['ai.okf.concept'].create_from_mail(
-                    subject=self.subject,
-                    body=self.notes or self.subject or '',
-                    from_email=self.from_email,
-                    from_name=self.from_name,
-                    user=self.user_id,
-                    eml_data=eml.datas.decode() if eml and eml.datas else None,
-                    source_ref=self.message_id,
-                )
-        except Exception as e:
-            # Ett kast här betyder INTE att konceptet uteblev. `create_from_mail`
-            # skapar konceptet först och embeddar sedan; misslyckas embeddingen
-            # (provider nere, extern HTTP blockerad i tester) kastar anropet
-            # EFTERÅT — men konceptet finns och mailet är sökbart via BM25.
-            # Därför avgör en efterkontroll, inte undantaget (2026-10-14).
-            _logger.warning('Memory repair: OKF failed for %s: %s',
-                            self.subject, e)
-        # Sanningen är vad som FINNS i databasen, inte vad anropet svarade.
-        if 'ai.okf.concept' in self.env:
-            okf_ok = self._okf_concept_exists()
+        # ① OKF — flagga för indexeraren (ingen synkron embedding här).
+        #    `_okf_concept_exists()` avgör om konceptet redan finns; finns
+        #    det rör vi inte flaggan (ingen ny version i onödan).
+        if 'ai.okf.concept' in self.env and not self._okf_concept_exists():
+            self._set_okf_dirty()
         # ② Graf-nod + kant — sekundärt. Misslyckas den är mailet ändå
         #    sökbart via OKF:en, så det får inte fälla statusen.
         graph_ok = self._sync_graph_node()
@@ -109,6 +92,11 @@ class UserMailAiIntelligence(models.Model):
                 'Memory repair: graf-nod kunde inte skapas för %s '
                 '(grafen otillgänglig?) — OKF-status behålls',
                 self.subject)
+        # ③ Status: konceptet finns (eller är flaggat för indexering).
+        if 'ai.okf.concept' in self.env:
+            okf_ok = self._okf_concept_exists() or self.okf_dirty
+        else:
+            okf_ok = True
         if okf_ok:
             self.write({
                 'memory_synced_at': fields.Datetime.now(),

@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 {
     'name': 'User Mail: AI Assistant',
-    'version': '18.0.1.8.0',
+    'version': '18.0.1.9.0',
     'summary': 'Personlig AI-mailhjälpreda — IMAP-triage, Odoo Mind (graf), Teams→kalender',
     'category': 'Productivity',
     'author': 'Vertel Sverige AB',
@@ -52,6 +52,7 @@ AI Assistant
         'security/rules.xml',
         'security/rules_ai.xml',
         'data/mail_coworker.xml',
+        'data/mail_artifact_types.xml',
         'data/mail_routing.xml',
         'data/mail_rules_defaults.xml',
         'data/mail_intelligence_skills.xml',
