@@ -579,9 +579,9 @@ class ImapServer(models.AbstractModel):
             elapsed = time.monotonic() - started
             _logger.info(
                 'IMAP poll: user=%s candidates=%d new=%d dedup_skipped=%d '
-                'parse_errors=%d elapsed=%.1fs remaining=%d',
+                'parse_errors=%d elapsed=%.1fs remaining=%d resync=%s',
                 user.login, len(uids), len(messages), dedup_skipped,
-                parse_errors, elapsed, remaining)
+                parse_errors, elapsed, remaining, resync)
             self._report_progress(len(messages), remaining)
             return len(messages)
         finally:
