@@ -324,6 +324,7 @@ class ResCompany(models.Model):
 
 class Sync2server():
     def __init__(self):
+        self._fields_cache = {}
         self.passwd_server = get_config('passwd_server', 'Server uri is missing!')
         self.passwd_port = get_config('passwd_port', 'Server port is missing!')
         self.passwd_dbname = get_config('passwd_dbname', 'Database name is missing')
@@ -343,13 +344,54 @@ class Sync2server():
         _logger.info(f"search.sock {self.sock}")
         return self.sock.execute_kw(self.passwd_dbname, self.uid, self.passwd_passwd, model, 'search', [domain])
 
+    def _remote_fields(self, model):
+        """Fields that actually exist on the remote model.
+
+        The remote instance may run a different set of modules than we do
+        (e.g. user_mail_imap is installed here but not there).  Sending a
+        field it does not know makes the whole write fail with
+        "Invalid field 'X' on model 'Y'", which then aborts the
+        password change locally.  Cache per model since fields_get is cheap
+        but not free.
+        """
+        if model not in self._fields_cache:
+            try:
+                fields = self.sock.execute_kw(
+                    self.passwd_dbname, self.uid, self.passwd_passwd,
+                    model, 'fields_get', [], {'attributes': ['type']})
+                self._fields_cache[model] = set(fields or [])
+            except Exception as e:
+                _logger.warning(f"Could not read remote fields for {model}: {e}")
+                return None
+        return self._fields_cache[model]
+
+    def _filter_values(self, model, values):
+        remote = self._remote_fields(model)
+        if remote is None:
+            return values
+        kept, dropped = {}, []
+        for key, val in values.items():
+            if key in remote:
+                kept[key] = val
+            else:
+                dropped.append(key)
+        if dropped:
+            _logger.warning(
+                f"Dropping fields not present on remote {model}: {dropped}")
+        return kept
+
     def write(self, model, rec_id, values):
         _logger.warning(f"model: {model} \n rec_id: {rec_id} \n values: {values}")
+        values = self._filter_values(model, values)
+        if not values:
+            _logger.warning(f"Nothing to sync for {model} {rec_id}, skipping")
+            return True
         return self.sock.execute_kw(self.passwd_dbname, self.uid, self.passwd_passwd, model, 'write',
                                     [[rec_id], values])
 
     def create(self, model, values):
         _logger.warning(f"model: {model} \n values: {values}")
+        values = self._filter_values(model, values)
         return self.sock.execute_kw(self.passwd_dbname, self.uid, self.passwd_passwd, model, 'create', [values])
 
     def unlink(self, model, ids):
