@@ -15,6 +15,27 @@ import re
 
 _logger = logging.getLogger(__name__)
 
+
+def _safe_logout(conn):
+    """Log out without throwing away the result of the operation.
+
+    ``imaplib.logout()`` may answer something other than ``OK`` (e.g. when
+    the server sends a leftover message body instead of the status line).
+    That raises ``IMAP4.error``. Previously ``conn.logout()`` sat bare in
+    ``finally``, so a broken LOGOUT response discarded a fully successful
+    poll -- and the whole user poll was logged as ERROR every five minutes.
+
+    Logging out is cleanup, not the result. It must never fail the job.
+    """
+    try:
+        conn.logout()
+    except Exception as e:
+        _logger.warning('IMAP logout failed (ignored): %s', e)
+        try:
+            conn.shutdown()
+        except Exception:
+            pass
+
 # Simple mail detail cache
 _mail_cache = {}
 
@@ -113,7 +134,7 @@ class ImapServer(models.AbstractModel):
                 })
             return result
         finally:
-            conn.logout()
+            _safe_logout(conn)
 
     def action_fetch_mails(self, folder='INBOX', offset=0, limit=80):
         conn = self._connect_imap()
@@ -145,7 +166,7 @@ class ImapServer(models.AbstractModel):
                 'total': total,
             }
         finally:
-            conn.logout()
+            _safe_logout(conn)
 
     def action_search_mails(self, folder='INBOX', query='', offset=0, limit=80):
         """Search the current folder, OKF-backed when available.
@@ -298,7 +319,7 @@ class ImapServer(models.AbstractModel):
                 'total': total,
             }
         finally:
-            conn.logout()
+            _safe_logout(conn)
 
     def action_fetch_mail(self, folder, uid):
         cache_key = f"{self.env.user.id}:{folder}:{uid}"
@@ -350,7 +371,7 @@ class ImapServer(models.AbstractModel):
                     del _mail_cache[k]
             return result
         finally:
-            conn.logout()
+            _safe_logout(conn)
 
     def action_clear_cache(self):
         """Clear the mail detail cache."""
@@ -392,7 +413,7 @@ class ImapServer(models.AbstractModel):
             imap_flag = '\\Seen' if flag == 'seen' else '\\Flagged'
             conn.uid('STORE', uid_list, cmd, imap_flag)
         finally:
-            conn.logout()
+            _safe_logout(conn)
 
     # ══════════════════════════════════════════════════════════════
     # Polling (cron, per-user) — mail-infrastruktur, ingen AI
@@ -478,7 +499,7 @@ class ImapServer(models.AbstractModel):
             user.write({'last_imap_sync': fields.Datetime.now()})
             return len(messages)
         finally:
-            conn.logout()
+            _safe_logout(conn)
 
     def _get_processed_message_ids(self, user_id):
         """Alla redan processade dedup-nycklar för användaren."""
@@ -574,7 +595,7 @@ class ImapServer(models.AbstractModel):
                     if name.lower() in ('drafts', 'utkast'):
                         return name
             finally:
-                conn.logout()
+                _safe_logout(conn)
         except Exception as e:
             _logger.warning('Drafts folder detection failed: %s', e)
         return 'Drafts'
@@ -625,7 +646,7 @@ class ImapServer(models.AbstractModel):
                     pass
             return {'folder': folder, 'uid': uid, 'message_id': mid}
         finally:
-            conn.logout()
+            _safe_logout(conn)
 
     def action_move(self, folder, uids, to_folder):
         """Flytta mail mellan mappar (UID MOVE, fallback COPY+DEL+EXPUNGE)."""
@@ -641,7 +662,7 @@ class ImapServer(models.AbstractModel):
                 conn.expunge()
             return True
         finally:
-            conn.logout()
+            _safe_logout(conn)
 
     def action_ensure_folder(self, folder):
         """Skapa mapp om den inte finns (best-effort)."""
@@ -653,7 +674,7 @@ class ImapServer(models.AbstractModel):
             except Exception:
                 return False
         finally:
-            conn.logout()
+            _safe_logout(conn)
 
     def action_fetch_draft_raw(self, folder, uid):
         """Hämta råa innehållet i ett utkast (för HITL-skick)."""
@@ -665,7 +686,7 @@ class ImapServer(models.AbstractModel):
                 return data[0][1]
             return None
         finally:
-            conn.logout()
+            _safe_logout(conn)
 
     def _on_new_messages(self, messages):
         """Hook — anropas per användarbatch efter en lyckad pollning.
