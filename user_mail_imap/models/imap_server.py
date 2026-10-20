@@ -110,6 +110,28 @@ def _purge_mail_cache(ttl=None):
         _mail_cache.pop(k, None)
 
 
+def _page_cache_key(user_id, folder, offset, limit):
+    """Cache-nyckel för en mappsida.
+
+    Prefixet `page:` skiljer sid-poster från `action_fetch_mail`s
+    `'{uid}:{folder}:{uid}'`. `offset` och `limit` MÅSTE ingå: annars
+    serveras sida 1 för sida 2.
+    """
+    return 'page:%d:%s:%d:%d' % (user_id, folder, offset, limit)
+
+
+def _invalidate_folder_cache(user_id, folder):
+    """Ta bort alla cachade sidor för en användares mapp.
+
+    Anropas när mappen ändras via applikationen (flaggbyte, flytt, nytt
+    mail via pollern) — annars visar listvyn gammalt innehåll tills TTL
+    går ut. Prefix-matchning räcker: antalet sidor per mapp är litet.
+    """
+    prefix = 'page:%d:%s:' % (user_id, folder)
+    for key in [k for k in _mail_cache if k.startswith(prefix)]:
+        _mail_cache.pop(key, None)
+
+
 def _prepare_body_html(html):
     """Make links in a mail body open in a new window.
 
@@ -196,34 +218,90 @@ class ImapServer(models.AbstractModel):
             _safe_logout(conn)
 
     def action_fetch_mails(self, folder='INBOX', offset=0, limit=80):
+        """Hämta en sida av en mapp — batchat och cacheat.
+
+        Hämtningen görs med ETT `FETCH` per batch i stället för ett per
+        meddelande: 80 separata rundturer mot en IMAP-server med ~10 ms RTT
+        är ~0,8 s bara i tur-och-retur. Batchen delas av `_uid_batches()`
+        så kommandoraden aldrig blir för lång (Dovecot svarar
+        `BAD ... Too long argument` över ~1000 tecken).
+
+        Ordningen är nyaste först och garanteras explicit: IMAP lovar inte
+        att FETCH-svaren kommer i den ordning UID:na efterfrågades, så
+        svaren samlas i en dict och emitteras i `page`-ordningen.
+
+        Resultatet cachas per (användare, mapp, offset, limit) — ett
+        mappbyte fram och tillbaka ska inte göra om IMAP-arbetet.
+        """
+        cache_key = _page_cache_key(self.env.user.id, folder, offset, limit)
+        _purge_mail_cache()
+        hit = _mail_cache.get(cache_key)
+        if hit is not None:
+            return hit[1]
+
         conn = self._connect_imap()
         try:
             conn.select(folder)
             _, data = conn.search(None, 'ALL')
-            uids = data[0].split()
+            uids = data[0].split() if data and data[0] else []
             total = len(uids)
             page = uids[max(0, total - offset - limit):total - offset] if uids else []
+            # Nyaste först: IMAP returnerar UID i stigande ordning.
+            page = sorted(page, key=int, reverse=True)
+
+            by_uid = {}
+            for batch in _uid_batches(page):
+                uid_set = ','.join(
+                    u.decode() if isinstance(u, bytes) else str(u)
+                    for u in batch)
+                typ, msg_data = conn.uid(
+                    'FETCH', uid_set, '(FLAGS BODY.PEEK[HEADER])')
+                if typ != 'OK':
+                    continue
+                for item in msg_data or []:
+                    if not isinstance(item, tuple):
+                        continue
+                    meta, header_raw = item[0], item[1]
+                    if isinstance(meta, bytes):
+                        meta = meta.decode('utf-8', 'ignore')
+                    m = re.search(r'UID\s+(\d+)', meta or '')
+                    if not m:
+                        continue
+                    uid = int(m.group(1))
+                    flags = meta.encode() if isinstance(meta, str) else meta
+                    try:
+                        msg = BytesParser(
+                            policy=policy.default).parsebytes(header_raw)
+                    except Exception as e:
+                        _logger.warning(
+                            'Header parse failed uid=%s: %s: %s',
+                            uid, type(e).__name__, e)
+                        continue
+                    by_uid[uid] = {
+                        'uid': uid,
+                        'seen': b'\\Seen' in flags,
+                        'flagged': b'\\Flagged' in flags,
+                        'from_': str(msg.get('From', '')),
+                        'subject': str(msg.get('Subject', '(No subject)')),
+                        'date': str(msg.get('Date', '')),
+                        'message_id': str(msg.get('Message-ID', '')),
+                    }
+
+            # Emittera i page-ordningen. Ett UID servern inte svarade på
+            # hoppas över — resten behåller sin inbördes ordning.
             messages = []
             for uid in page:
-                _, msg_data = conn.fetch(uid, '(FLAGS BODY.PEEK[HEADER])')
-                raw = msg_data[0]
-                if not isinstance(raw, tuple):
-                    continue
-                flags, header_raw = raw
-                msg = BytesParser(policy=policy.default).parsebytes(header_raw)
-                messages.append({
-                    'uid': int(uid),
-                    'seen': b'\\Seen' in flags,
-                    'flagged': b'\\Flagged' in flags,
-                    'from_': str(msg.get('From', '')),
-                    'subject': str(msg.get('Subject', '(No subject)')),
-                    'date': str(msg.get('Date', '')),
-                    'message_id': str(msg.get('Message-ID', '')),
-                })
-            return {
-                'messages': list(reversed(messages)),
-                'total': total,
-            }
+                entry = by_uid.get(int(uid))
+                if entry is not None:
+                    messages.append(entry)
+
+            result = {'messages': messages, 'total': total}
+            # Cacha EFTER lyckad hämtning — ett fel ska aldrig cachas.
+            _mail_cache[cache_key] = (time.monotonic(), result)
+            if len(_mail_cache) > 500:
+                for k in list(_mail_cache.keys())[:100]:
+                    del _mail_cache[k]
+            return result
         finally:
             _safe_logout(conn)
 
@@ -476,6 +554,8 @@ class ImapServer(models.AbstractModel):
                 conn.uid('STORE', uid_list, cmd, imap_flag)
         finally:
             _safe_logout(conn)
+        # Flaggbytet ska synas i listvyn direkt, inte efter TTL.
+        _invalidate_folder_cache(self.env.user.id, folder)
 
     # ══════════════════════════════════════════════════════════════
     # Polling (cron, per-user) — mail-infrastruktur, ingen AI
@@ -691,6 +771,9 @@ class ImapServer(models.AbstractModel):
             if messages:
                 self._on_new_messages(messages)
                 self._record_processed(user.id, messages)
+                # Nytt mail i mappen: listvyn ska visa det direkt, inte
+                # efter TTL. Pollern läser bara INBOX idag.
+                _invalidate_folder_cache(user.id, 'INBOX')
             elapsed = time.monotonic() - started
             _logger.info(
                 'IMAP poll: user=%s candidates=%d new=%d dedup_skipped=%d '
@@ -1117,6 +1200,9 @@ class ImapServer(models.AbstractModel):
             return True
         finally:
             _safe_logout(conn)
+            # Både käll- och målmappens sidor är inaktuella.
+            _invalidate_folder_cache(self.env.user.id, folder)
+            _invalidate_folder_cache(self.env.user.id, to_folder)
 
     def action_ensure_folder(self, folder):
         """Skapa mapp om den inte finns (best-effort)."""

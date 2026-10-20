@@ -1089,3 +1089,208 @@ class TestImap(TransactionCase):
                        if c[0][0] == 'SEARCH']
         self.assertIn('ALL', str(search_args[0][0]),
                       'resync ska söka ALL, inte UID 501:*')
+
+    # ── Mapplistning: batchning + cache (batch-imap-folder-listing) ──
+
+    def _fake_list_conn(self, uids, response_order=None, omit=None):
+        """IMAP-dubbel för action_fetch_mails.
+
+        `response_order` låter servern svara i en annan ordning än den
+        efterfrågade, `omit` hoppar över ett UID i svaret.
+        """
+        from unittest.mock import MagicMock
+        fake = MagicMock()
+        fake.select.return_value = ('OK', [str(len(uids)).encode()])
+        fake.login.return_value = ('OK', [b'logged in'])
+        fake.search.return_value = (
+            'OK', [b' '.join(str(u).encode() for u in uids)])
+
+        def _uid(cmd, *args):
+            if cmd != 'FETCH':
+                return ('OK', [b''])
+            uid_set = args[0]
+            ids = [int(x) for x in str(uid_set).split(',') if str(x).strip()]
+            if response_order:
+                ids = [u for u in response_order if u in ids]
+            out = []
+            for u in ids:
+                if omit and u == omit:
+                    continue
+                hdr = self._header_bytes('<m%d@example.com>' % u).replace(
+                    b'\r\n\r\n', b'\r\n\r\n')
+                out.append((b'%d (UID %d FLAGS (\\Seen) BODY[HEADER] {1}'
+                            % (u, u), hdr))
+            return ('OK', out)
+        fake.uid.side_effect = _uid
+        return fake
+
+    def _list_user(self):
+        """Testanvändare med postfix_mail + IMAP-lösenord (krävs av connect)."""
+        self.user.imap_password = self.user._encrypt_imap_pw('x')
+        self.user.postfix_mail = 'list-test@vertel.se'
+        return self.user
+
+    def _clear_page_cache(self):
+        from odoo.addons.user_mail_imap.models.imap_server import _mail_cache
+        _mail_cache.clear()
+
+    def test_fetch_mails_batches_single_command(self):
+        """80 UID:n ska hämtas med ETT FETCH."""
+        from unittest.mock import patch
+        self._clear_page_cache()
+        uids = list(range(1, 81))
+        fake = self._fake_list_conn(uids)
+
+        with patch('imaplib.IMAP4_SSL', return_value=fake):
+            res = self.env['user.mail.imap'].with_user(self._list_user()).action_fetch_mails('INBOX')
+
+        fetches = [c for c in fake.uid.call_args_list if c[0][0] == 'FETCH']
+        self.assertEqual(len(fetches), 1,
+                         'en sida på 80 ska vara ett FETCH, inte 80')
+        self.assertEqual(res['total'], 80)
+        self.assertEqual(len(res['messages']), 80)
+
+    def test_fetch_mails_splits_large_page(self):
+        """250 UID:n ska delas i två FETCH (UID_BATCH_SIZE=200)."""
+        from unittest.mock import patch
+        self._clear_page_cache()
+        uids = list(range(1, 251))
+        fake = self._fake_list_conn(uids)
+
+        with patch('imaplib.IMAP4_SSL', return_value=fake):
+            self.env['user.mail.imap'].with_user(self._list_user()).action_fetch_mails(
+                'INBOX', offset=0, limit=250)
+
+        fetches = [c for c in fake.uid.call_args_list if c[0][0] == 'FETCH']
+        self.assertEqual(len(fetches), 2,
+                         '250 UID:n ska delas i två batcher')
+
+    def test_fetch_mails_preserves_newest_first(self):
+        """Ordningen nyaste-först gäller även om servern svarar baklänges."""
+        from unittest.mock import patch
+        self._clear_page_cache()
+        uids = [1, 2, 3, 4, 5]
+        fake = self._fake_list_conn(uids, response_order=[1, 2, 3, 4, 5])
+
+        with patch('imaplib.IMAP4_SSL', return_value=fake):
+            res = self.env['user.mail.imap'].with_user(self._list_user()).action_fetch_mails('INBOX')
+
+        got = [m['uid'] for m in res['messages']]
+        self.assertEqual(got, [5, 4, 3, 2, 1],
+                         'nyaste först, oavsett svarsordning')
+
+    def test_fetch_mails_missing_uid_keeps_order(self):
+        """Ett UID servern inte svarar på stör inte restens ordning."""
+        from unittest.mock import patch
+        self._clear_page_cache()
+        uids = [1, 2, 3, 4, 5]
+        fake = self._fake_list_conn(uids, omit=3)
+
+        with patch('imaplib.IMAP4_SSL', return_value=fake):
+            res = self.env['user.mail.imap'].with_user(self._list_user()).action_fetch_mails('INBOX')
+
+        got = [m['uid'] for m in res['messages']]
+        self.assertEqual(got, [5, 4, 2, 1],
+                         'det saknade UID:et hoppas över, resten behåller ordningen')
+
+    def test_fetch_mails_second_call_uses_cache(self):
+        """Andra anropet för samma sida ska inte öppna en anslutning."""
+        from unittest.mock import patch
+        self._clear_page_cache()
+        uids = [1, 2, 3]
+        fake = self._fake_list_conn(uids)
+
+        with patch('imaplib.IMAP4_SSL', return_value=fake):
+            self.env['user.mail.imap'].with_user(self._list_user()).action_fetch_mails('INBOX')
+            calls_after_first = fake.uid.call_count
+            self.env['user.mail.imap'].with_user(self._list_user()).action_fetch_mails('INBOX')
+            self.assertEqual(fake.uid.call_count, calls_after_first,
+                             'andra anropet ska serveras ur cachen')
+
+    def test_fetch_mails_pages_do_not_collide(self):
+        """Sida 1 och sida 2 ska cachas separat."""
+        from unittest.mock import patch
+        self._clear_page_cache()
+        uids = list(range(1, 11))
+        fake = self._fake_list_conn(uids)
+
+        with patch('imaplib.IMAP4_SSL', return_value=fake):
+            p1 = self.env['user.mail.imap'].with_user(self._list_user()).action_fetch_mails(
+                'INBOX', offset=0, limit=3)
+            p2 = self.env['user.mail.imap'].with_user(self._list_user()).action_fetch_mails(
+                'INBOX', offset=3, limit=3)
+
+        self.assertEqual([m['uid'] for m in p1['messages']], [10, 9, 8])
+        self.assertEqual([m['uid'] for m in p2['messages']], [7, 6, 5],
+                         'sida 2 får inte servera sida 1:s innehåll')
+
+    def test_fetch_mails_failure_not_cached(self):
+        """Ett anslutningsfel ska inte lämna en cache-post."""
+        from unittest.mock import patch
+        from odoo.addons.user_mail_imap.models.imap_server import _mail_cache
+        self._clear_page_cache()
+        before = len(_mail_cache)
+
+        with patch('imaplib.IMAP4_SSL',
+                   side_effect=OSError('connection refused')):
+            with self.assertRaises(OSError):
+                self.env['user.mail.imap'].with_user(self._list_user()).action_fetch_mails('INBOX')
+
+        self.assertEqual(len(_mail_cache), before,
+                         'ett fel ska aldrig cachas')
+
+    def test_flag_change_invalidates_page_cache(self):
+        """Flaggbyte ska rensa mappens sid-cache."""
+        from unittest.mock import patch
+        from odoo.addons.user_mail_imap.models.imap_server import _mail_cache
+        self._clear_page_cache()
+        uids = [1, 2, 3]
+        fake = self._fake_list_conn(uids)
+
+        with patch('imaplib.IMAP4_SSL', return_value=fake):
+            self.env['user.mail.imap'].with_user(self._list_user()).action_fetch_mails('INBOX')
+            self.assertTrue(
+                [k for k in _mail_cache if k.startswith('page:')],
+                'sidan ska vara cachad')
+            self.env['user.mail.imap'].with_user(self._list_user()).action_set_flag(
+                'INBOX', [1], 'seen', True)
+
+        self.assertFalse(
+            [k for k in _mail_cache if k.startswith('page:')],
+            'flaggbytet ska ha rensat sid-cachen')
+
+    def test_move_invalidates_source_folder_cache(self):
+        """Flytt ska rensa både käll- och målmappens cache."""
+        from unittest.mock import patch
+        from odoo.addons.user_mail_imap.models.imap_server import _mail_cache
+        self._clear_page_cache()
+        uids = [1, 2, 3]
+        fake = self._fake_list_conn(uids)
+
+        with patch('imaplib.IMAP4_SSL', return_value=fake):
+            self.env['user.mail.imap'].with_user(self._list_user()).action_fetch_mails('INBOX')
+            self.env['user.mail.imap'].with_user(self._list_user()).action_move('INBOX', [1], 'Archive')
+
+        self.assertFalse(
+            [k for k in _mail_cache if k.startswith('page:')],
+            'flytten ska ha rensat källmappens cache')
+
+    def test_new_mail_invalidates_page_cache(self):
+        """Pollerns ingest ska rensa INBOX-cachen."""
+        from unittest.mock import patch
+        from odoo.addons.user_mail_imap.models.imap_server import _mail_cache
+        self._clear_page_cache()
+        uids = [1, 2, 3]
+        fake = self._fake_list_conn(uids)
+
+        with patch('imaplib.IMAP4_SSL', return_value=fake):
+            self.env['user.mail.imap'].with_user(self._list_user()).action_fetch_mails('INBOX')
+
+        self.assertTrue([k for k in _mail_cache if k.startswith('page:')])
+        # Pollerns väg rensar INBOX-cachen efter _on_new_messages.
+        from odoo.addons.user_mail_imap.models.imap_server import (
+            _invalidate_folder_cache)
+        _invalidate_folder_cache(self.env.user.id, 'INBOX')
+        self.assertFalse(
+            [k for k in _mail_cache if k.startswith('page:')],
+            'pollerns ingest ska rensa sid-cachen')
