@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!--
+        Spam-regler för IMAP-pollern.
+
+        Pollern avgör spam på HEADERS, före body-fetch. Reglerna är en
+        JSON-lista i `user_mail_imap.spam_headers`:
+
+            [{"header": "X-Spam-Flag", "match": "YES"}, ...]
+
+        Matchningen är skiftlägesokänslig och träffar när headerns värde
+        BÖRJAR med `match` — så `X-Spam-Status: Yes, score=8.2 ...` träffar
+        `Yes`. Tom lista = filtret avstängt.
+
+        Default täcker de tre vanligaste filterkedjorna:
+          - SpamAssassin / Amavis : X-Spam-Flag: YES
+          - SpamAssassin (status) : X-Spam-Status: Yes, score=...
+          - Rspamd                : X-Spam: Yes
+
+        `noupdate="1"` är avsiktligt: en installation som medvetet har
+        ändrat eller tömt listan ska inte få den överskriven vid varje
+        moduluppgradering.
+    -->
+    <data noupdate="1">
+        <record id="config_spam_headers" model="ir.config_parameter">
+            <field name="key">user_mail_imap.spam_headers</field>
+            <field name="value">[{"header": "X-Spam-Flag", "match": "YES"}, {"header": "X-Spam-Status", "match": "Yes"}, {"header": "X-Spam", "match": "Yes"}]</field>
+        </record>
+    </data>
+</odoo>

@@ -31,7 +31,8 @@ class UserMailPoll(models.Model):
         övervakningen samma information som loggen, utan att läsa loggen.
 
         Returns dict: {user_login: {last_run, last_ok, truncated,
-                                    parse_errors_24h, backlog_estimate}}
+                                    parse_errors_24h, spam_skipped_24h,
+                                    backlog_estimate}}
         """
         users = self.env['res.users'].sudo().search(
             [('imap_poll_enabled', '=', True)])
@@ -39,9 +40,18 @@ class UserMailPoll(models.Model):
         Processed = self.env['user.mail.processed'].sudo()
         out = {}
         for user in users:
+            # Bara `failed` är ett fel. Ett spam-överhopp har
+            # `failed=False` + `skip_reason='spam'` och får aldrig öka
+            # parse_errors — det är ett förväntat utfall.
             parse_errors = Processed.search_count([
                 ('user_id', '=', user.id),
                 ('failed', '=', True),
+                ('skip_reason', '=', False),
+                ('processed_at', '>=', since),
+            ])
+            spam_skipped = Processed.search_count([
+                ('user_id', '=', user.id),
+                ('skip_reason', '=', 'spam'),
                 ('processed_at', '>=', since),
             ])
             out[user.login] = {
@@ -50,6 +60,7 @@ class UserMailPoll(models.Model):
                 # Cursor saknas ⇒ nästa körning gör en full omsynkronisering.
                 'truncated': not user.last_imap_uid,
                 'parse_errors_24h': parse_errors,
+                'spam_skipped_24h': spam_skipped,
                 'backlog_estimate': 0,
             }
         return out

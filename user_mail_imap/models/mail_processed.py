@@ -28,6 +28,11 @@ class UserMailProcessed(models.Model):
     failure_reason = fields.Char(
         string='Felorsak',
         help='Undantagsklass och feltext, för felsökning utan att läsa loggen.')
+    skip_reason = fields.Char(
+        string='Överhoppad orsak',
+        help='Satt när meddelandet medvetet hoppades över, t.ex. "spam". '
+             'Skiljer ett förväntat utfall från ett fel: bara `failed` '
+             'räknas som parse-fel i pollerns hälsomätvärde.')
 
     _sql_constraints = [
         ('unique_user_message',

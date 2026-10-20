@@ -819,3 +819,202 @@ class TestImap(TransactionCase):
         self.assertIn('x5', joined)
         self.assertIn('ConnectionResetError', joined)
         imap_server._LOGOUT_FAILURES.clear()
+
+    # ── Spam: header-baserat filter (skip-spam-flagged-mail) ──
+
+    @staticmethod
+    def _spam_header_bytes(message_id, spam_lines, subject='Test'):
+        """Header-block med godtyckliga spam-fält."""
+        extra = ''.join('%s: %s\r\n' % (k, v) for k, v in spam_lines.items())
+        return ('Message-ID: %s\r\nSubject: %s\r\nFrom: a@b.se\r\n'
+                'Date: Mon, 05 Aug 2026 10:00:00 +0200\r\n%s\r\n'
+                % (message_id, subject, extra)).encode()
+
+    def test_spam_flagged_message_skipped(self):
+        """X-Spam-Flag: YES hoppas över och når inte _on_new_messages."""
+        from unittest.mock import patch
+        user = self._poll_user()
+        user.last_imap_uid = 0
+        user.last_imap_uidvalidity = '42'
+        headers = {1: self._spam_header_bytes(
+            '<spam1@example.com>', {'X-Spam-Flag': 'YES'})}
+        fake = self._fake_conn([1], headers=headers,
+                               bodies={1: self._body_bytes('<spam1@example.com>')})
+
+        with patch('imaplib.IMAP4_SSL', return_value=fake):
+            n, _failed = self.env['user.mail.imap'].with_user(
+                user).action_poll_user()
+
+        self.assertEqual(n, 0, 'spam ska inte räknas som nytt mail')
+
+    def test_spam_status_with_score_skipped(self):
+        """X-Spam-Status: Yes, score=8.2 ... matchar (prefix)."""
+        from unittest.mock import patch
+        user = self._poll_user()
+        user.last_imap_uid = 0
+        user.last_imap_uidvalidity = '42'
+        headers = {1: self._spam_header_bytes(
+            '<spam2@example.com>',
+            {'X-Spam-Status': 'Yes, score=8.2 required=5.0 tests=BAYES_99'})}
+        fake = self._fake_conn([1], headers=headers,
+                               bodies={1: self._body_bytes('<spam2@example.com>')})
+
+        with patch('imaplib.IMAP4_SSL', return_value=fake):
+            n, _failed = self.env['user.mail.imap'].with_user(
+                user).action_poll_user()
+
+        self.assertEqual(n, 0)
+
+    def test_rspamd_header_skipped(self):
+        """Rspamd: X-Spam: Yes matchar."""
+        from unittest.mock import patch
+        user = self._poll_user()
+        user.last_imap_uid = 0
+        user.last_imap_uidvalidity = '42'
+        headers = {1: self._spam_header_bytes(
+            '<spam3@example.com>', {'X-Spam': 'Yes'})}
+        fake = self._fake_conn([1], headers=headers,
+                               bodies={1: self._body_bytes('<spam3@example.com>')})
+
+        with patch('imaplib.IMAP4_SSL', return_value=fake):
+            n, _failed = self.env['user.mail.imap'].with_user(
+                user).action_poll_user()
+
+        self.assertEqual(n, 0)
+
+    def test_unflagged_message_processed(self):
+        """Mail utan spam-header går igenom som förut."""
+        from unittest.mock import patch
+        user = self._poll_user()
+        user.last_imap_uid = 0
+        user.last_imap_uidvalidity = '42'
+        headers = {1: self._spam_header_bytes(
+            '<ham1@example.com>', {'X-Spam-Status': 'No, score=-2.1'})}
+        fake = self._fake_conn([1], headers=headers,
+                               bodies={1: self._body_bytes('<ham1@example.com>')})
+
+        with patch('imaplib.IMAP4_SSL', return_value=fake):
+            n, _failed = self.env['user.mail.imap'].with_user(
+                user).action_poll_user()
+
+        self.assertEqual(n, 1, 'vanligt mail ska processas')
+
+    def test_no_rules_means_no_filtering(self):
+        """Tom regel-lista → allt behandlas som vanligt mail."""
+        from unittest.mock import patch
+        user = self._poll_user()
+        user.last_imap_uid = 0
+        user.last_imap_uidvalidity = '42'
+        self.env['ir.config_parameter'].sudo().set_param(
+            'user_mail_imap.spam_headers', '[]')
+        headers = {1: self._spam_header_bytes(
+            '<spam4@example.com>', {'X-Spam-Flag': 'YES'})}
+        fake = self._fake_conn([1], headers=headers,
+                               bodies={1: self._body_bytes('<spam4@example.com>')})
+
+        with patch('imaplib.IMAP4_SSL', return_value=fake):
+            n, _failed = self.env['user.mail.imap'].with_user(
+                user).action_poll_user()
+
+        self.assertEqual(n, 1, 'utan regler ska inget filtreras')
+
+    def test_spam_no_body_fetch(self):
+        """Spam får aldrig ett BODY.PEEK[]-anrop."""
+        from unittest.mock import patch
+        user = self._poll_user()
+        user.last_imap_uid = 0
+        user.last_imap_uidvalidity = '42'
+        headers = {1: self._spam_header_bytes(
+            '<spam5@example.com>', {'X-Spam-Flag': 'YES'})}
+        fake = self._fake_conn([1], headers=headers,
+                               bodies={1: self._body_bytes('<spam5@example.com>')})
+
+        with patch('imaplib.IMAP4_SSL', return_value=fake):
+            self.env['user.mail.imap'].with_user(user).action_poll_user()
+
+        body_fetches = [
+            c for c in fake.uid.call_args_list
+            if c[0][0] == 'FETCH' and 'HEADER.FIELDS' not in c[0][2]]
+        self.assertFalse(body_fetches,
+                         'spam ska avgöras före body-fetch')
+
+    def test_spam_advances_cursor(self):
+        """Cursorn går förbi spam-mailet."""
+        from unittest.mock import patch
+        user = self._poll_user()
+        user.last_imap_uid = 0
+        user.last_imap_uidvalidity = '42'
+        headers = {9: self._spam_header_bytes(
+            '<spam6@example.com>', {'X-Spam-Flag': 'YES'})}
+        fake = self._fake_conn([9], headers=headers,
+                               bodies={9: self._body_bytes('<spam6@example.com>')})
+
+        with patch('imaplib.IMAP4_SSL', return_value=fake):
+            self.env['user.mail.imap'].with_user(user).action_poll_user()
+
+        user.invalidate_recordset()
+        self.assertEqual(user.last_imap_uid, 9,
+                         'cursorn ska avancera förbi spam')
+
+    def test_spam_not_counted_as_parse_error(self):
+        """Spam-överhopp får inte öka parse_errors_24h."""
+        from unittest.mock import patch
+        # _poll_health() söker via ORM, som filtrerar bort __system__ —
+        # använd en riktig användare så sökningen hittar den.
+        user = self.env['res.users'].create({
+            'name': 'Spam Health User',
+            'login': 'spam-health@vertel.se',
+            'password': 'x',
+        })
+        user.imap_password = user._encrypt_imap_pw('x')
+        user.imap_poll_enabled = True
+        user.postfix_mail = 'spam-health@vertel.se'
+        user.last_imap_sync = False
+        self.env.flush_all()
+        self.env.cr.execute(
+            "UPDATE res_users SET imap_poll_enabled = true WHERE id = %s",
+            (user.id,))
+        self.env.invalidate_all()
+        user.last_imap_uid = 0
+        user.last_imap_uidvalidity = '42'
+        headers = {1: self._spam_header_bytes(
+            '<spam7@example.com>', {'X-Spam-Flag': 'YES'})}
+        fake = self._fake_conn([1], headers=headers,
+                               bodies={1: self._body_bytes('<spam7@example.com>')})
+
+        with patch('imaplib.IMAP4_SSL', return_value=fake):
+            self.env['user.mail.imap'].with_user(user).action_poll_user()
+
+        health = self.env['user.mail.poll']._poll_health()
+        self.assertIn(user.login, health)
+        self.assertEqual(health[user.login]['parse_errors_24h'], 0,
+                         'spam är inte ett parse-fel')
+        self.assertEqual(health[user.login]['spam_skipped_24h'], 1)
+
+    def test_broken_rule_json_is_safe(self):
+        """Trasig JSON ger tom lista — ingen krasch."""
+        self.env['ir.config_parameter'].sudo().set_param(
+            'user_mail_imap.spam_headers', '{inte json')
+        rules = self.env['user.mail.imap']._spam_rules()
+        self.assertEqual(rules, [])
+
+    def test_spam_never_modifies_mailbox(self):
+        """Spam-vägen får aldrig anropa STORE/COPY/MOVE/EXPUNGE."""
+        from unittest.mock import patch
+        user = self._poll_user()
+        user.last_imap_uid = 0
+        user.last_imap_uidvalidity = '42'
+        headers = {1: self._spam_header_bytes(
+            '<spam8@example.com>', {'X-Spam-Flag': 'YES'})}
+        fake = self._fake_conn([1], headers=headers,
+                               bodies={1: self._body_bytes('<spam8@example.com>')})
+
+        with patch('imaplib.IMAP4_SSL', return_value=fake):
+            self.env['user.mail.imap'].with_user(user).action_poll_user()
+
+        forbidden = [
+            c for c in fake.uid.call_args_list
+            if c[0][0] in ('STORE', 'COPY', 'MOVE', 'EXPUNGE')]
+        self.assertFalse(forbidden, 'pollern får inte ändra brevlådan')
+        self.assertFalse(fake.store.called)
+        self.assertFalse(fake.expunge.called)

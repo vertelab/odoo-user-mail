@@ -5,6 +5,7 @@ from email.parser import BytesParser
 from email.message import EmailMessage
 import email.utils
 import hashlib
+import json
 import imaplib
 import smtplib
 import time
@@ -587,6 +588,7 @@ class ImapServer(models.AbstractModel):
             processed = set(self._get_processed_message_ids(user.id))
             headers = self._fetch_headers(conn, uids)
             dedup_skipped = 0
+            spam_skipped = 0
             parse_errors = 0
             fetched = 0
             messages = []
@@ -604,6 +606,16 @@ class ImapServer(models.AbstractModel):
                 })
                 if key and key in processed:
                     dedup_skipped += 1
+                    highest = max(highest, uid)
+                    continue
+                # Spam avgörs på headers, FÖRE body-fetch och FÖRE
+                # normalisering: ett spam-mail ska aldrig kosta en
+                # MIME-parse eller nå triage-pipelinen.
+                if self._is_spam(hdr.get('spam_headers')):
+                    spam_skipped += 1
+                    self._record_processed(
+                        user.id, [{'dedup_key': key or 'uid:%d' % uid}],
+                        skip_reason='spam')
                     highest = max(highest, uid)
                     continue
                 typ2, msg_data = conn.uid('FETCH', str(uid), '(BODY.PEEK[])')
@@ -654,9 +666,11 @@ class ImapServer(models.AbstractModel):
             elapsed = time.monotonic() - started
             _logger.info(
                 'IMAP poll: user=%s candidates=%d new=%d dedup_skipped=%d '
-                'parse_errors=%d fetched=%d elapsed=%.1fs remaining=%d resync=%s',
+                'spam_skipped=%d parse_errors=%d fetched=%d elapsed=%.1fs '
+                'remaining=%d resync=%s',
                 user.login, len(uids), len(messages), dedup_skipped,
-                parse_errors, fetched, elapsed, remaining, resync)
+                spam_skipped, parse_errors, fetched, elapsed, remaining,
+                resync)
             self._report_progress(len(messages), remaining)
             return len(messages), normalize_failures
         finally:
@@ -725,21 +739,104 @@ class ImapServer(models.AbstractModel):
             raw = raw.decode('utf-8', 'ignore')
         return [int(u) for u in str(raw).split() if str(u).isdigit()]
 
+    # ── Spam (header-baserat, före body-fetch) ────────────────────
+
+    # Tak för hur många unika header-fält vi lägger i HEADER.FIELDS.
+    # Skyddar mot en konfiguration med orimligt många regler.
+    _SPAM_MAX_FIELDS = 20
+
+    def _spam_rules(self):
+        """Läs spam-reglerna ur ir.config_parameter.
+
+        Format: [{"header": "X-Spam-Flag", "match": "YES"}, ...]
+
+        Trasig JSON ger en tom lista och en varning — ett konfigurationsfel
+        ska aldrig stoppa pollningen. Tom lista = filtret avstängt.
+        """
+        raw = self.env['ir.config_parameter'].sudo().get_param(
+            'user_mail_imap.spam_headers', '')
+        if not raw:
+            return []
+        try:
+            rules = json.loads(raw)
+        except (ValueError, TypeError) as e:
+            _logger.warning(
+                'Spam-regler: trasig JSON i user_mail_imap.spam_headers '
+                '(%s: %s) — spam-filtret är avstängt tills den rättas.',
+                type(e).__name__, e)
+            return []
+        if not isinstance(rules, list):
+            _logger.warning(
+                'Spam-regler: user_mail_imap.spam_headers ska vara en lista, '
+                'fick %s — filtret är avstängt.', type(rules).__name__)
+            return []
+        clean = []
+        for rule in rules:
+            if not isinstance(rule, dict):
+                continue
+            header = (rule.get('header') or '').strip()
+            match = rule.get('match')
+            if not header or match is None:
+                continue
+            clean.append({'header': header, 'match': str(match)})
+        return clean
+
+    def _spam_header_names(self):
+        """Unika header-namn för HEADER.FIELDS (deduplicerade, takade)."""
+        seen = []
+        for rule in self._spam_rules():
+            name = rule['header'].upper()
+            if name not in seen:
+                seen.append(name)
+            if len(seen) >= self._SPAM_MAX_FIELDS:
+                break
+        return seen
+
+    def _is_spam(self, headers):
+        """Avgör på headers om ett mail är spam.
+
+        `headers` är dict med headernamn (versaler) -> värde. Matchningen är
+        skiftlägesokänslig och träffar när värdet BÖRJAR med regelns `match`,
+        så `X-Spam-Status: Yes, score=8.2 ...` träffar `Yes`.
+
+        Utan regler, eller när ingen header matchar, returneras False —
+        då behandlas mailet som vanligt mail (dagens beteende).
+        """
+        if not headers:
+            return False
+        for rule in self._spam_rules():
+            value = headers.get(rule['header'].upper())
+            if not value:
+                continue
+            if str(value).strip().lower().startswith(
+                    rule['match'].strip().lower()):
+                return True
+        return False
+
     def _fetch_headers(self, conn, uids):
-        """Hämta bara Message-ID/from/subject/date för en UID-mängd.
+        """Hämta headers för en UID-mängd — dedup-nycklar OCH spam-fält.
 
         Dedup ska ske INNAN full body hämtas. Ett enda FETCH för hela
         mängden ger oss dedup-nycklarna billigt; full body hämtas sedan
         endast för de UID:n som är nya.
 
-        Returns dict: uid -> {message_id, from_, subject, date}
+        Spam-fälten (se `_spam_header_names`) läggs i SAMMA HEADER.FIELDS —
+        avgörandet kostar därför ingen extra IMAP-rundtur.
+
+        Returns dict: uid -> {message_id, from_, subject, date, spam_headers}
+        där `spam_headers` är headernamn (versaler) -> värde för de fält
+        spam-reglerna pekar på.
         """
         if not uids:
             return {}
+        fields = ['MESSAGE-ID', 'FROM', 'SUBJECT', 'DATE']
+        for name in self._spam_header_names():
+            if name not in fields:
+                fields.append(name)
         uid_set = ','.join(str(u) for u in uids)
         typ, data = conn.uid(
             'FETCH', uid_set,
-            '(UID BODY.PEEK[HEADER.FIELDS (MESSAGE-ID FROM SUBJECT DATE)])')
+            '(UID BODY.PEEK[HEADER.FIELDS (%s)])' % ' '.join(fields))
         if typ != 'OK':
             return {}
         out = {}
@@ -755,11 +852,19 @@ class ImapServer(models.AbstractModel):
                 current_uid = int(m.group(1))
                 try:
                     msg = BytesParser(policy=policy.default).parsebytes(raw)
+                    spam_headers = {}
+                    for name in fields:
+                        if name in ('MESSAGE-ID', 'FROM', 'SUBJECT', 'DATE'):
+                            continue
+                        value = msg.get(name)
+                        if value is not None:
+                            spam_headers[name] = str(value)
                     out[current_uid] = {
                         'message_id': str(msg.get('Message-ID', '')).strip(),
                         'from_': str(msg.get('From', '')),
                         'subject': str(msg.get('Subject', '')),
                         'date': str(msg.get('Date', '')),
+                        'spam_headers': spam_headers,
                     }
                 except Exception as e:
                     _logger.warning(
@@ -768,8 +873,13 @@ class ImapServer(models.AbstractModel):
         return out
 
     def _record_processed(self, user_id, messages, failed=False,
-                          failure_reason=None):
-        """Beständig dedup: spara Message-ID/dedup-nyckel per användare."""
+                          failure_reason=None, skip_reason=None):
+        """Beständig dedup: spara Message-ID/dedup-nyckel per användare.
+
+        `skip_reason` skiljer ett medvetet överhoppat mail (t.ex. spam) från
+        ett misslyckat. Bara `failed` räknas som parse-fel i `_poll_health()`
+        — spam är ett förväntat utfall, inte ett fel.
+        """
         vals = []
         for m in messages:
             key = m.get('dedup_key')
@@ -780,6 +890,7 @@ class ImapServer(models.AbstractModel):
                 'message_id': key,
                 'failed': failed,
                 'failure_reason': failure_reason,
+                'skip_reason': skip_reason,
             })
         if vals:
             self.env['user.mail.processed'].sudo().create(vals)
