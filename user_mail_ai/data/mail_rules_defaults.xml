@@ -49,10 +49,14 @@
             <field name="source">seed</field>
             <field name="user_id" ref="base.user_root"/>
         </record>
-        <!-- helpdesk-regeln laddas bara om helpdesk_mgmt är installerad (2026-10-20).
-             Modulen är inget hårt beroende: utan den uteblir bara denna regel. -->
+        <!-- helpdesk-regeln skapas inaktiv (2026-10-20). helpdesk_mgmt är
+             inget hårt beroende — utan den uteblir bara denna regel. Att
+             villkora active på ir.model.data fungerar inte: 'env' finns inte
+             i eval-kontexten i Odoo 18:s data-filer:
+               ValueError: NameError("name 'env' is not defined")
+             Regeln var inaktiv även före ändringen, så beteendet är detsamma. -->
         <record id="default_rule_support_ticket" model="user_mail_ai.rule">
-            <field name="active" eval="env['ir.model.data'].search_count([('module', '=', 'helpdesk_mgmt')]) &gt; 0"/>
+            <field name="active" eval="False"/>
             <field name="name">Hjälpbegäran från känd partner → supportärende</field>
             <field name="priority" eval="5"/>
             <field name="condition_kind">llm</field>
