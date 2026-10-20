@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 {
     'name': 'User Mail: AI Assistant',
-    'version': '18.0.1.10.0',
+    'version': '18.0.1.10.2',
     'summary': 'Personlig AI-mailhjälpreda — IMAP-triage, Odoo Mind (graf), Teams→kalender',
     'category': 'Productivity',
     'author': 'Vertel Sverige AB',

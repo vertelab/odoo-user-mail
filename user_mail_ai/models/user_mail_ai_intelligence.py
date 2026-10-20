@@ -18,10 +18,15 @@ from odoo import api, fields, models
 
 _logger = logging.getLogger(__name__)
 
+# `Message`/`Role` krävs: provider.chat() tar dataclass-objekt, inte dicts
+# (den anropade `msg.to_openai()` och föll med
+# "'dict' object has no attribute 'to_openai'").
 try:
-    from ai_agent_core.core.provider import ProviderFactory
+    from odoo.addons.ai_agent_core.core.provider import (
+        Message, ProviderFactory, Role,
+    )
 except ImportError:  # pragma: no cover
-    ProviderFactory = None
+    Message = ProviderFactory = Role = None
 
 _PROFILE_W_LLM_DEFAULT = 0.7
 
@@ -452,7 +457,7 @@ class UserMailAiIntelligence(models.Model):
         try:
             resp = asyncio.run(provider.chat(
                 model.api_name or model.name,
-                [{'role': 'user', 'content': prompt}],
+                [Message(role=Role.USER, content=prompt)],
                 temperature=0.3, max_tokens=600))
         except Exception as e:
             _logger.warning('Profile LLM failed for %s: %s', user.login, e)
@@ -603,7 +608,7 @@ class UserMailAiIntelligence(models.Model):
         try:
             resp = asyncio.run(provider.chat(
                 model.api_name or model.name,
-                [{'role': 'user', 'content': prompt}],
+                [Message(role=Role.USER, content=prompt)],
                 temperature=0.4, max_tokens=800))
         except Exception as e:
             _logger.warning('Digest LLM failed for %s: %s', user.login, e)

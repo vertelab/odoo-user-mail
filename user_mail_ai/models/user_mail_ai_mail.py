@@ -25,10 +25,15 @@ from odoo import api, fields, models
 
 _logger = logging.getLogger(__name__)
 
+# `Message`/`Role` krävs: provider.chat() tar dataclass-objekt, inte dicts
+# (den anropade `msg.to_openai()` och föll med
+# "'dict' object has no attribute 'to_openai'").
 try:
-    from ai_agent_core.core.provider import ProviderFactory
+    from odoo.addons.ai_agent_core.core.provider import (
+        Message, ProviderFactory, Role,
+    )
 except ImportError:  # pragma: no cover
-    ProviderFactory = None
+    Message = ProviderFactory = Role = None
 
 _TEAMS_KEYWORDS = (
     'invitation', 'inbjudan', 'mötesinbjudan', 'motesinbjudan',
@@ -635,7 +640,8 @@ class UserMailAiMail(models.Model):
         try:
             resp = asyncio.run(provider.chat(
                 model_name,
-                [{'role': 'user', 'content': self._build_classification_prompt()}],
+                [Message(role=Role.USER,
+                         content=self._build_classification_prompt())],
                 temperature=0.0,
                 max_tokens=600,
             ))
@@ -1275,7 +1281,7 @@ class UserMailAiMail(models.Model):
         try:
             resp = asyncio.run(provider.chat(
                 model_rec.api_name or model_rec.name,
-                [{'role': 'user', 'content': prompt}],
+                [Message(role=Role.USER, content=prompt)],
                 temperature=0.0, max_tokens=600,
             ))
             data = self._parse_classification_json(resp.text)
@@ -1543,7 +1549,7 @@ class UserMailAiMail(models.Model):
         try:
             resp = asyncio.run(provider.chat(
                 model_name,
-                [{'role': 'user', 'content': prompt}],
+                [Message(role=Role.USER, content=prompt)],
                 temperature=0.4, max_tokens=800,
             ))
         except Exception as e:
@@ -1668,12 +1674,12 @@ class UserMailAiMail(models.Model):
                 try:
                     resp = asyncio.run(provider.chat(
                         model.api_name or model.name,
-                        [{'role': 'user', 'content': (
+                        [Message(role=Role.USER, content=(
                             'Skriv ett kort, professionellt svar på detta '
                             'mail. Svara ENDAST med själva svaret.\n\n'
                             'Från: %s\nÄmne: %s\n\n%s'
                             % (self.from_email or '?', self.subject or '',
-                               self._get_body_text(3000)))}],
+                               self._get_body_text(3000))))],
                         temperature=0.4, max_tokens=800))
                     reply_text = (resp.text or '').strip()
                 except Exception:
