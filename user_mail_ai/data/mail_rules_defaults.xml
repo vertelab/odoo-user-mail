@@ -49,10 +49,12 @@
             <field name="source">seed</field>
             <field name="user_id" ref="base.user_root"/>
         </record>
+        <!-- helpdesk-regeln laddas bara om helpdesk_mgmt är installerad (2026-10-20).
+             Modulen är inget hårt beroende: utan den uteblir bara denna regel. -->
         <record id="default_rule_support_ticket" model="user_mail_ai.rule">
+            <field name="active" eval="env['ir.model.data'].search_count([('module', '=', 'helpdesk_mgmt')]) &gt; 0"/>
             <field name="name">Hjälpbegäran från känd partner → supportärende</field>
             <field name="priority" eval="5"/>
-            <field name="active" eval="False"/>
             <field name="condition_kind">llm</field>
             <field name="condition_text">Mail där en känd partner ber om hjälp eller support</field>
             <field name="action">create_object</field>

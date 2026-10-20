@@ -34,13 +34,19 @@ AI Assistant
     until the user explicitly sets action_config.hitl=false. There is no
     automatic trust ladder.
     ''',
+    # helpdesk_mgmt är INTE ett hårt beroende (2026-10-20). Koden frågar bara
+    # efter helpdesk.ticket.team i grenar som redan är skyddade av
+    # `if model == 'helpdesk.ticket'`, dvs. modellen kan bara efterfrågas om
+    # den finns. Standardregeln som pekar på helpdesk.ticket laddas bara när
+    # modellen finns (se data/mail_rules_defaults.xml, villkorad på
+    # ir.model.data). Utan helpdesk_mgmt fungerar modulen fullt ut för
+    # projekt, säljorder och andra modeller — helpdesk-regeln uteblir.
     'depends': [
         'user_mail_imap',
         'user_mail_common',
         'ai_agent_core',
         'calendar',
         'crm',
-        'helpdesk_mgmt',
         'account',
         'knowledge_joplin',
     ],
