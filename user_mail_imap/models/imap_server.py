@@ -16,6 +16,20 @@ import re
 
 _logger = logging.getLogger(__name__)
 
+# IMAP-kommandon har en längdgräns (RFC 3501 föreslår 1000 tecken för
+# kommandoraden; Dovecot avvisar längre med "BAD Too long argument").
+# En UID-lista på 11 000 poster blir ~60 000 tecken. Dela därför varje
+# UID-baserad operation i bitar -- 200 UID:n ryms bekvämt inom gränsen
+# även med sexsiffriga UID:n.
+UID_BATCH_SIZE = 200
+
+
+def _uid_batches(uids, size=UID_BATCH_SIZE):
+    """Dela en UID-lista i bitar som ryms i ett IMAP-kommando."""
+    uids = list(uids)
+    for i in range(0, len(uids), size):
+        yield uids[i:i + size]
+
 
 def _safe_logout(conn):
     """Log out without throwing away the result of the operation.
@@ -455,10 +469,11 @@ class ImapServer(models.AbstractModel):
         conn = self._connect_imap()
         try:
             conn.select(folder)
-            uid_list = ','.join(str(u) for u in uids)
             cmd = '+FLAGS' if value else '-FLAGS'
             imap_flag = '\\Seen' if flag == 'seen' else '\\Flagged'
-            conn.uid('STORE', uid_list, cmd, imap_flag)
+            for batch in _uid_batches(uids):
+                uid_list = ','.join(str(u) for u in batch)
+                conn.uid('STORE', uid_list, cmd, imap_flag)
         finally:
             _safe_logout(conn)
 
@@ -487,7 +502,20 @@ class ImapServer(models.AbstractModel):
         """
         if not self.env.context.get('ir_cron_progress_id'):
             return
-        self._notify_progress(done=done, remaining=remaining)
+        # `_notify_progress` bor på ir.cron, inte på user.mail.imap.
+        # Anropet låg tidigare på self och kastade AttributeError -- i slutet
+        # av action_poll_all(), inom samma transaktion som cursor-skrivningen.
+        # En lyckad pollning rullades därför tillbaka och last_imap_uid
+        # skrevs aldrig.
+        #
+        # Progressrapportering är observability, inte affärslogik: går den
+        # sönder ska pollningen ändå spara sitt resultat.
+        try:
+            self.env['ir.cron']._notify_progress(
+                done=done, remaining=remaining)
+        except Exception as e:
+            _logger.warning(
+                'IMAP poll: progress-rapportering misslyckades (ignored): %r', e)
 
     @api.model
     def action_poll_all(self):
@@ -833,13 +861,19 @@ class ImapServer(models.AbstractModel):
         for name in self._spam_header_names():
             if name not in fields:
                 fields.append(name)
-        uid_set = ','.join(str(u) for u in uids)
-        typ, data = conn.uid(
-            'FETCH', uid_set,
-            '(UID BODY.PEEK[HEADER.FIELDS (%s)])' % ' '.join(fields))
-        if typ != 'OK':
-            return {}
         out = {}
+        for batch in _uid_batches(uids):
+            uid_set = ','.join(str(u) for u in batch)
+            typ, data = conn.uid(
+                'FETCH', uid_set,
+                '(UID BODY.PEEK[HEADER.FIELDS (%s)])' % ' '.join(fields))
+            if typ != 'OK':
+                continue
+            self._parse_header_batch(data, out, fields)
+        return out
+
+    def _parse_header_batch(self, data, out, fields):
+        """Parsa ett FETCH-svar med headers in i `out` (uid -> dict)."""
         current_uid = None
         for item in data or []:
             if isinstance(item, tuple):
@@ -870,7 +904,6 @@ class ImapServer(models.AbstractModel):
                     _logger.warning(
                         'Header parse failed uid=%s: %s: %s',
                         current_uid, type(e).__name__, e)
-        return out
 
     def _record_processed(self, user_id, messages, failed=False,
                           failure_reason=None, skip_reason=None):
@@ -1059,13 +1092,14 @@ class ImapServer(models.AbstractModel):
         conn = self._connect_imap()
         try:
             conn.select(folder)
-            uid_list = ','.join(str(u) for u in uids)
-            typ, _data = conn.uid('MOVE', uid_list, to_folder)
-            if typ != 'OK':
-                # Fallback: COPY + \Deleted + EXPUNGE
-                conn.uid('COPY', uid_list, to_folder)
-                conn.uid('STORE', uid_list, '+FLAGS', '\\Deleted')
-                conn.expunge()
+            for batch in _uid_batches(uids):
+                uid_list = ','.join(str(u) for u in batch)
+                typ, _data = conn.uid('MOVE', uid_list, to_folder)
+                if typ != 'OK':
+                    # Fallback: COPY + \Deleted + EXPUNGE
+                    conn.uid('COPY', uid_list, to_folder)
+                    conn.uid('STORE', uid_list, '+FLAGS', '\\Deleted')
+                    conn.expunge()
             return True
         finally:
             _safe_logout(conn)
