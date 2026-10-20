@@ -166,6 +166,55 @@ class ResUsers(models.Model):
                 _logger.info(f"VALUES IN WRITE :::::::::: {values}")
         return super(ResUsers, self).write(values)
 
+    def backfill_dovecot_password(self):
+        """Copy dovecot_password from the server for users missing it locally.
+
+        user_mail_server owns dovecot_password on the server.  This client
+        only learns the value when a password is changed through it
+        (see write()), so every user created before user_mail_client was
+        installed -- or whose password never changed here -- has the field
+        empty locally.  That matters because action_set_imap_password()
+        verifies against it: with no local hash the verification is
+        skipped and a wrong IMAP password is stored without complaint.
+
+        Read-only against the server: nothing is written back.
+        Returns a report dict.
+        """
+        syncserver = Sync2server()
+        users = self.search([('login', '!=', False)])
+        filled, skipped, failed = [], [], []
+
+        for user in users:
+            if user.dovecot_password:
+                continue
+            try:
+                remote_user_id = syncserver.remote_user(user)
+                if not remote_user_id:
+                    skipped.append((user.login, 'no server row'))
+                    continue
+                remote = syncserver.sock.execute_kw(
+                    syncserver.passwd_dbname, syncserver.uid,
+                    syncserver.passwd_passwd, 'res.users', 'read',
+                    [[remote_user_id], ['dovecot_password']])
+                remote_dc = remote and remote[0].get('dovecot_password')
+                if not remote_dc:
+                    skipped.append((user.login, 'no dovecot_password on server'))
+                    continue
+                # Write the raw value: it is already a SHA512-CRYPT hash and
+                # must not be hashed a second time.  super(type(user), user)
+                # starts at the next class in the instance's own MRO --
+                # super(ResUsers, user) would skip past this class but land
+                # on the wrong one when several modules inherit res.users.
+                super(type(user), user).write({'dovecot_password': remote_dc})
+                filled.append(user.login)
+            except Exception as e:
+                failed.append((user.login, str(e)[:120]))
+
+        _logger.info(
+            'dovecot_password backfill: %d filled, %d skipped, %d failed',
+            len(filled), len(skipped), len(failed))
+        return {'filled': filled, 'skipped': skipped, 'failed': failed}
+
     def unlink(self):
         syncserver = Sync2server()
 
@@ -416,15 +465,46 @@ class Sync2server():
                 return remote_company[0]
 
     def remote_user(self, user):
+        """Find the server-side res.users row for a local user.
+
+        The local row may be missing its remote_id even though the server
+        already has one -- e.g. users created before user_mail_client was
+        installed, or a local database restored from a backup.  The old
+        code generated a fresh UUID in that case and wrote it over the
+        server's value, silently re-linking the server row to a new
+        identity.  Adopt the server's existing remote_id instead: only
+        generate one when the server has no row at all.
+
+        Matching is by remote_id first, then postfix_mail, then login.
+        """
         remote_user = None
-        if not user.remote_id and user.postfix_mail:
-            remote_user = self.search('res.users',
-                                      ['|', ['postfix_mail', '=', user.postfix_mail], ['login', '=', user.login]])
-        elif not user.remote_id:
+
+        # 1. Already linked: trust remote_id.
+        if user.remote_id:
+            remote_user = self.search('res.users', [['remote_id', '=', user.remote_id]])
+            if remote_user:
+                return remote_user[0]
+
+        # 2. Not linked yet: look the row up by its natural key.
+        if user.postfix_mail:
+            remote_user = self.search(
+                'res.users',
+                ['|', ['postfix_mail', '=', user.postfix_mail], ['login', '=', user.login]])
+        else:
             remote_user = self.search('res.users', [['login', '=', user.login]])
+
+        if remote_user:
+            # Adopt the server's remote_id rather than replacing it.  If the
+            # server row has none, give it the local one so both sides agree.
+            remote_id = remote_user[0].get('remote_id') if isinstance(remote_user[0], dict) else None
+            if not remote_id:
+                remote_id = user.remote_id or str(uuid.uuid4())
+                self.write('res.users', remote_user[0], {'remote_id': remote_id})
+            if user.remote_id != remote_id:
+                user.remote_id = remote_id
+            return remote_user[0]
+
+        # 3. No server row: mint an id for the create that follows.
         if not user.remote_id:
             user.remote_id = str(uuid.uuid4())
-            if remote_user:
-                self.write('res.users', remote_user[0], {'remote_id': user.remote_id})
-        remote_user = self.search('res.users', [['remote_id', '=', user.remote_id]])
-        return remote_user and remote_user[0] or False
+        return False
