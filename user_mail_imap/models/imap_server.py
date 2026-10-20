@@ -519,17 +519,33 @@ class ImapServer(models.AbstractModel):
                     user.login)
                 continue
             try:
-                total += self.with_user(user.id).action_poll_user(
+                new, failed = self.with_user(user.id).action_poll_user(
                     deadline=deadline)
+                total += new
+                if failed:
+                    # Enskilda oläsbara meddelanden är hanterade: de hoppas
+                    # över och resten av pollningen lyckas. Det är ett
+                    # datakvalitetsproblem, inte ett driftfel -- och ska inte
+                    # loggas som ERROR var femte minut.
+                    _logger.info(
+                        'Mail poll: %s hoppade över %s oläsbara meddelanden '
+                        '(%s nya lästes).',
+                        user.login, failed, new)
             except Exception as e:
                 _logger.error(
-                    'Mail poll failed for user %s (%s): %s: %s',
-                    user.login, user.id, type(e).__name__, e)
+                    'Mail poll failed for user %s (%s): %r',
+                    user.login, user.id, e, exc_info=True)
         self._report_progress(total, 0)
         return total
 
     def action_poll_user(self, deadline=None):
         """Poll ONE user's INBOX (env.user = target user).
+
+        Returnerar ``(nya_meddelanden, normaliseringsfel)``. Det andra värdet
+        låter anroparen skilja ett trasigt enskilt mail (hanterat, loggat som
+        WARNING, pollningen fortsätter) från ett anslutningsfel (som ska synas
+        som ERROR). Tidigare bubblade ingetdera upp — men inget gick heller
+        att skilja åt i efterhand.
 
         Readonly-säker: använder BODY.PEEK så att \\Seen aldrig sätts och
         inga flaggor/mappar ändras.
@@ -575,6 +591,7 @@ class ImapServer(models.AbstractModel):
             fetched = 0
             messages = []
             highest = cursor
+            normalize_failures = 0
             for uid in uids:
                 if time.monotonic() >= deadline:
                     break
@@ -601,10 +618,11 @@ class ImapServer(models.AbstractModel):
                         raw_sink=self._on_new_message_raw)
                 except Exception as e:
                     parse_errors += 1
+                    normalize_failures += 1
                     reason = '%s: %s' % (type(e).__name__, e)
                     _logger.warning(
-                        'Normalize failed for %s uid=%s: %s',
-                        user.login, uid, reason)
+                        'Normalize failed for %s uid=%s: %r',
+                        user.login, uid, e, exc_info=True)
                     # Poison-policy: framsteg framför fullständighet.
                     self._record_processed(
                         user.id, [{'dedup_key': key or 'uid:%d' % uid}],
@@ -640,7 +658,7 @@ class ImapServer(models.AbstractModel):
                 user.login, len(uids), len(messages), dedup_skipped,
                 parse_errors, fetched, elapsed, remaining, resync)
             self._report_progress(len(messages), remaining)
-            return len(messages)
+            return len(messages), normalize_failures
         finally:
             _safe_logout(conn)
             _report_logout_failures(user.login)

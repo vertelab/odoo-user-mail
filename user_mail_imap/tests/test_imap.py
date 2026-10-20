@@ -257,9 +257,11 @@ class TestImap(TransactionCase):
         fake.uid.side_effect = _uid
 
         with patch('imaplib.IMAP4_SSL', return_value=fake):
-            n = self.env['user.mail.imap'].with_user(self.user).action_poll_user()
+            n, failed = self.env['user.mail.imap'].with_user(
+                self.user).action_poll_user()
 
         self.assertEqual(n, 1, 'ett nytt mail ska pollas')
+        self.assertEqual(failed, 0, 'inget normaliseringsfel')
         self.assertTrue(self.user.last_imap_sync,
                         'last_imap_sync ska sättas efter lyckad poll')
         # Readonly-säkerhet: BODY.PEEK, aldrig STORE (flaggor).
@@ -554,7 +556,8 @@ class TestImap(TransactionCase):
                                bodies={1: self._body_bytes('<seen-1@example.com>')})
 
         with patch('imaplib.IMAP4_SSL', return_value=fake):
-            n = self.env['user.mail.imap'].with_user(user).action_poll_user()
+            n, _failed = self.env['user.mail.imap'].with_user(
+                user).action_poll_user()
 
         self.assertEqual(n, 0, 'redan processat mail ska inte räknas som nytt')
         full_fetches = [c for c in fake.uid.call_args_list
@@ -575,7 +578,8 @@ class TestImap(TransactionCase):
                                bodies={1: self._body_bytes('<b1@example.com>')})
 
         with patch('imaplib.IMAP4_SSL', return_value=fake):
-            n = self.env['user.mail.imap'].with_user(user).action_poll_user()
+            n, _failed = self.env['user.mail.imap'].with_user(
+                user).action_poll_user()
 
         self.assertEqual(n, 0)
 
