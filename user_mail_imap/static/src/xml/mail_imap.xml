@@ -11,6 +11,10 @@
                             placeholder="Lösenord"
                             t-ref="passwordInput"
                             t-on-keydown="onPasswordKeydown"/>
+                        <div t-if="state.passwordError"
+                            class="alert alert-danger py-2 mb-3" role="alert">
+                            <t t-esc="state.passwordError"/>
+                        </div>
                         <button class="btn btn-primary w-100"
                             t-on-click="onPasswordButtonClick">
                             Anslut

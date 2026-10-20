@@ -1,4 +1,5 @@
 from odoo import http
+from odoo.exceptions import UserError
 from odoo.http import request
 
 
@@ -11,9 +12,16 @@ class ImapController(http.Controller):
 
     @http.route('/imap/set_password', type='json', auth='user')
     def set_password(self, password):
+        # Verifiera mot dovecot_password innan kopian sparas -- samma vag
+        # som Min profil anvander (action_set_imap_password). Utan detta
+        # sparades ett felaktigt losenord tyst och felet syntes forst vid
+        # nasta IMAP-anslutning (Authentication failed).
         if not password:
             return {'error': 'Password required'}
-        request.env.user.sudo().imap_password = request.env.user._encrypt_imap_pw(password)
+        try:
+            request.env.user.action_set_imap_password(password)
+        except UserError as e:
+            return {'error': str(e)}
         return {'ok': True}
 
     @http.route('/imap/folders', type='json', auth='user')

@@ -130,7 +130,7 @@ class res_users(models.Model):
                         'virus_active',
                         ]
     
-    @api.depends('company_id.domain', 'login')
+    @api.depends('company_id.domain', 'login', 'postfix_active')
     def _email(self):
         for this in self:
             if this.postfix_active and this.login:
@@ -140,7 +140,7 @@ class res_users(models.Model):
                 elif email_re.match(this.login):    # login is an (external) email address, use only left part
                     this.postfix_mail = '%s@%s' % (email_re.match(this.login).groups()[0], this.company_id.domain)
 
-    @api.depends('company_id.domain', 'login', 'postfix_mail')
+    @api.depends('company_id.domain', 'login', 'postfix_mail', 'postfix_active')
     def _maildir_get(self):
         for this in self:
             if this.postfix_active and this.domain and this.postfix_mail:

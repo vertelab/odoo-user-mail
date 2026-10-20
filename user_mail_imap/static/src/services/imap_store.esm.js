@@ -29,6 +29,7 @@ const store = {
             selectedMessage: null,
             currentFolder: 'INBOX',
             hasPassword: false,
+            passwordError: null,
             totalMessages: 0,
             offset: 0,
             loading: false,
@@ -60,8 +61,18 @@ const store = {
             },
 
             async setPassword(password) {
-                await rpc('/imap/set_password', { password });
+                // The controller verifies against dovecot_password and
+                // answers {error: ...} when the password does not match.
+                // Never set hasPassword on failure -- the UI would then
+                // claim "Password set" for a password IMAP login rejects.
+                const res = await rpc('/imap/set_password', { password });
+                if (res && res.error) {
+                    state.passwordError = res.error;
+                    return false;
+                }
+                state.passwordError = null;
                 state.hasPassword = true;
+                return true;
             },
 
             async loadFolders(force = false) {
