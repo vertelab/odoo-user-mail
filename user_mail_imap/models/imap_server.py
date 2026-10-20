@@ -731,20 +731,34 @@ class ImapServer(models.AbstractModel):
         (mappen återskapad, Dovecot-omindexering) måste cursorn nollställas
         — annars hoppar vi tyst över mail.
         """
-        res = conn.select(folder)
+        # `select()` returnerar BARA EXISTS — antalet meddelanden:
+        #
+        #     return typ, self.untagged_responses.get('EXISTS', [None])
+        #
+        # UIDVALIDITY ligger i `untagged_responses` och måste läsas med
+        # `response()`. Den tidigare versionen letade efter "UIDVALIDITY nnn"
+        # i EXISTS-svaret, hittade aldrig något och returnerade alltid None --
+        # så resync-detekteringen kunde aldrig slå till och ett UIDVALIDITY-
+        # byte hade tyst hoppat över mail.
+        typ, _data = conn.select(folder)
+        if typ != 'OK':
+            return None
+        res = conn.response('UIDVALIDITY')
         if not isinstance(res, tuple) or len(res) != 2:
             return None
-        typ, data = res
-        if typ != 'OK' or not data:
+        _key, values = res
+        if not values:
             return None
-        parts = data if isinstance(data, (list, tuple)) else [data]
-        for part in parts:
-            if isinstance(part, bytes):
-                part = part.decode('utf-8', 'ignore')
-            m = re.search(r'UIDVALIDITY\s+(\w+)', str(part or ''))
-            if m:
-                return m.group(1)
-        return None
+        first = values[0]
+        if isinstance(first, bytes):
+            first = first.decode('ascii', 'ignore')
+        first = str(first or '').strip()
+        # imaplib lagrar hela den bracketerade koden, t.ex. b'UIDVALIDITY
+        # 1712345678' (eller bara b'1712345678' beroende på server). Ta
+        # sista ordet så båda formerna fungerar.
+        if not first:
+            return None
+        return first.split()[-1] or None
 
     def _candidate_uids(self, conn, cursor, folder='INBOX'):
         """UID:n efter cursorn — O(nya mail), inte O(brevlåda).

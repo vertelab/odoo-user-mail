@@ -236,7 +236,8 @@ class TestImap(TransactionCase):
         raw = msg.as_bytes()
 
         fake = MagicMock()
-        fake.select.return_value = ('OK', [b'1', b'UIDVALIDITY 42'])
+        fake.select.return_value = ('OK', [b'1'])
+        fake.response.return_value = ('UIDVALIDITY', [b'42'])
         fake.search.return_value = ('OK', [b'1'])
         fake.fetch.return_value = ('OK', [(b'1 (BODY[] {123}', raw)])
         fake.login.return_value = ('OK', [b'logged in'])
@@ -275,12 +276,18 @@ class TestImap(TransactionCase):
     def test_poll_skips_when_no_password(self):
         """Pollern hoppar över användare utan lösenord (ingen UserError)."""
         from unittest.mock import patch
+        # action_poll_all() söker ALLA användare med imap_poll_enabled.
+        # I en TransactionCase ser den även riktiga användare, och en sådan
+        # med lösenord skulle ansluta skarpt mot produktionsbrevlådan. Lås
+        # sökningen till testanvändaren så testet blir isolerat.
         self.user.imap_password = False
         self.env.cr.execute(
             "UPDATE res_users SET imap_poll_enabled = true, "
             "imap_password = NULL WHERE id = %s", (self.user.id,))
         self.user.invalidate_recordset()
-        with patch('imaplib.IMAP4_SSL') as m:
+        with patch('imaplib.IMAP4_SSL') as m, \
+                patch.object(type(self.env['res.users']), 'search',
+                             return_value=self.user):
             self.env['user.mail.imap'].action_poll_all()
             self.assertFalse(m.called,
                              'ingen IMAP-anslutning ska göras utan lösenord')
@@ -437,9 +444,13 @@ class TestImap(TransactionCase):
         """Minimal IMAP-dubbel som svarar på UID SEARCH/FETCH och SELECT."""
         from unittest.mock import MagicMock
         fake = MagicMock()
-        fake.select.return_value = (
-            'OK', [str(len(uids)).encode(),
-                   ('UIDVALIDITY %s' % uidvalidity).encode()])
+        # imaplib.select() returnerar BARA EXISTS; UIDVALIDITY ligger i
+        # untagged_responses och läses med response(). Att mocka select()
+        # att returnera UIDVALIDITY dolde en bugg där koden letade på fel
+        # ställe och alltid fick None.
+        fake.select.return_value = ('OK', [str(len(uids)).encode()])
+        fake.response.return_value = (
+            'UIDVALIDITY', [('UIDVALIDITY %s' % uidvalidity).encode()])
         fake.login.return_value = ('OK', [b'logged in'])
         fake.uid.return_value = ('OK', [b' '.join(str(u).encode() for u in uids)])
 
@@ -491,6 +502,7 @@ class TestImap(TransactionCase):
         user = self._poll_user()
         user.last_imap_uid = 100
         user.last_imap_uidvalidity = '42'
+        self.env.flush_all()
         fake = self._fake_conn([], uidvalidity='42')
 
         with patch('imaplib.IMAP4_SSL', return_value=fake):
@@ -1018,3 +1030,62 @@ class TestImap(TransactionCase):
         self.assertFalse(forbidden, 'pollern får inte ändra brevlådan')
         self.assertFalse(fake.store.called)
         self.assertFalse(fake.expunge.called)
+
+    def test_uidvalidity_read_from_response_not_select(self):
+        """UIDVALIDITY ska läsas med response(), inte ur select()-svaret.
+
+        imaplib.select() returnerar bara EXISTS. Den tidigare koden letade
+        efter "UIDVALIDITY nnn" i det svaret, hittade aldrig något och
+        returnerade alltid None — så resync-detekteringen kunde aldrig slå
+        till.
+        """
+        from unittest.mock import patch
+        user = self._poll_user()
+        user.last_imap_uid = 500
+        user.last_imap_uidvalidity = False
+        self.env.flush_all()
+        fake = self._fake_conn([], uidvalidity='777')
+
+        with patch('imaplib.IMAP4_SSL', return_value=fake):
+            self.env['user.mail.imap'].with_user(user).action_poll_user()
+
+        user.invalidate_recordset()
+        self.assertEqual(user.last_imap_uidvalidity, '777',
+                         'UIDVALIDITY ska sparas från response()')
+        self.assertTrue(fake.response.called,
+                        'koden ska anropa response("UIDVALIDITY")')
+
+    def test_uidvalidity_missing_does_not_crash(self):
+        """Saknat UIDVALIDITY-svar ska ge None, inte krasch."""
+        from unittest.mock import patch
+        user = self._poll_user()
+        user.last_imap_uid = 500
+        self.env.flush_all()
+        fake = self._fake_conn([])
+        fake.response.return_value = ('UIDVALIDITY', [])
+
+        with patch('imaplib.IMAP4_SSL', return_value=fake):
+            self.env['user.mail.imap'].with_user(user).action_poll_user()
+
+        user.invalidate_recordset()
+        self.assertFalse(user.last_imap_uidvalidity,
+                         'tomt svar ska lämna fältet tomt')
+
+    def test_uidvalidity_change_triggers_resync(self):
+        """Bytet ska nollställa cursorn och söka ALL."""
+        from unittest.mock import patch
+        user = self._poll_user()
+        user.last_imap_uid = 500
+        user.last_imap_uidvalidity = 'OLD'
+        self.env.flush_all()
+        fake = self._fake_conn([], uidvalidity='NEW')
+
+        with patch('imaplib.IMAP4_SSL', return_value=fake):
+            self.env['user.mail.imap'].with_user(user).action_poll_user()
+
+        user.invalidate_recordset()
+        self.assertEqual(user.last_imap_uidvalidity, 'NEW')
+        search_args = [c for c in fake.uid.call_args_list
+                       if c[0][0] == 'SEARCH']
+        self.assertIn('ALL', str(search_args[0][0]),
+                      'resync ska söka ALL, inte UID 501:*')
