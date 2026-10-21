@@ -285,6 +285,33 @@ const store = {
                 delete folderCache[folder];
             },
 
+            /**
+             * Mapparna bakom Arkivera / Skräppost / Ta bort.
+             *
+             * Slås upp en gång per session och cachas: de ändras inte, och
+             * ett LIST-anrop per knapptryck vore slöseri.
+             */
+            async specialFolders() {
+                if (!folderCache.__special) {
+                    folderCache.__special = await rpc('/imap/special_folders', {});
+                }
+                return folderCache.__special;
+            },
+
+            /**
+             * Flytta meddelanden (Arkivera / Skräppost / Ta bort).
+             *
+             * Cachen för BÅDA mapparna rensas: källmappen för att mailet
+             * försvunnit, målmappen för att det dykt upp. Rensas bara
+             * källmappen visar målmappen sitt gamla innehåll tills TTL:n
+             * går ut.
+             */
+            async moveMails(folder, uids, toFolder) {
+                await rpc('/imap/move', { folder, uids, to_folder: toFolder });
+                delete folderCache[folder];
+                delete folderCache[toFolder];
+            },
+
             async fetchTemplates() {
                 const res = await rpc('/imap/templates');
                 return res.templates || [];

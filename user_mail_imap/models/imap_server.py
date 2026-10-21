@@ -297,6 +297,43 @@ class ImapServer(models.AbstractModel):
         finally:
             _safe_logout(conn)
 
+    # RFC 6154 special-use → den mapp verktygsraden ska flytta till.
+    # Arkivera har ingen standardflagga; \Archive förekommer men Dovecot
+    # sätter den inte här, så den faller tillbaka på namnet "Archives".
+    _SPECIAL_USE = {
+        'trash': '\\Trash',
+        'junk': '\\Junk',
+        'archive': '\\Archive',
+    }
+
+    def action_special_folders(self):
+        """Mapparna bakom Arkivera / Skräppost / Ta bort.
+
+        Slås upp via RFC 6154-flaggor i stället för att hårdkoda namn:
+        mappnamnen är lokaliserade ("Papperskorg" på svenska) och varierar
+        mellan servrar. Hårdkodade namn ger en flytt till en mapp som inte
+        finns — och då tappas mailet tyst.
+
+        Arkivera saknar standardflagga. Finns ingen \\Archive letas namnet
+        "Archives" (Dovecot:s vanligaste), annars utelämnas nyckeln och
+        UI:t döljer knappen hellre än att gissa.
+        """
+        folders = self.action_list_folders()
+        by_flag = {}
+        for f in folders:
+            for flag in f['flags']:
+                for key, wanted in self._SPECIAL_USE.items():
+                    if flag.lower() == wanted.lower():
+                        by_flag.setdefault(key, f['name'])
+
+        if 'archive' not in by_flag:
+            for f in folders:
+                if f['name'].lower() in ('archives', 'archive'):
+                    by_flag['archive'] = f['name']
+                    break
+
+        return by_flag
+
     def action_fetch_mails(self, folder='INBOX', offset=0, limit=80):
         """Hämta en sida av en mapp — batchat och cacheat.
 

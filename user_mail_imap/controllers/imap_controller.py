@@ -65,6 +65,24 @@ class ImapController(http.Controller):
         imap.action_clear_cache()
         return {'ok': True}
 
+    @http.route('/imap/special_folders', type='json', auth='user')
+    def special_folders(self):
+        """Mapparna för Arkivera / Skräppost / Ta bort (RFC 6154)."""
+        imap = request.env['user.mail.imap'].sudo()
+        return imap.action_special_folders()
+
+    @http.route('/imap/move', type='json', auth='user')
+    def move(self, folder, uids, to_folder):
+        """Flytta meddelanden till en annan mapp.
+
+        Används av verktygsraden (Arkivera, Skräppost, Ta bort). IMAP:s
+        MOVE-extension används av action_move; saknas den faller den
+        tillbaka på COPY + STORE \\Deleted + EXPUNGE.
+        """
+        imap = request.env['user.mail.imap'].sudo()
+        imap.action_move(folder, uids, to_folder)
+        return {'ok': True}
+
     @http.route('/imap/rule/create', type='json', auth='user')
     def rule_create(self, name, condition_kind, condition_text, action,
                     folder='', enforcement='server'):

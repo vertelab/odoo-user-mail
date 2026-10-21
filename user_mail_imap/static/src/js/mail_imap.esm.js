@@ -137,14 +137,59 @@ class MailImap extends Component {
     }
 
     /**
-     * Listan efter stjärnfiltret. `props.messages` är sidan som hämtats;
-     * filtreringen sker här så att `total` fortfarande visar mappens
-     * verkliga antal.
+     * Listan efter stjärnfiltret.
+     *
+     * METOD, inte getter. En getter anropas implicit av OWL:s
+     * template-motor, som då försöker göra returvärdet reaktivt — och en
+     * färsk array av redan proxade objekt går inte att wrappa om. Det gav
+     * "Cannot make the given value reactive" och hela klienten dog.
+     *
+     * Anropas explicit från mallen: messages="this.visibleMessages()".
      */
-    get visibleMessages() {
+    visibleMessages() {
         const msgs = this.state.messages || [];
         return this.state.starredOnly ? msgs.filter((m) => m.flagged) : msgs;
     }
+    /**
+     * Flytta det valda meddelandet till en specialmapp.
+     *
+     * Mappnamnet slås upp via RFC 6154 i stället för att hårdkodas — se
+     * action_special_folders i imap_server.py. Saknas mappen (t.ex. ingen
+     * \\Archive) visas ett fel i stället för att mailet flyttas till en
+     * mapp som inte finns och tyst försvinner.
+     */
+    async moveToSpecial(kind) {
+        const msg = this.state.selectedMessage;
+        if (!msg) {
+            return;
+        }
+        try {
+            const folders = await this.store.specialFolders();
+            const target = folders[kind];
+            if (!target) {
+                this.state.folderError = `Ingen mapp hittades för "${kind}".`;
+                return;
+            }
+            await this.store.moveMails(this.state.currentFolder, [msg.uid], target);
+            this.state.selectedMessage = null;
+            await this.store.loadMessages(this.state.currentFolder);
+        } catch (e) {
+            this.state.folderError = `Kunde inte flytta meddelandet: ${e.message || e}`;
+        }
+    }
+
+    onArchive(msg) {
+        return this.moveToSpecial('archive');
+    }
+
+    onJunk(msg) {
+        return this.moveToSpecial('junk');
+    }
+
+    onDelete(msg) {
+        return this.moveToSpecial('trash');
+    }
+
     openComposer(type, msg) {
         this.showComposer.visible = true;
         this.showComposer.type = type;

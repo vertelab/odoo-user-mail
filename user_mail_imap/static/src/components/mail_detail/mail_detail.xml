@@ -15,35 +15,81 @@
                 </div>
             </t>
             <t t-else="">
+                <!--
+                    Verktygsraden, i Thunderbirds ordning:
+                    Svara · Vidarebefordra · Arkivera · Skräppost · Ta bort · Fler
+
+                    Den satt tidigare till vänster ovanför ämnesraden. I
+                    Thunderbird sitter den till HÖGER i meddelandets
+                    huvud — samma placering gör det lättare att hitta utan
+                    att lära om.
+
+                    Regel ligger kvar som egen knapp (inte inbakad i "Fler"):
+                    det är den funktion den här klienten lägger till utöver
+                    Thunderbird, och den ska synas.
+                -->
                 <div class="p-3 border-bottom bg-light">
-                    <div class="d-flex gap-2 mb-2">
-                        <button class="btn btn-sm btn-outline-secondary"
-                            t-on-click="() => props.openComposer('reply', props.message)">
-                            <i class="fa fa-reply me-1"/>Svara
-                        </button>
-                        <button class="btn btn-sm btn-outline-secondary"
-                            t-on-click="() => props.openComposer('forward', props.message)">
-                            <i class="fa fa-mail-forward me-1"/>Vidarebefodra
-                        </button>
-                        <!--
-                            Skapa regel direkt från meddelandet: avsändaren
-                            är redan känd här, och att skriva av den för hand
-                            är hur man får regler som aldrig matchar.
-                        -->
-                        <button class="btn btn-sm btn-outline-secondary"
-                            t-on-click="() => props.openRuleDialog(props.message)"
-                            title="Skapa en regel från det här meddelandet">
-                            <i class="fa fa-filter me-1"/>Skapa regel
-                        </button>
-                    </div>
-                    <h5 class="mb-1" t-out="props.message.subject"/>
-                    <div class="small text-muted">
-                        <strong>Från:</strong> <span t-out="props.message.from_"/><br/>
-                        <strong>Till:</strong> <span t-out="props.message.to_"/><br/>
-                        <t t-if="props.message.cc_">
-                            <strong>CC:</strong> <span t-out="props.message.cc_"/><br/>
-                        </t>
-                        <strong>Datum:</strong> <span t-out="props.message.date"/>
+                    <div class="d-flex align-items-start gap-2">
+                        <div class="flex-grow-1 min-width-0">
+                            <h5 class="mb-1 text-truncate" t-out="props.message.subject"/>
+                            <div class="small text-muted">
+                                <strong>Från:</strong> <span t-out="props.message.from_"/><br/>
+                                <strong>Till:</strong> <span t-out="props.message.to_"/><br/>
+                                <t t-if="props.message.cc_">
+                                    <strong>CC:</strong> <span t-out="props.message.cc_"/><br/>
+                                </t>
+                                <strong>Datum:</strong> <span t-out="props.message.date"/>
+                            </div>
+                        </div>
+                        <!-- Verktygsraden, högerställd som i Thunderbird. -->
+                        <div class="d-flex gap-1 flex-shrink-0">
+                            <button class="btn btn-sm btn-outline-secondary"
+                                t-on-click="() => props.openComposer('reply', props.message)"
+                                title="Svara">
+                                <i class="fa fa-reply"/>
+                            </button>
+                            <button class="btn btn-sm btn-outline-secondary"
+                                t-on-click="() => props.openComposer('forward', props.message)"
+                                title="Vidarebefordra">
+                                <i class="fa fa-mail-forward"/>
+                            </button>
+                            <button class="btn btn-sm btn-outline-secondary"
+                                t-on-click="() => props.onArchive(props.message)"
+                                title="Arkivera">
+                                <i class="fa fa-archive"/>
+                            </button>
+                            <button class="btn btn-sm btn-outline-secondary"
+                                t-on-click="() => props.onJunk(props.message)"
+                                title="Markera som skräppost">
+                                <i class="fa fa-ban"/>
+                            </button>
+                            <button class="btn btn-sm btn-outline-secondary"
+                                t-on-click="() => props.onDelete(props.message)"
+                                title="Ta bort">
+                                <i class="fa fa-trash-o"/>
+                            </button>
+                            <!--
+                                Stjärnmärkning hör också till verktygsraden —
+                                samma stjärna som i listan, så man kan
+                                stjärnmärka utan att gå tillbaka.
+                            -->
+                            <button class="btn btn-sm"
+                                t-att-class="props.message.flagged ? 'btn-warning' : 'btn-outline-secondary'"
+                                t-on-click="() => props.onToggleFlag(props.message, !props.message.flagged)"
+                                t-att-title="props.message.flagged ? 'Ta bort stjärnmärkning' : 'Stjärnmärk'">
+                                <i class="fa" t-att-class="props.message.flagged ? 'fa-star' : 'fa-star-o'"/>
+                            </button>
+                            <!--
+                                Skapa regel direkt från meddelandet: avsändaren
+                                är redan känd här, och att skriva av den för hand
+                                är hur man får regler som aldrig matchar.
+                            -->
+                            <button class="btn btn-sm btn-outline-primary"
+                                t-on-click="() => props.openRuleDialog(props.message)"
+                                title="Skapa en regel från det här meddelandet">
+                                <i class="fa fa-filter me-1"/>Regel
+                            </button>
+                        </div>
                     </div>
                 </div>
                 <div class="flex-grow-1 overflow-auto p-3">

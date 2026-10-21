@@ -30,7 +30,7 @@
                     openComposer="() => this.openComposer('new', null)"/>
                 <div class="d-flex flex-grow-1" style="min-width: 0; position: relative;">
                     <div class="d-flex flex-column" t-ref="mailListContainer" style="width: 380px; min-width: 200px;">
-                        <MailList messages="visibleMessages"
+                        <MailList messages="this.visibleMessages()"
                             total="state.totalMessages"
                             loading="state.loading"
                             selectedMessage="state.selectedMessage"
@@ -54,7 +54,11 @@
                     <MailDetail message="state.selectedMessage"
                         loading="state.loadingDetail"
                         openComposer="(type, msg) => this.openComposer(type, msg)"
-                        openRuleDialog="(msg) => this.openRuleDialog(msg)"/>
+                        openRuleDialog="(msg) => this.openRuleDialog(msg)"
+                        onArchive="(msg) => this.onArchive(msg)"
+                        onJunk="(msg) => this.onJunk(msg)"
+                        onDelete="(msg) => this.onDelete(msg)"
+                        onToggleFlag="(msg, v) => this.onToggleFlag(msg, v)"/>
                 </div>
             </t>
             <t t-if="showRuleDialog.visible">
