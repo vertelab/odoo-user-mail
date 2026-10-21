@@ -1,10 +1,12 @@
 {
     'name': 'User Mail: IMAP Client',
     # Versionsbokföring: 18.0 = Odoo-version, 1 = major (ej
-    # regressionsbar), 10 = minor, 2 = buggfixar. 10.3 = stjärnfiltret
+    # regressionsbar), 10 = minor, 4 = buggfixar. 10.3 = stjärnfiltret
     # söker nu i hela mappen, etikettmenyn på meddelandet och
     # olästfiltret som egen axel (fix-flag-search-and-message-labels).
-    'version': '18.0.1.10.3',
+    # 10.4 = ACL för lösenordswizarden (e945a89) samt
+    # ``_okf_mail_row`` kraschade på okänd flaggstatus (flags=None).
+    'version': '18.0.1.10.4',
     'summary': 'IMAP email client integrated in Odoo — with per-user poller.',
     'description': '''
 IMAP Client

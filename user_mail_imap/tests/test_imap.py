@@ -356,9 +356,16 @@ class TestImap(TransactionCase):
 
         fake = MagicMock()
         fake.select.return_value = ('OK', [b'1'])
-        fake.search.return_value = ('OK', [b'1'])
-        fake.fetch.return_value = ('OK', [(b'1 (BODY[] {123}', raw)])
         fake.login.return_value = ('OK', [b'logged in'])
+
+        def _uid(cmd, *args):
+            if cmd == 'SEARCH':
+                return ('OK', [b'1'])
+            if cmd == 'FETCH':
+                # Verklig form: (meta, header) där meta bär UID och FLAGS.
+                return ('OK', [(b'1 (UID 1 FLAGS () BODY[HEADER] {123}', raw)])
+            return ('OK', [b''])
+        fake.uid.side_effect = _uid
 
         with patch('imaplib.IMAP4_SSL', return_value=fake):
             res = self.env['user.mail.imap'].with_user(self.user)\
@@ -366,8 +373,11 @@ class TestImap(TransactionCase):
 
         self.assertEqual(res['total'], 1)
         self.assertEqual(res['messages'][0]['subject'], 'Faktura 123')
+        # Koden använder UID SEARCH — `fake.search` fångar den aldrig.
+        criteria = next(
+            c[0][2] for c in fake.uid.call_args_list
+            if c[0][0] == 'SEARCH')
         # IMAP:s OR tar två argument — tre kriterier kräver nästling.
-        criteria = fake.search.call_args[0][1]
         self.assertIn('FROM "faktura"', criteria)
         self.assertIn('SUBJECT "faktura"', criteria)
         self.assertIn('TEXT "faktura"', criteria)
@@ -383,14 +393,21 @@ class TestImap(TransactionCase):
 
         fake = MagicMock()
         fake.select.return_value = ('OK', [b'1'])
-        fake.search.return_value = ('OK', [b''])
         fake.login.return_value = ('OK', [b'logged in'])
+
+        def _uid(cmd, *args):
+            if cmd == 'SEARCH':
+                return ('OK', [b''])
+            return ('OK', [])
+        fake.uid.side_effect = _uid
 
         with patch('imaplib.IMAP4_SSL', return_value=fake):
             self.env['user.mail.imap'].with_user(self.user)\
                 .action_search_mails('INBOX', 'a"b', 0, 80)
 
-        criteria = fake.search.call_args[0][1]
+        criteria = next(
+            c[0][2] for c in fake.uid.call_args_list
+            if c[0][0] == 'SEARCH')
         self.assertIn('\\"', criteria, 'citattecken ska escapas')
         self.assertNotIn('"a"b"', criteria, 'osparad sträng får inte uppstå')
 
@@ -417,8 +434,8 @@ class TestImap(TransactionCase):
 
         fake = MagicMock()
         fake.select.return_value = ('OK', [b'1'])
-        fake.search.return_value = ('NO', [b'error'])
         fake.login.return_value = ('OK', [b'logged in'])
+        fake.uid.return_value = ('NO', [b'error'])
 
         with patch('imaplib.IMAP4_SSL', return_value=fake):
             res = self.env['user.mail.imap'].with_user(self.user)\
@@ -447,7 +464,9 @@ class TestImap(TransactionCase):
 
         def _uid(command, *args):
             if command == 'SEARCH':
-                return ('OK', [b' '.join(uids)])
+                # imaplib ger bytes — kalla med str eller int ska funka.
+                return ('OK', [b' '.join(
+                    str(u).encode() for u in uids)])
             if command == 'FETCH':
                 uid_set = args[0]
                 out = []
@@ -486,14 +505,14 @@ class TestImap(TransactionCase):
 
     def test_filter_criteria_unread_is_unseen_not_a_flag(self):
         """Oläst ska bli UNSEEN — inte en sjunde flaggtyp."""
+        from odoo.addons.user_mail_imap.models.imap_server import _FLAG_READ
         imap = self.env['user.mail.imap']
         self.assertEqual(imap._flag_criteria(None, True).strip(), 'UNSEEN')
-        # Oläst får inte erbjudas som etikett.
-        self.assertNotIn('seen', imap._FLAG_READ)
-        self.assertEqual(
-            sorted(imap._FLAG_READ.keys()),
-            ['\\answered', 'flagged', 'important', 'personal', 'spam',
-             'todo', 'work'])
+        # Oläst är en egen axel, inte en etikett. `_FLAG_WRITE` får ha
+        # 'seen' -> '\Seen' (att sätta läst-status KRÄVER flaggan), men
+        # oläst får aldrig bli ett sökbart "flaggvärde": UNSEEN är svaret.
+        self.assertNotIn('seen', _FLAG_READ)
+        self.assertEqual(imap._flag_criteria('seen', False).strip(), 'UNSEEN')
 
     def test_filter_criteria_combines_flag_and_unread_as_and(self):
         """Flagga + oläst ska bli två AND-led, inte ett OR."""
@@ -1340,10 +1359,13 @@ class TestImap(TransactionCase):
         fake = MagicMock()
         fake.select.return_value = ('OK', [str(len(uids)).encode()])
         fake.login.return_value = ('OK', [b'logged in'])
-        fake.search.return_value = (
-            'OK', [b' '.join(str(u).encode() for u in uids)])
 
         def _uid(cmd, *args):
+            # Koden hämtar UID:n med UID SEARCH (`fake.search` fångar den
+            # aldrig) — svara både SEARCH och FETCH här.
+            if cmd == 'SEARCH':
+                return ('OK', [b' '.join(
+                    str(u).encode() for u in uids)])
             if cmd != 'FETCH':
                 return ('OK', [b''])
             uid_set = args[0]

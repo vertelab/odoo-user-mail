@@ -1274,7 +1274,8 @@ class ImapServer(models.AbstractModel):
         return {
             'uid': row.get('source_uid') or 0,
             'seen': seen,
-            'flagged': (True if 'flagged' in flags
+            # ``flags`` är None när status är okänd — då får `in` inte köras.
+            'flagged': (True if flags and 'flagged' in flags
                         else (False if flags is not None else None)),
             'flags': flags,
             'from_': from_,
