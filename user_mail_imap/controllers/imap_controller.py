@@ -66,6 +66,36 @@ class ImapController(http.Controller):
         imap.action_clear_cache()
         return {'ok': True}
 
+    @http.route('/imap/invitation', type='json', auth='user')
+    def invitation(self, folder, uid):
+        """Läs kalenderinbjudan ur ett meddelande (None om ingen)."""
+        imap = request.env['user.mail.imap'].sudo()
+        inv = imap.action_get_invitation(folder, int(uid))
+        if not inv:
+            return {'invitation': False}
+        return {
+            'invitation': {
+                'uid': inv['uid'],
+                'summary': inv['summary'],
+                'description': inv['description'][:500],
+                'location': inv['location'],
+                'start': inv['start'].isoformat() if inv['start'] else False,
+                'stop': inv['stop'].isoformat() if inv['stop'] else False,
+                'organizer_name': inv['organizer_name'],
+                'organizer_email': inv['organizer_email'],
+                'partstat': inv['partstat'],
+                'in_calendar': inv['in_calendar'],
+                'event_id': inv['event_id'],
+                'method': inv['method'],
+            },
+        }
+
+    @http.route('/imap/invitation/respond', type='json', auth='user')
+    def invitation_respond(self, folder, uid, response):
+        """Svara på en inbjudan: accept, decline eller tentative."""
+        imap = request.env['user.mail.imap'].sudo()
+        return imap.action_respond_invitation(folder, int(uid), response)
+
     @http.route('/imap/threads', type='json', auth='user')
     def threads(self, folder='INBOX', offset=0, limit=40):
         """Meddelanden grupperade i trådar, server-side.

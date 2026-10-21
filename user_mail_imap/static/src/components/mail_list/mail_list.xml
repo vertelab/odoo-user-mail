@@ -34,6 +34,8 @@
                     t-att-title="props.threaded ? 'Visa som enskilda mail' : 'Visa som trådar'"
                     t-on-click="() => props.onToggleThreaded()">
                     <i class="fa fa-comments-o"/>
+                    <span class="ms-1 small" t-if="props.threaded and props.threadedCount"
+                        t-out="props.threadedCount"/>
                 </button>
 
                 <div class="dropdown">
@@ -174,6 +176,18 @@
                             </t>
                         </t>
                     </t>
+                    <!--
+                        Trådläget är på men mappen har nästan inga trådar.
+                        Utan den här raden ser det ut som att knappen inte
+                        gör något — nyhetsbrev och notifikationer har ingen
+                        References och kan inte trådas.
+                    -->
+                    <div class="text-center p-2 small text-muted"
+                        t-if="props.threaded and props.threadedCount === 0">
+                        Inga trådar bland de
+                        <t t-out="props.threadScanned"/> senaste meddelandena.
+                        Nyhetsbrev och notifikationer trådas inte.
+                    </div>
                     <t t-if="props.messages.length &lt; props.total">
                         <div class="text-center p-2">
                             <button class="btn btn-sm btn-light" t-on-click="props.loadMore">

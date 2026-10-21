@@ -49,6 +49,8 @@ const store = {
             // threadMessages i mail_imap.esm.js.
             threaded: false,
             collapsedThreads: new Set(),
+            threadedCount: 0,
+            threadScanned: 0,
             searchTotal: 0,
         });
 
@@ -318,6 +320,11 @@ const store = {
                         : state.messages.concat(rows);
                     state.total = res.total || rows.length;
                     state.offset = offset;
+                    // Hur många trådar som faktiskt har fler än ett
+                    // meddelande. Utan siffran ser en inkorg med mest
+                    // nyhetsbrev ut som att trådning inte fungerar.
+                    state.threadedCount = res.threaded_count || 0;
+                    state.threadScanned = res.scanned || 0;
                 } finally {
                     state.loading = false;
                 }

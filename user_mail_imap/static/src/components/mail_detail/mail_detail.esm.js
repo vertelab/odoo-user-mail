@@ -1,8 +1,124 @@
 /** @odoo-module **/
-import { Component } from "@odoo/owl";
+import { Component, onWillUpdateProps, useState } from "@odoo/owl";
+import { rpc } from "@web/core/network/rpc";
+import { useService } from "@web/core/utils/hooks";
 
 export class MailDetail extends Component {
     static template = "user_mail_imap.MailDetail";
+
+    setup() {
+        this.notification = useService("notification");
+        this.state = useState({
+            invitation: null,
+            responding: false,
+        });
+        // Inbjudan hör till meddelandet — byts meddelandet ska den läsas
+        // om, annars visar vyn föregående mails inbjudan.
+        onWillUpdateProps((nextProps) => {
+            const prev = this.props.message;
+            const next = nextProps.message;
+            if ((prev && prev.uid) !== (next && next.uid)) {
+                this.state.invitation = null;
+                if (next && next.uid) {
+                    this.loadInvitation(nextProps);
+                }
+            }
+        });
+        if (this.props.message && this.props.message.uid) {
+            this.loadInvitation();
+        }
+    }
+    /**
+     * Läs kalenderinbjudan när ett meddelande väljs.
+     *
+     * Görs som ett eget anrop i stället för att lägga inbjudningsdata i
+     * varje meddelande: de allra flesta mail har ingen inbjudan, och att
+     * parsa iCalendar för varje rad i listan vore slöseri.
+     */
+    async loadInvitation(props = null) {
+        const p = props || this.props;
+        const msg = p.message;
+        if (!msg || !msg.uid) {
+            this.state.invitation = null;
+            return;
+        }
+        try {
+            const res = await rpc("/imap/invitation", {
+                folder: p.folder || "",
+                uid: msg.uid,
+            });
+            const inv = res.invitation;
+            if (!inv) {
+                this.state.invitation = null;
+                return;
+            }
+            this.state.invitation = {
+                ...inv,
+                startLabel: this._formatDate(inv.start),
+                partstatLabel: this._partstatLabel(inv.partstat),
+            };
+        } catch (e) {
+            // En trasig inbjudan ska inte hindra läsning av mailet.
+            this.state.invitation = null;
+        }
+    }
+
+    _formatDate(iso) {
+        if (!iso) {
+            return "";
+        }
+        try {
+            const d = new Date(iso);
+            return d.toLocaleString("sv-SE", {
+                weekday: "short", day: "numeric", month: "short",
+                hour: "2-digit", minute: "2-digit",
+            });
+        } catch (e) {
+            return iso;
+        }
+    }
+
+    _partstatLabel(partstat) {
+        return {
+            ACCEPTED: "accepterat",
+            DECLINED: "avböjt",
+            TENTATIVE: "preliminärt svar",
+            "NEEDS-ACTION": "ej svarat",
+        }[partstat] || "";
+    }
+
+    /**
+     * Svara på inbjudan.
+     *
+     * Servern lägger in mötet i kalendern och skickar svaret till
+     * organisatören. Vi laddar om inbjudningsstatusen efteråt så knapparna
+     * visar det faktiska läget i stället för det vi hoppas på.
+     */
+    async respondInvitation(response) {
+        this.state.responding = true;
+        try {
+            await rpc("/imap/invitation/respond", {
+                folder: this.props.folder || "",
+                uid: this.props.message.uid,
+                response,
+            });
+            this.notification.add(
+                { accept: "Mötet är inlagt i kalendern.",
+                  tentative: "Svarat preliminärt.",
+                  decline: "Inbjudan avböjd." }[response],
+                { type: "success" }
+            );
+            await this.loadInvitation();
+        } catch (e) {
+            this.notification.add(
+                e.message || "Kunde inte svara på inbjudan.",
+                { type: "danger" }
+            );
+        } finally {
+            this.state.responding = false;
+        }
+    }
+
     /**
      * Nedladdningslänk för en bilaga.
      *

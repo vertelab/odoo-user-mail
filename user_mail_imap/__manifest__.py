@@ -1,6 +1,6 @@
 {
     'name': 'User Mail: IMAP Client',
-    'version': '18.0.1.9.0',
+    'version': '18.0.1.10.0',
     'summary': 'IMAP email client integrated in Odoo — with per-user poller.',
     'description': '''
 IMAP Client
@@ -20,9 +20,9 @@ IMAP Client
     'author': 'Vertel Sverige AB',
     'website': 'https://vertel.se/apps/odoo-user-mail/user_mail_imap',
     'license': 'AGPL-3',
-    'depends': ['user_mail_common', 'mail', 'web'],
+    'depends': ['user_mail_common', 'mail', 'web', 'calendar'],
     'external_dependencies': {
-        'python': ['cryptography'],
+        'python': ['cryptography', 'icalendar'],
     },
     'data': [
         'security/ir.model.access.csv',

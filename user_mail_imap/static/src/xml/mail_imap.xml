@@ -42,6 +42,8 @@
                             flagFilter="state.flagFilter"
                             onSetFlagFilter="(v) => this.onSetFlagFilter(v)"
                             threaded="state.threaded"
+                            threadedCount="state.threadedCount"
+                            threadScanned="state.threadScanned"
                             onToggleThreaded="() => this.onToggleThreaded()"
                             onToggleThread="(root) => this.onToggleThread(root)"
                             onToggleFlag="(msg, v) => this.onToggleFlag(msg, v)"

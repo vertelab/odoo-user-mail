@@ -107,6 +107,58 @@
                         t-att-srcdoc="props.message.body_html"/>
                 </div>
                 <!--
+                    Kalenderinbjudan. Visas bara när meddelandet faktiskt
+                    innehåller en — annars hade varje mail fått en rad som
+                    säger "ingen inbjudan".
+
+                    Acceptera lägger in mötet i kalendern OCH skickar
+                    svaret till organisatören. Att bara svara hade lämnat
+                    användaren utan möte; att bara lägga in det hade lämnat
+                    organisatören ovetande.
+                -->
+                <div class="p-3 border-top bg-primary-subtle" t-if="invitation">
+                    <div class="d-flex align-items-start gap-3">
+                        <i class="fa fa-calendar-check-o fa-2x text-primary mt-1"/>
+                        <div class="flex-grow-1">
+                            <div class="fw-bold" t-out="invitation.summary"/>
+                            <div class="small text-muted">
+                                <t t-out="invitation.startLabel"/>
+                                <t t-if="invitation.location">
+                                    · <t t-out="invitation.location"/>
+                                </t>
+                                <t t-if="invitation.organizer_email">
+                                    · <t t-out="invitation.organizer_email"/>
+                                </t>
+                            </div>
+                            <div class="small mt-1" t-if="invitation.in_calendar">
+                                <i class="fa fa-check text-success me-1"/>
+                                Inlagd i kalendern
+                                <t t-if="invitation.partstatLabel">
+                                    — <t t-out="invitation.partstatLabel"/>
+                                </t>
+                            </div>
+                        </div>
+                        <div class="d-flex gap-1 flex-shrink-0">
+                            <button class="btn btn-sm btn-success"
+                                t-on-click="() => this.respondInvitation('accept')"
+                                t-att-disabled="responding">
+                                <i class="fa fa-check me-1"/>Acceptera
+                            </button>
+                            <button class="btn btn-sm btn-outline-secondary"
+                                t-on-click="() => this.respondInvitation('tentative')"
+                                t-att-disabled="responding">
+                                Preliminärt
+                            </button>
+                            <button class="btn btn-sm btn-outline-danger"
+                                t-on-click="() => this.respondInvitation('decline')"
+                                t-att-disabled="responding">
+                                <i class="fa fa-times me-1"/>Avböj
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!--
                     Bilagor. Länken går direkt mot /imap/attachment som
                     svarar med Content-Disposition: attachment — webbläsaren
                     sköter nedladdningen, ingen blob behöver byggas i

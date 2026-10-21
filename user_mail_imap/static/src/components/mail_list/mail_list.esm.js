@@ -34,6 +34,8 @@ export class MailList extends Component {
         // Trådad visning. `threaded` slår på grupperingen; trådens
         // hopfällning ligger per tråd i `msg.threadCollapsed`.
         threaded: { type: Boolean, optional: true },
+        threadedCount: { type: Number, optional: true },
+        threadScanned: { type: Number, optional: true },
         onToggleThreaded: Function,
         onToggleThread: Function,
         // "Skapa regel" i listhuvudet — samma dialog som i meddelandevyn,

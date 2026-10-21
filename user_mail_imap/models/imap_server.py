@@ -63,6 +63,86 @@ def _read_flags(flags):
     return out
 
 
+def _to_utc_naive(dt):
+    """Tz-medveten datetime → naive UTC för Odoo.
+
+    Ren date (heldagsmöte) får midnatt — Odoo:s allday-flagga sätts
+    separat av kalendern, och att skicka en date till ett Datetime-fält
+    kastar.
+    """
+    import datetime as _dt
+    if dt is None:
+        return None
+    if isinstance(dt, _dt.datetime):
+        if dt.tzinfo is not None:
+            dt = dt.astimezone(_dt.timezone.utc).replace(tzinfo=None)
+        return dt
+    # date → midnatt
+    return _dt.datetime.combine(dt, _dt.time.min)
+
+
+def _parse_calendar_part(msg):
+    """Plocka ut iCalendar-delen ur ett meddelande.
+
+    Returnerar en dict med det som behövs för att skapa en kalenderpost,
+    eller None om meddelandet inte är en inbjudan.
+
+    Metoden styr tolkningen: REQUEST är en inbjudan, CANCEL en avbokning,
+    REPLY ett svar på någon annans inbjudan. Bara REQUEST ska bli en
+    kalenderpost — att skapa en post av ett REPLY hade lagt till möten
+    användaren inte blivit bjuden till.
+    """
+    import icalendar
+    for part in msg.walk():
+        if 'calendar' not in (part.get_content_type() or ''):
+            continue
+        try:
+            raw = part.get_payload(decode=True)
+            if not raw:
+                continue
+            cal = icalendar.Calendar.from_ical(raw)
+        except Exception:
+            continue
+        method = str(cal.get('METHOD') or '').upper()
+        for comp in cal.walk('VEVENT'):
+            uid = str(comp.get('UID') or '')
+            if not uid:
+                continue
+            # icalendar 7.x: .dt ger det tolkade värdet (datetime/date).
+            # Den gamla get_decoded() finns inte längre.
+            start = comp['DTSTART'].dt if comp.get('DTSTART') else None
+            stop = comp['DTEND'].dt if comp.get('DTEND') else None
+            if start is None:
+                continue
+            organizer = comp.get('ORGANIZER')
+            org_name = ''
+            org_email = ''
+            if organizer:
+                org_email = str(organizer).replace('mailto:', '').replace('MAILTO:', '')
+                org_name = str(organizer.params.get('CN') or '')
+            # Vår egen deltagarstatus — om vi redan svarat ska knapparna
+            # visa det i stället för att erbjuda samma val igen.
+            partstat = ''
+            for att in comp.get('ATTENDEE', []) or []:
+                addr = str(att).replace('mailto:', '').replace('MAILTO:', '')
+                if addr.lower() == (msg.get('Delivered-To') or '').lower().strip():
+                    partstat = str(att.params.get('PARTSTAT') or '')
+            return {
+                'method': method,
+                'uid': uid,
+                'summary': str(comp.get('SUMMARY') or '(Ingen titel)'),
+                'description': str(comp.get('DESCRIPTION') or ''),
+                'location': str(comp.get('LOCATION') or ''),
+                'start': start,
+                'stop': stop,
+                'organizer_name': org_name,
+                'organizer_email': org_email,
+                'partstat': partstat,
+                'sequence': int(comp.get('SEQUENCE') or 0),
+            }
+    return None
+
+
 def _thread_root(m):
     """Trådens rot-id för ett meddelande.
 
@@ -583,6 +663,158 @@ class ImapServer(models.AbstractModel):
         finally:
             _safe_logout(conn)
 
+    def _send_raw(self, msg):
+        """Skicka ett färdigbyggt EmailMessage via kontots SMTP.
+
+        Bryts ut från action_send_mail så inbjudningssvaret kan återanvända
+        SMTP-inställningarna utan att duplicera dem.
+        """
+        password = self._decrypt_password()
+        if not password:
+            raise UserError(_('Inget IMAP-lösenord konfigurerat.'))
+        host = self._get_config('smtp_server', 'localhost')
+        port = int(self._get_config('smtp_port', 587))
+        encryption = self._get_config('smtp_encryption', 'starttls')
+        user = self.env.user.postfix_mail
+        conn = smtplib.SMTP(host, port)
+        if encryption == 'starttls':
+            conn.starttls()
+        elif encryption == 'ssl':
+            conn = smtplib.SMTP_SSL(host, port)
+        conn.login(user, password)
+        try:
+            conn.send_message(msg)
+        finally:
+            conn.quit()
+
+    def action_get_invitation(self, folder, uid):
+        """Läs kalenderinbjudan ur ett meddelande.
+
+        Returnerar None om meddelandet inte är en inbjudan, annars en dict
+        med tider, titel och deltagarstatus.
+        """
+        conn = self._connect_imap()
+        try:
+            _select_folder(conn, folder)
+            typ, data = conn.uid('FETCH', str(uid), '(BODY.PEEK[])')
+        finally:
+            _safe_logout(conn)
+        if typ != 'OK' or not data or not isinstance(data[0], tuple):
+            return None
+        msg = BytesParser(policy=policy.default).parsebytes(data[0][1])
+        inv = _parse_calendar_part(msg)
+        if not inv:
+            return None
+        # Redan inlagd? Då ska dialogen visa det i stället för att
+        # erbjuda ett nytt svar.
+        existing = self.env['calendar.event'].search(
+            [('vrtl_ical_uid', '=', inv['uid'])], limit=1)
+        inv['event_id'] = existing.id if existing else False
+        inv['in_calendar'] = bool(existing)
+        return inv
+
+    def action_respond_invitation(self, folder, uid, response):
+        """Svara på en kalenderinbjudan och lägg in den i kalendern.
+
+        ``response`` är 'accept', 'decline' eller 'tentative'.
+
+        Tre saker händer:
+          1. En calendar.event skapas (eller uppdateras om UID redan finns)
+             — accept och tentative lägger in mötet, decline tar bort det.
+          2. Ett svarsmail skickas till organisatören med METHOD:REPLY, så
+             att deras kalender får vår status.
+          3. PARTSTAT sparas på eventet.
+
+        Att svara utan att lägga in mötet vore halva jobbet: organisatören
+        ser ett svar men användaren har inget möte i sin kalender.
+        """
+        inv = self.action_get_invitation(folder, uid)
+        if not inv:
+            raise UserError(_('Meddelandet innehåller ingen kalenderinbjudan.'))
+        if inv['method'] == 'CANCEL':
+            raise UserError(_('Inbjudan är avbokad och kan inte besvaras.'))
+
+        partstat = {
+            'accept': 'ACCEPTED',
+            'decline': 'DECLINED',
+            'tentative': 'TENTATIVE',
+        }.get(response)
+        if not partstat:
+            raise UserError(_('Ogiltigt svar: %s', response))
+
+        Event = self.env['calendar.event']
+        event = Event.browse(inv['event_id']) if inv['event_id'] else Event
+        if response == 'decline':
+            # Avböjer man ska mötet bort ur kalendern — annars ligger det
+            # kvar och ser ut som att man tackat ja.
+            if event:
+                event.unlink()
+            self._send_invitation_reply(inv, partstat)
+            return {'ok': True, 'event_id': False, 'partstat': partstat}
+
+        # Odoo lagrar naive UTC-datetimes; iCalendar ger tz-medvetna.
+        # Utan konverteringen kastar ORM:en "expects a naive datetime",
+        # och mötet hamnar dessutom på fel tid om tidszonen ignoreras.
+        vals = {
+            'name': inv['summary'],
+            'start': _to_utc_naive(inv['start']),
+            'stop': _to_utc_naive(inv['stop'] or inv['start']),
+            'description': inv['description'],
+            'location': inv['location'],
+            'user_id': self.env.user.id,
+            'vrtl_ical_uid': inv['uid'],
+            'vrtl_partstat': partstat,
+        }
+        if event:
+            event.write(vals)
+        else:
+            event = Event.create(vals)
+        self._send_invitation_reply(inv, partstat)
+        return {'ok': True, 'event_id': event.id, 'partstat': partstat}
+
+    def _send_invitation_reply(self, inv, partstat):
+        """Skicka METHOD:REPLY till organisatören.
+
+        Utan svarsmail vet organisatören inte vad vi svarat — kalendern
+        hos dem uppdateras bara av ett REPLY. Misslyckas sändningen ska
+        det inte rulla tillbaka kalenderposten: mötet är inlagt, och det
+        är viktigare än att avsändaren får besked.
+        """
+        if not inv.get('organizer_email'):
+            return
+        try:
+            import icalendar
+            cal = icalendar.Calendar()
+            cal.add('prodid', '-//Vertel//Odoo Mail//SV')
+            cal.add('version', '2.0')
+            cal.add('method', 'REPLY')
+            ev = icalendar.Event()
+            ev.add('uid', inv['uid'])
+            ev.add('sequence', inv.get('sequence') or 0)
+            ev.add('summary', inv['summary'])
+            ev.add('dtstart', inv['start'])
+            if inv.get('stop'):
+                ev.add('dtend', inv['stop'])
+            att = icalendar.vCalAddress(
+                'mailto:%s' % self.env.user.postfix_mail)
+            att.params['partstat'] = partstat
+            att.params['cn'] = self.env.user.name
+            ev.add('attendee', att, encode=0)
+            cal.add_component(ev)
+            ics = cal.to_ical().decode('utf-8')
+
+            msg = EmailMessage()
+            msg['From'] = self.env.user.postfix_mail
+            msg['To'] = inv['organizer_email']
+            msg['Subject'] = 'Svar: %s' % inv['summary']
+            msg.set_content('Svar på inbjudan: %s' % inv['summary'])
+            msg.add_attachment(
+                ics.encode('utf-8'), maintype='text', subtype='calendar',
+                params={'method': 'REPLY'})
+            self._send_raw(msg)
+        except Exception as e:
+            _logger.warning('Kunde inte skicka inbjudningssvar: %s', e)
+
     def action_fetch_threads(self, folder='INBOX', offset=0, limit=40):
         """Hämta meddelanden grupperade i trådar, server-side.
 
@@ -601,7 +833,12 @@ class ImapServer(models.AbstractModel):
         Returnerar ``{'threads': [...], 'total': n}`` där varje tråd är
         ``{'root': <message-id>, 'messages': [...]}``, nyaste tråd först.
         """
-        page = self.action_fetch_mails(folder, offset, limit)
+        # Trådning kräver hela mappen: en tråd vars delar ligger utanför
+        # den hämtade sidan går inte att upptäcka från sidan. Vi hämtar
+        # därför en större ram (THREAD_SCAN) och grupperar den — men
+        # returnerar bara `limit` trådar från `offset`.
+        scan = max(limit * 5, 200)
+        page = self.action_fetch_mails(folder, 0, scan)
         msgs = page.get('messages') if isinstance(page, dict) else page
         # Rot per meddelande. Samma regel som klienten använde, men här
         # får den ligga i Python där den kan slå upp resten av tråden.
@@ -637,8 +874,16 @@ class ImapServer(models.AbstractModel):
             threads.append({'root': root, 'messages': members})
         threads.sort(
             key=lambda t: (t['messages'][0].get('uid') or 0), reverse=True)
-        return {'threads': threads, 'total': page.get('total', 0)
-                if isinstance(page, dict) else len(msgs)}
+        total = page.get('total', 0) if isinstance(page, dict) else len(msgs)
+        window = threads[offset:offset + limit]
+        return {
+            'threads': window,
+            'total': total,
+            # Antal trådar som faktiskt har mer än ett meddelande — det
+            # användaren vill veta när läget slås på.
+            'threaded_count': sum(1 for t in threads if len(t['messages']) > 1),
+            'scanned': len(msgs),
+        }
 
     def _search_thread_members(self, conn, root, known):
         """Meddelanden i mappen som refererar till ``root``.
