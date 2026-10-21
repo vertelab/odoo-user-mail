@@ -98,6 +98,29 @@ Rader från OKF-sökningen får sin flagg-/lässtatus via ett batchat
 lästa mail och fått dem att fastna i olästfiltret. Okänd status utesluts ur
 olästfiltret i stället för att räknas dit.
 
+### Sökningen svarar även när arkivet inte kan
+
+Sökfältet frågar OKF-arkivet först och faller tillbaka till IMAP när
+arkivet inte kan svara. Fallbacken triggas av tre lägen:
+
+1. användaren har inget inmatat mail alls,
+2. arkivet gav inga träffar,
+3. arkivet gav träffar som inte pekar på något mail (t.ex. bilagor).
+
+Det tredje läget är det som faktiskt låg bakom det rapporterade felet: en
+användare kunde ha hundratals koncept som alla var bilagor, varpå
+uppslaget gav noll rader — och den gamla villkorslogiken föll bara tillbaka
+när koncepttabellen var *helt* tom, vilket den aldrig är för en användare
+med köade mail.
+
+Varje fallback loggas med sitt skäl (`Mail search fell back to IMAP (...)`)
+så att en framtida indexeringsregression syns i loggen i stället för att
+tyst försämra sökningen.
+
+**Ett tomt resultat från flagg-/olästfiltret faller aldrig tillbaka.** Det
+är ett legitimt svar — att falla tillbaka där hade kringgått filtret och
+visat ofiltrerade mail.
+
 ### Ett öppnat mail laddar inte om listan
 
 Att öppna ett mail markerar det läst på servern. Listan laddas därför inte
