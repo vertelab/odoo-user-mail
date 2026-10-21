@@ -62,6 +62,7 @@ User Mail Common
         'security/sieve_rules.xml',
         'data/cron_sieve_vacation.xml',
         'views/res_users_view.xml',
+        'views/sieve_script_views.xml',
         'views/menus_views.xml'
     ],
     'installable': True,

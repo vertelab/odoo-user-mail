@@ -47,6 +47,8 @@ IMAP Client
             'user_mail_imap/static/src/components/mail_search/mail_search.xml',
             'user_mail_imap/static/src/components/mail_detail/mail_detail.esm.js',
             'user_mail_imap/static/src/components/mail_detail/mail_detail.xml',
+            'user_mail_imap/static/src/components/sieve_rule_dialog/sieve_rule_dialog.esm.js',
+            'user_mail_imap/static/src/components/sieve_rule_dialog/sieve_rule_dialog.xml',
             'user_mail_imap/static/src/components/composer/composer.esm.js',
             'user_mail_imap/static/src/components/composer/composer.xml',
         ],

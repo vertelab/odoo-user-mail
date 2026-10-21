@@ -10,6 +10,7 @@ export class MailDetail extends Component {
         message: { type: [Object, { value: null }], optional: true },
         loading: { type: Boolean, optional: true },
         openComposer: Function,
+        openRuleDialog: Function,
     };
 
     /**

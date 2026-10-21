@@ -1,0 +1,94 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<templates xml:space="preserve">
+    <t t-name="user_mail_imap.SieveRuleDialog" owl="1">
+        <Dialog title="'Skapa regel'" size="'md'">
+            <div class="p-3">
+                <p class="text-muted small mb-3">
+                    Regeln skapas från meddelandet
+                    <strong t-out="props.message.subject"/>.
+                </p>
+
+                <div class="alert alert-danger" role="alert"
+                    t-if="state.error" t-out="state.error"/>
+
+                <div class="mb-3">
+                    <label class="form-label" for="rule-name">Namn</label>
+                    <input id="rule-name" type="text" class="form-control"
+                        t-model="state.name" placeholder="Namn på regeln"/>
+                </div>
+
+                <div class="row mb-3">
+                    <div class="col-6">
+                        <label class="form-label" for="rule-kind">Matcha på</label>
+                        <select id="rule-kind" class="form-select"
+                            t-model="state.conditionKind">
+                            <option value="sender">Avsändare</option>
+                            <option value="subject">Ämne</option>
+                        </select>
+                    </div>
+                    <div class="col-6">
+                        <label class="form-label" for="rule-text">Text</label>
+                        <input id="rule-text" type="text" class="form-control"
+                            t-model="state.conditionText"/>
+                    </div>
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label" for="rule-action">Åtgärd</label>
+                    <select id="rule-action" class="form-select"
+                        t-model="state.action">
+                        <option value="move_to_folder">Flytta till mapp</option>
+                        <option value="flag">Flagga</option>
+                        <option value="ignore">Ignorera</option>
+                        <option value="block">Blockera</option>
+                    </select>
+                </div>
+
+                <div class="mb-3" t-if="needsFolder">
+                    <label class="form-label" for="rule-folder">Mapp</label>
+                    <select id="rule-folder" class="form-select"
+                        t-if="state.folders.length" t-model="state.folder">
+                        <option value="">— välj mapp —</option>
+                        <t t-foreach="state.folders" t-as="f" t-key="f">
+                            <option t-att-value="f" t-out="f"/>
+                        </t>
+                    </select>
+                    <input t-else="" type="text" class="form-control"
+                        t-model="state.folder" placeholder="Mappnamn"/>
+                </div>
+
+                <div class="mb-2">
+                    <label class="form-label" for="rule-enforcement">Körs</label>
+                    <select id="rule-enforcement" class="form-select"
+                        t-on-change="(ev) => this.onEnforcementChange(ev.target.value)"
+                        t-att-value="state.enforcement">
+                        <option value="server">På servern (vid leverans)</option>
+                        <option value="client">I Odoo (efter hämtning)</option>
+                    </select>
+                    <div class="form-text">
+                        <t t-if="state.enforcement === 'server'">
+                            Körs av mejlservern innan Odoo ser mailet.
+                            Bara avsändare och ämne som villkor.
+                        </t>
+                        <t t-else="">
+                            Körs när mailet hämtats. Kan använda AI och skapa
+                            Odoo-objekt, men hindrar inte mailet från att
+                            först hamna i inkorgen.
+                        </t>
+                    </div>
+                </div>
+            </div>
+
+            <t t-set-slot="footer">
+                <button class="btn btn-secondary" t-on-click="props.close">
+                    Avbryt
+                </button>
+                <button class="btn btn-primary" t-on-click="onConfirm"
+                    t-att-disabled="state.saving">
+                    <i class="fa fa-spinner fa-spin me-1" t-if="state.saving"/>
+                    Skapa regel
+                </button>
+            </t>
+        </Dialog>
+    </t>
+</templates>

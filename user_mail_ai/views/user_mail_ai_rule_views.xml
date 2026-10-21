@@ -77,6 +77,24 @@
                             <field name="action_config"/>
                         </group>
                     </group>
+                    <group>
+                        <field name="enforcement"/>
+                    </group>
+                    <!--
+                        Förklara skillnaden där valet görs, inte i en
+                        tooltip. Användaren ska inte behöva veta vad Sieve
+                        är för att välja rätt.
+                    -->
+                    <div class="alert alert-info" colspan="2" role="status">
+                        <strong>I Odoo</strong> — regeln körs när mailet hämtats.
+                        Kan använda AI, skapa Odoo-objekt och skicka svar, men
+                        hindrar inte mailet från att först hamna i inkorgen.
+                        <br/>
+                        <strong>På servern</strong> — regeln körs av
+                        mejlservern vid leverans, innan Odoo ser mailet. Bara
+                        avsändare och ämne som villkor, och bara flytta,
+                        flagga eller kasta som åtgärd.
+                    </div>
                 </sheet>
             </form>
         </field>

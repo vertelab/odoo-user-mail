@@ -7,10 +7,11 @@ import { FolderTree } from "../components/folder_tree/folder_tree.esm.js";
 import { MailList } from "../components/mail_list/mail_list.esm.js";
 import { MailDetail } from "../components/mail_detail/mail_detail.esm.js";
 import { Composer } from "../components/composer/composer.esm.js";
+import { SieveRuleDialog } from "../components/sieve_rule_dialog/sieve_rule_dialog.esm.js";
 
 class MailImap extends Component {
     static template = "user_mail_imap.MailImap";
-    static components = { FolderTree, MailList, MailDetail, Composer };
+    static components = { FolderTree, MailList, MailDetail, Composer, SieveRuleDialog };
     static props = { ...standardActionServiceProps };
 
     setup() {
@@ -31,6 +32,9 @@ class MailImap extends Component {
         // pattern Odoo core uses (`this.ui = useState(useService("ui"))`).
         this.state = useState(this.store.state);
         this.showComposer = useState({ visible: false, type: 'new', message: null });
+        // Dialogen för "Skapa regel" — öppnas från meddelandevyn med det
+        // valda meddelandet som förlaga.
+        this.showRuleDialog = useState({ visible: false, message: null });
         this.passwordInput = useRef("passwordInput");
         this.mailListContainer = useRef("mailListContainer");
         this._resizeActive = false;
@@ -105,6 +109,15 @@ class MailImap extends Component {
 
     closeComposer() {
         this.showComposer.visible = false;
+    }
+
+    openRuleDialog(msg) {
+        this.showRuleDialog.message = msg;
+        this.showRuleDialog.visible = true;
+    }
+
+    closeRuleDialog() {
+        this.showRuleDialog.visible = false;
     }
 
     async onSendMail(data) {

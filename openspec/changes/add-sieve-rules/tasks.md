@@ -74,13 +74,13 @@ Deployment is **not** a task here. It is a separate decision after review.
 
 ## Phase 5 — UI
 
-- [ ] 5.1 "Skapa regel" button in `mail_detail.xml` next to Reply/Forward
-- [ ] 5.2 OWL dialog `sieve_rule_dialog` — pre-fill sender/subject from the
+- [x] 5.1 "Skapa regel" button in `mail_detail.xml` next to Reply/Forward
+- [x] 5.2 OWL dialog `sieve_rule_dialog` — pre-fill sender/subject from the
       selected message, folder picker from `action_list_folders()`,
       `enforcement='server'` preselected
-- [ ] 5.3 `enforcement` field on the rule form; `body`/`state`/`last_error`
+- [x] 5.3 `enforcement` field on the rule form; `body`/`state`/`last_error`
       read-only tab so a failed sync is visible
-- [ ] 5.4 Frontend: show `sieve.script.last_error` as an alert on the user
+- [x] 5.4 Frontend: show `sieve.script.last_error` as an alert on the user
       form when `state == 'error'`
 
 ## Phase 6 — Verification

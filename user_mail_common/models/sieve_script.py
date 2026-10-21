@@ -84,6 +84,20 @@ class SieveScript(models.Model):
                              limit=1)
         if not script and create:
             script = self.create({'user_id': user.id, 'name': name})
+            # Sätt länken direkt. res.users.sieve_script_id är lagrad men
+            # har inget fältberoende att räkna om på (scriptet skapas lat),
+            # så utan detta skulle statusfälten i användarformuläret vara
+            # tomma ända till nästa gång posten rörs — och då syns ingen
+            # varning när synken fallerar.
+            #
+            # Skrivs med SQL och inte user.write(): den senare går genom
+            # user_mail_client.write() som kräver passwd_server i
+            # odoo.conf. Ett internt fält ska inte tvinga fram en
+            # LDAP-synk av användaren.
+            self.env.cr.execute(
+                'UPDATE res_users SET sieve_script_id = %s WHERE id = %s',
+                (script.id, user.id))
+            user.invalidate_recordset(['sieve_script_id'])
         return script
 
     # ── Validering ───────────────────────────────────────────────────────
@@ -151,6 +165,14 @@ class SieveScript(models.Model):
                     'state': 'error',
                     'last_error': str(e),
                 })
+            finally:
+                # Statusfälten på res.users är related till det här
+                # scriptet. Utan invalidering visar användarformuläret
+                # kvarvarande state tills något annat rör posten — och
+                # varningsbannern skulle aldrig dyka upp.
+                script.user_id.invalidate_recordset(
+                    ['sieve_script_id', 'sieve_script_state',
+                     'sieve_script_error'])
         return True
 
     def _sync_one(self, client):

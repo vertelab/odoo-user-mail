@@ -19,6 +19,21 @@
                     </div></field>
                 <notebook position="inside">
                     <page string="E-mail settings">
+                        <!--
+                            Synkfelet måste synas här, inte bara i
+                            sieve.script. En användare som sätter en regel
+                            och får "sparat" tror att den är aktiv på
+                            servern. Är den inte det ska det stå rakt ut.
+                        -->
+                        <div class="alert alert-danger" role="alert"
+                            invisible="sieve_script_state != 'error'">
+                            <field name="sieve_script_state" invisible="1"/>
+                            <strong>Dina serverregler är inte aktiva.</strong>
+                            Scriptet kunde inte laddas upp till mejlservern,
+                            så reglerna och semesterautosvaret körs inte.
+                            <field name="sieve_script_error" nolabel="1"
+                                class="mt-2 font-monospace small"/>
+                        </div>
                         <group>
                             <field name="postfix_active" string="Postfix Active"/>
                         </group>

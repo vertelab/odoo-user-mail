@@ -49,8 +49,13 @@
                         t-on-mousedown="(e) => this.startResize(e)"/>
                     <MailDetail message="state.selectedMessage"
                         loading="state.loadingDetail"
-                        openComposer="(type, msg) => this.openComposer(type, msg)"/>
+                        openComposer="(type, msg) => this.openComposer(type, msg)"
+                        openRuleDialog="(msg) => this.openRuleDialog(msg)"/>
                 </div>
+            </t>
+            <t t-if="showRuleDialog.visible">
+                <SieveRuleDialog message="showRuleDialog.message"
+                    close="() => this.closeRuleDialog()"/>
             </t>
             <t t-if="showComposer.visible">
                 <Composer type="showComposer.type"

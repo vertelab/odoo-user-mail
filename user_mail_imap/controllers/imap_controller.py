@@ -1,5 +1,7 @@
+import json
+
 from odoo import http
-from odoo.exceptions import UserError
+from odoo.exceptions import UserError, ValidationError
 from odoo.http import request
 
 
@@ -62,3 +64,40 @@ class ImapController(http.Controller):
         imap = request.env['user.mail.imap'].sudo()
         imap.action_clear_cache()
         return {'ok': True}
+
+    @http.route('/imap/rule/create', type='json', auth='user')
+    def rule_create(self, name, condition_kind, condition_text, action,
+                    folder='', enforcement='server'):
+        """Skapa en mailregel från ett meddelande.
+
+        Ligger här och inte i user_mail_ai därför att dialogen ägs av
+        user_mail_imap (den öppnas från meddelandevyn). Modellen finns bara
+        om user_mail_ai är installerad — vi letar i stället för att importera,
+        så klienten fungerar utan AI-modulen.
+
+        Valideringen (Sieve-uttryckbarhet) körs av modellens constrains. Vi
+        fångar den och skickar tillbaka texten, så dialogen kan visa felet
+        utan att stängas.
+        """
+        if 'user_mail_ai.rule' not in request.env:
+            raise UserError('Mailregler kräver modulen user_mail_ai.')
+        action_config = {}
+        if action == 'move_to_folder':
+            if not folder:
+                raise UserError('Välj en mapp att flytta till.')
+            action_config['folder'] = folder
+        try:
+            rule = request.env['user_mail_ai.rule'].create({
+                'user_id': request.env.user.id,
+                'name': name,
+                'condition_kind': condition_kind,
+                'condition_text': condition_text,
+                'action': action,
+                'action_config': json.dumps(action_config),
+                'enforcement': enforcement,
+            })
+        except ValidationError as e:
+            # Dialogen visar texten; ett kastat fel hade stängt den och
+            # användaren hade fått börja om från början.
+            raise UserError(str(e))
+        return {'ok': True, 'rule_id': rule.id}

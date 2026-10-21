@@ -27,7 +27,7 @@ eftersom de äger sina respektive fält.
 
 import logging
 
-from odoo import _, models
+from odoo import _, fields, models
 
 _logger = logging.getLogger(__name__)
 
@@ -36,6 +36,39 @@ class ResUsers(models.Model):
     _inherit = 'res.users'
 
     # ── Script ───────────────────────────────────────────────────────────
+
+    sieve_script_state = fields.Selection(
+        related='sieve_script_id.state', string='Sieve-status',
+        readonly=True)
+    sieve_script_error = fields.Text(
+        related='sieve_script_id.last_error', string='Sieve-fel',
+        readonly=True)
+    sieve_script_id = fields.Many2one(
+        'sieve.script', string='Sieve-script', readonly=True,
+        compute='_compute_sieve_script_id', store=True)
+
+    def _compute_sieve_script_id(self):
+        """Länk till användarens script, för statusfälten i vyn.
+
+        Lagras (store=True) därför att related-fälten nedan hänger på det:
+        ett icke-lagrat fält kan inte vara beroende för ett annat, eftersom
+        ORM:en inte kan avgöra vilka användare som ska räknas om när
+        scriptet ändras.
+
+        Beror INTE på något fält på res.users — det finns inget att hänga
+        det på, eftersom scriptet skapas lat. Det räknas därför om vid
+        behov; sieve.script.action_sync() anropar _sieve_refresh_user()
+        när statusen ändras.
+        """
+        scripts = self.env['sieve.script'].search([
+            ('user_id', 'in', self.ids)])
+        by_user = {s.user_id.id: s for s in scripts}
+        for user in self:
+            user.sieve_script_id = by_user.get(user.id)
+
+    def _sieve_refresh_user(self):
+        """Räkna om sieve_script_id efter att scriptets status ändrats."""
+        self.invalidate_recordset(['sieve_script_id'])
 
     def _sieve_script(self, create=True):
         """Användarens Odoo-ägda script (skapat vid behov)."""

@@ -25,6 +25,16 @@
                             t-on-click="() => props.openComposer('forward', props.message)">
                             <i class="fa fa-mail-forward me-1"/>Vidarebefodra
                         </button>
+                        <!--
+                            Skapa regel direkt från meddelandet: avsändaren
+                            är redan känd här, och att skriva av den för hand
+                            är hur man får regler som aldrig matchar.
+                        -->
+                        <button class="btn btn-sm btn-outline-secondary"
+                            t-on-click="() => props.openRuleDialog(props.message)"
+                            title="Skapa en regel från det här meddelandet">
+                            <i class="fa fa-filter me-1"/>Skapa regel
+                        </button>
                     </div>
                     <h5 class="mb-1" t-out="props.message.subject"/>
                     <div class="small text-muted">
