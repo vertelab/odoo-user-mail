@@ -52,26 +52,44 @@
                     matcha på annat än avsändare: X-Spam-Flag fångar
                     skräppost, List-Id fångar utskick.
                 -->
+                <!--
+                    Header-väljaren. Listan kommer från meddelandets EGNA
+                    headers, inte från en påhittad lista: att skriva
+                    "X-Spam-Flag" ur minnet när mailet har
+                    "X-Spam-flag" ger en regel som aldrig matchar, och
+                    användaren har ingen chans att se varför.
+
+                    Värdet förifylls när headern väljs — det är hela
+                    poängen med att läsa dem.
+                -->
                 <div class="mb-3" t-if="needsHeader">
                     <label class="form-label" for="rule-header">Header</label>
-                    <input id="rule-header" type="text" class="form-control"
+                    <t t-if="availableHeaders.length">
+                        <select id="rule-header" class="form-select"
+                            t-on-change="(ev) => this.onHeaderSelect(ev.target.value)">
+                            <option value="">— välj header —</option>
+                            <t t-foreach="availableHeaders" t-as="h" t-key="h.name">
+                                <option t-att-value="h.name"
+                                    t-att-selected="state.conditionHeader === h.name">
+                                    <t t-out="h.name"/>
+                                    <t t-if="h.value"> — <t t-out="h.value"/></t>
+                                </option>
+                            </t>
+                        </select>
+                    </t>
+                    <input t-else="" id="rule-header" type="text" class="form-control"
                         t-att-value="state.conditionHeader"
                         t-on-input="(ev) => this.onHeaderChange(ev.target.value)"
-                        placeholder="X-Spam-Flag" list="rule-header-suggestions"/>
-                    <datalist id="rule-header-suggestions">
-                        <option value="X-Spam-Flag"/>
-                        <option value="X-Spam-Status"/>
-                        <option value="List-Id"/>
-                        <option value="Precedence"/>
-                        <option value="Reply-To"/>
-                        <option value="Return-Path"/>
-                        <option value="User-Agent"/>
-                        <option value="To"/>
-                        <option value="Cc"/>
-                    </datalist>
+                        placeholder="X-Spam-Flag"/>
                     <div class="form-text">
+                        <t t-if="availableHeaders.length">
+                            Headers som finns i det valda meddelandet.
+                        </t>
+                        <t t-else="">
+                            Meddelandets headers kunde inte läsas — skriv
+                            headernamnet själv.
+                        </t>
                         Matchar om headern <em>innehåller</em> värdet.
-                        Skiftlägesokänsligt.
                     </div>
                 </div>
 

@@ -14,17 +14,54 @@
                     <span class="text-muted small ms-2" t-if="props.total">(<t t-out="props.total"/>)</span>
                 </h6>
                 <!--
-                    Stjärnfilter. Växlar listan till att bara visa
-                    \Flagged-mail. Aktivt läge färgas så det syns att
-                    filtret är på — annars ser en kort lista ut som en tom
+                    Flaggfilter. En dropdown i stället för en enda
+                    stjärnknapp: klienten sätter sex olika flaggor (stjärna,
+                    viktig, skräppost, att göra, privat, arbete) och att
+                    bara kunna filtrera på en av dem gör de övriga
+                    meningslösa.
+
+                    Aktivt filter färgas, och knappen visar den valda
+                    flaggans ikon — annars ser en kort lista ut som en tom
                     mapp.
                 -->
+                <!--
+                    Trådad visning. Klient-side över den hämtade sidan —
+                    en tråd vars äldre delar ligger på en annan sida syns
+                    som en ensam rad.
+                -->
                 <button class="btn btn-sm"
-                    t-att-class="props.starredOnly ? 'btn-warning' : 'btn-outline-secondary'"
-                    t-att-title="props.starredOnly ? 'Visa alla mail' : 'Visa bara stjärnmärkta'"
-                    t-on-click="() => props.onToggleStarredFilter()">
-                    <i class="fa fa-star"/>
+                    t-att-class="props.threaded ? 'btn-primary' : 'btn-outline-secondary'"
+                    t-att-title="props.threaded ? 'Visa som enskilda mail' : 'Visa som trådar'"
+                    t-on-click="() => props.onToggleThreaded()">
+                    <i class="fa fa-comments-o"/>
                 </button>
+
+                <div class="dropdown">
+                    <button class="btn btn-sm dropdown-toggle"
+                        t-att-class="props.flagFilter ? 'btn-warning' : 'btn-outline-secondary'"
+                        data-bs-toggle="dropdown"
+                        t-att-title="props.flagFilter ? 'Filter: ' + flagLabel(props.flagFilter) : 'Filtrera på flagga'">
+                        <i class="fa" t-att-class="flagIcon(props.flagFilter || 'star')"/>
+                    </button>
+                    <ul class="dropdown-menu dropdown-menu-end">
+                        <li>
+                            <button class="dropdown-item" t-on-click="() => props.onSetFlagFilter('')">
+                                <i class="fa fa-times me-2"/>Alla mail
+                            </button>
+                        </li>
+                        <li><hr class="dropdown-divider"/></li>
+                        <t t-foreach="flagOptions" t-as="opt" t-key="opt.value">
+                            <li>
+                                <button class="dropdown-item"
+                                    t-att-class="props.flagFilter === opt.value ? 'active' : ''"
+                                    t-on-click="() => props.onSetFlagFilter(opt.value)">
+                                    <i class="fa me-2" t-att-class="opt.icon"/>
+                                    <t t-out="opt.label"/>
+                                </button>
+                            </li>
+                        </t>
+                    </ul>
+                </div>
                 <!--
                     "Skapa regel" utan valt meddelande: dialogen öppnas utan
                     förifylld avsändare, så man kan bygga en regel i förväg.
@@ -68,7 +105,7 @@
                 </t>
                 <t t-elif="!props.messages || !props.messages.length">
                     <div class="text-center p-4 text-muted">
-                        <t t-if="props.starredOnly">Inga stjärnmärkta mail i mappen</t>
+                        <t t-if="props.flagFilter">Inga mail med den flaggan i mappen</t>
                         <t t-elif="props.searchActive">No messages match your search</t>
                         <t t-else="">Inga meddelanden</t>
                     </div>
@@ -95,9 +132,47 @@
                                     <span class="text-truncate" t-out="msg.from_"/>
                                     <span class="small text-muted text-nowrap ms-2" t-out="msg.date"/>
                                 </div>
-                                <div class="text-truncate small text-muted" t-out="msg.subject"/>
+                                <div class="text-truncate small text-muted">
+                                    <!--
+                                        Trådindikator: antal meddelanden och
+                                        en vik-pil. Bara när tråden har fler
+                                        än ett mail — en ensam rad ska inte
+                                        se ut som en hopfälld tråd.
+                                    -->
+                                    <t t-if="msg.threadCount &gt; 1">
+                                        <button class="btn btn-link btn-sm p-0 me-1 align-baseline"
+                                            t-on-click.stop="() => props.onToggleThread(msg.threadRoot)"
+                                            t-att-title="msg.threadCollapsed ? 'Visa tråden' : 'Fäll ihop tråden'">
+                                            <i class="fa"
+                                                t-att-class="msg.threadCollapsed ? 'fa-caret-right' : 'fa-caret-down'"/>
+                                        </button>
+                                        <span class="badge bg-secondary me-1" t-out="msg.threadCount"/>
+                                    </t>
+                                    <t t-out="msg.subject"/>
+                                </div>
                             </div>
                         </div>
+                        <!--
+                            Trådens övriga meddelanden, indragna. Visas
+                            bara när tråden är utfälld. Det nyaste ligger
+                            kvar som trådens egen rad ovan.
+                        -->
+                        <t t-if="msg.threadCount &gt; 1 &amp;&amp; !msg.threadCollapsed">
+                            <t t-foreach="msg.threadMessages" t-as="child" t-key="child.uid">
+                                <div t-if="child.uid !== msg.uid"
+                                    class="d-flex ps-5 pe-3 py-2 border-bottom cursor-pointer bg-light-subtle"
+                                    t-att-class="child.seen ? '' : 'fw-bold'"
+                                    t-on-click="() => props.onMessageClick(child.uid)">
+                                    <div class="flex-grow-1 min-width-0">
+                                        <div class="d-flex justify-content-between">
+                                            <span class="text-truncate small" t-out="child.from_"/>
+                                            <span class="small text-muted text-nowrap ms-2" t-out="child.date"/>
+                                        </div>
+                                        <div class="text-truncate small text-muted" t-out="child.subject"/>
+                                    </div>
+                                </div>
+                            </t>
+                        </t>
                     </t>
                     <t t-if="props.messages.length &lt; props.total">
                         <div class="text-center p-2">

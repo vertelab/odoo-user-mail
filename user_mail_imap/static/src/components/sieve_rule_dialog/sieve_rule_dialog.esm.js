@@ -90,6 +90,32 @@ export class SieveRuleDialog extends Component {
     }
 
     /**
+     * Meddelandets egna headers, för väljaren.
+     *
+     * Att skriva headernamnet ur minnet är hur man får en regel som
+     * aldrig matchar: mailet har "X-Spam-flag", användaren skriver
+     * "X-Spam-Flag", och Sieve matchar skiftlägesokänsligt på namnet men
+     * användaren har ingen aning om varför regeln sover.
+     */
+    get availableHeaders() {
+        const h = this.props.message && this.props.message.headers;
+        return Array.isArray(h) ? h : [];
+    }
+
+    /**
+     * Header vald ur listan — fyll även i värdet.
+     *
+     * Värdet är det som ska matchas, och det står i headern. Att fylla i
+     * det sparar avskrivning och gör regeln rätt från början.
+     */
+    onHeaderSelect(name) {
+        this.state.conditionHeader = name || "";
+        const found = this.availableHeaders.find((h) => h.name === name);
+        this.state.conditionText = found ? (found.value || "") : "";
+        this.syncName();
+    }
+
+    /**
      * Förslag på regelnamn, uppdaterat när villkoret ändras.
      *
      * Namnet är det användaren ser i regellistan, så det ska säga vad

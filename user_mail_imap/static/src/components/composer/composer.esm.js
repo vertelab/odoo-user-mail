@@ -27,6 +27,10 @@ export class Composer extends Component {
             cc: [],
             subject: '',
             body: '',
+            // Bilagor: {id, name, content_type, size, sizeLabel, data}
+            // där data är base64 utan prefix. Läses in i webbläsaren och
+            // följer med i anropet — inget lagras på servern.
+            attachments: [],
         });
         this.toInputValue = useState({ val: '' });
         this.ccInputValue = useState({ val: '' });
@@ -193,6 +197,66 @@ export class Composer extends Component {
 
     /* ---- Send ---- */
 
+    /**
+     * Läs in valda filer som base64.
+     *
+     * FileReader krävs — filen finns bara i webbläsaren. Vi läser hela
+     * filen i minnet: ett mail med bilagor skickas ändå i ett svep över
+     * SMTP, så någon streamingvinst finns inte att hämta här.
+     *
+     * Gränsen är 25 MB per fil. SMTP-servern avvisar större, och att
+     * upptäcka det först vid sändning gör att användaren förlorar
+     * meddelandet den skrivit.
+     */
+    onAttach(ev) {
+        const files = Array.from(ev.target.files || []);
+        ev.target.value = '';
+        for (const file of files) {
+            if (file.size > 25 * 1024 * 1024) {
+                this.notification.add(
+                    `"${file.name}" är större än 25 MB och kan inte bifogas.`,
+                    { type: 'danger' }
+                );
+                continue;
+            }
+            const reader = new FileReader();
+            reader.onload = () => {
+                // result är en data-URL: "data:<typ>;base64,<data>".
+                const result = String(reader.result || '');
+                const comma = result.indexOf(',');
+                this.data.attachments.push({
+                    id: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
+                    name: file.name,
+                    content_type: file.type || 'application/octet-stream',
+                    size: file.size,
+                    sizeLabel: this._formatSize(file.size),
+                    data: comma >= 0 ? result.slice(comma + 1) : result,
+                });
+            };
+            reader.onerror = () => {
+                this.notification.add(
+                    `Kunde inte läsa "${file.name}".`,
+                    { type: 'danger' }
+                );
+            };
+            reader.readAsDataURL(file);
+        }
+    }
+
+    removeAttachment(id) {
+        this.data.attachments = this.data.attachments.filter((a) => a.id !== id);
+    }
+
+    _formatSize(bytes) {
+        if (bytes < 1024) {
+            return `${bytes} B`;
+        }
+        if (bytes < 1024 * 1024) {
+            return `${Math.round(bytes / 1024)} kB`;
+        }
+        return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+    }
+
     send() {
         if (!this.data.to.length) {
             this.notification.add('Minst en mottagare krävs', { type: 'warning' });
@@ -203,6 +267,11 @@ export class Composer extends Component {
             cc: this.data.cc.join(', '),
             subject: this.data.subject,
             body: this.data.body,
+            attachments: this.data.attachments.map((a) => ({
+                filename: a.name,
+                content_type: a.content_type,
+                data: a.data,
+            })),
         });
     }
 }

@@ -1,4 +1,5 @@
 import json
+import urllib.parse
 
 from odoo import http
 from odoo.exceptions import UserError, ValidationError
@@ -47,9 +48,9 @@ class ImapController(http.Controller):
         return imap.action_fetch_mail(folder, uid)
 
     @http.route('/imap/send', type='json', auth='user')
-    def send(self, to, subject, body, cc=''):
+    def send(self, to, subject, body, cc='', attachments=None):
         imap = request.env['user.mail.imap'].sudo()
-        imap.action_send_mail(to, subject, body, cc)
+        imap.action_send_mail(to, subject, body, cc, attachments or [])
         return {'ok': True}
 
     @http.route('/imap/flag', type='json', auth='user')
@@ -64,6 +65,34 @@ class ImapController(http.Controller):
         imap = request.env['user.mail.imap'].sudo()
         imap.action_clear_cache()
         return {'ok': True}
+
+    @http.route('/imap/attachment', type='http', auth='user')
+    def attachment(self, folder, uid, index, **kw):
+        """Ladda ner en bilaga.
+
+        http och inte json: webbläsaren ska få filen som en fil, med
+        Content-Disposition. Ett base64-svar via json hade krävt att
+        klienten byggde en blob och en nedladdningslänk själv — mer kod
+        för sämre minnesanvändning på stora bilagor.
+        """
+        imap = request.env['user.mail.imap'].sudo()
+        try:
+            filename, content_type, payload = imap.action_fetch_attachment(
+                folder, int(uid), int(index))
+        except Exception as e:
+            raise UserError(_('Kunde inte hämta bilagan: %s', e))
+        # Filnamnet citeras och non-ASCII-kodas enligt RFC 6266 — ett
+        # svenskt filnamn med å/ä/ö kraschar annars headern.
+        quoted = urllib.parse.quote(filename)
+        disposition = "attachment; filename=\"%s\"; filename*=UTF-8''%s" % (
+            filename.encode('ascii', 'replace').decode('ascii').replace('"', ''),
+            quoted,
+        )
+        return request.make_response(payload, headers=[
+            ('Content-Type', content_type),
+            ('Content-Disposition', disposition),
+            ('Content-Length', str(len(payload))),
+        ])
 
     @http.route('/imap/folder/create', type='json', auth='user')
     def folder_create(self, name):

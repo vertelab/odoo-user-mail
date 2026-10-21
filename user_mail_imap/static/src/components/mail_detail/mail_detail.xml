@@ -79,16 +79,6 @@
                                 t-att-title="props.message.flagged ? 'Ta bort stjärnmärkning' : 'Stjärnmärk'">
                                 <i class="fa" t-att-class="props.message.flagged ? 'fa-star' : 'fa-star-o'"/>
                             </button>
-                            <!--
-                                Skapa regel direkt från meddelandet: avsändaren
-                                är redan känd här, och att skriva av den för hand
-                                är hur man får regler som aldrig matchar.
-                            -->
-                            <button class="btn btn-sm btn-outline-primary"
-                                t-on-click="() => props.openRuleDialog(props.message)"
-                                title="Skapa en regel från det här meddelandet">
-                                <i class="fa fa-filter me-1"/>Regel
-                            </button>
                         </div>
                     </div>
                 </div>
@@ -107,12 +97,29 @@
                         t-on-load="onIframeLoad"
                         t-att-srcdoc="props.message.body_html"/>
                 </div>
+                <!--
+                    Bilagor. Länken går direkt mot /imap/attachment som
+                    svarar med Content-Disposition: attachment — webbläsaren
+                    sköter nedladdningen, ingen blob behöver byggas i
+                    klienten. Indexet, inte namnet, identifierar bilagan:
+                    två filer kan heta samma sak.
+                -->
                 <t t-if="props.message.attachments &amp;&amp; props.message.attachments.length">
                     <div class="p-3 border-top bg-light">
-                        <strong>Bilagor:</strong>
-                        <t t-foreach="props.message.attachments" t-as="att" t-key="att.filename">
-                            <div class="small" t-out="att.filename"/>
-                        </t>
+                        <div class="text-muted small mb-2">
+                            <i class="fa fa-paperclip me-1"/>
+                            <t t-out="props.message.attachments.length"/> bilaga(or)
+                        </div>
+                        <div class="d-flex flex-wrap gap-2">
+                            <a t-foreach="props.message.attachments" t-as="att" t-key="att_index"
+                                class="btn btn-sm btn-outline-secondary d-inline-flex align-items-center gap-2"
+                                t-att-href="attachmentUrl(att, att_index)"
+                                t-att-title="'Ladda ned ' + att.filename"
+                                download="">
+                                <i class="fa fa-download"/>
+                                <span class="text-truncate" style="max-width: 220px;" t-out="att.filename"/>
+                            </a>
+                        </div>
                     </div>
                 </t>
             </t>

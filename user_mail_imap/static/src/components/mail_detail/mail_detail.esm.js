@@ -3,8 +3,27 @@ import { Component } from "@odoo/owl";
 
 export class MailDetail extends Component {
     static template = "user_mail_imap.MailDetail";
+    /**
+     * Nedladdningslänk för en bilaga.
+     *
+     * Pekar på controllern, inte på ett RPC-anrop: webbläsaren ska få
+     * filen som en fil. Mappen måste med — bilagan slås upp via UID, och
+     * UID är bara unikt inom en mapp.
+     */
+    attachmentUrl(att, index) {
+        // Mappen kommer som prop — UID är bara unikt inom en mapp, så
+        // bilagan går inte att slå upp utan den.
+        const folder = this.props.folder || '';
+        const uid = (this.props.message && this.props.message.uid) || 0;
+        return `/imap/attachment?folder=${encodeURIComponent(folder)}`
+            + `&uid=${uid}&index=${index}`;
+    }
+
     static props = {
         message: { type: [Object, { value: null }], optional: true },
+        // Aktuell mapp. Behövs för att ladda ner bilagor — UID är bara
+        // unikt inom en mapp.
+        folder: { type: String, optional: true },
         loading: Boolean,
         openComposer: Function,
         openRuleDialog: Function,

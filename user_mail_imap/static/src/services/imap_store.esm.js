@@ -41,10 +41,14 @@ const store = {
             folderError: null,
             searchQuery: '',
             searchActive: false,
-            // Stjärnfilter: visar bara \Flagged-mail i den hämtade sidan.
-            // Klient-side med flit — se onToggleStarredFilter i
-            // mail_imap.esm.js.
-            starredOnly: false,
+            // Flaggfilter: '' = alla, annars en flaggtyp
+            // (flagged/important/spam/todo/personal/work). Filtrerar den
+            // hämtade sidan — se visibleMessages i mail_imap.esm.js.
+            flagFilter: '',
+            // Trådad visning. Klient-side över den hämtade sidan — se
+            // threadMessages i mail_imap.esm.js.
+            threaded: false,
+            collapsedThreads: new Set(),
             searchTotal: 0,
         });
 
@@ -275,8 +279,8 @@ const store = {
                 }
             },
 
-            async sendMail(to, subject, body, cc) {
-                await rpc('/imap/send', { to, subject, body, cc });
+            async sendMail(to, subject, body, cc, attachments) {
+                await rpc('/imap/send', { to, subject, body, cc, attachments });
             },
 
             async setFlag(folder, uids, flag, value) {

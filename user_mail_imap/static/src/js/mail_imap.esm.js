@@ -128,16 +128,16 @@ class MailImap extends Component {
     }
 
     /**
-     * Stjärnfilter. Filtrerar den REDAN hämtade sidan i klienten.
+     * Flaggfilter. Filtrerar den REDAN hämtade sidan i klienten.
      *
-     * Ett server-side-filter (`SEARCH FLAGGED`) hade varit riktigare för
-     * stora mappar, men kräver en egen sökväg genom cachen och
+     * Ett server-side-filter (`SEARCH KEYWORD TODO`) hade varit riktigare
+     * för stora mappar, men kräver en egen sökväg genom cachen och
      * pagineringen. Filtret här är avsett som en snabb vy av det man ser —
-     * stjärnmärkta mail längre bak i mappen kräver fortfarande att man
+     * flaggade mail längre bak i mappen kräver fortfarande att man
      * scrollar eller söker.
      */
-    onToggleStarredFilter() {
-        this.state.starredOnly = !this.state.starredOnly;
+    onSetFlagFilter(value) {
+        this.state.flagFilter = value || '';
     }
 
     /**
@@ -152,7 +152,98 @@ class MailImap extends Component {
      */
     visibleMessages() {
         const msgs = this.state.messages || [];
-        return this.state.starredOnly ? msgs.filter((m) => m.flagged) : msgs;
+        const want = this.state.flagFilter;
+        const filtered = want
+            ? msgs.filter((m) => (m.flags || []).includes(want))
+            : msgs;
+        return this.state.threaded ? this.threadMessages(filtered) : filtered;
+    }
+
+    /**
+     * Gruppera meddelanden i trådar.
+     *
+     * Trådning sker i klienten över den hämtade sidan. Det är en
+     * medveten begränsning: en riktig trådning kräver att hela mappen
+     * hämtas (IMAP har inget tråd-kommando som fungerar mot paginering),
+     * och för en inkorg på 10 000 mail är det fel pris att betala för en
+     * vy. En tråd vars äldre delar ligger på en annan sida visas därför
+     * som en ensam rad — den är inte trasig, den är bara delvis hämtad.
+     *
+     * Nyckeln är References-kedjans första id (trådens rot) om den finns,
+     * annars In-Reply-To, annars meddelandets eget Message-ID. Att bara
+     * använda In-Reply-To hade gett en ny tråd per svar — exakt det man
+     * vill undvika.
+     *
+     * Tråden representeras av sitt NYASTE meddelande: listan sorteras
+     * nyaste först, och en tråd hör hemma där dess senaste inlägg är.
+     */
+    threadMessages(msgs) {
+        const byRoot = new Map();
+        for (const m of msgs) {
+            const root = this._threadRoot(m);
+            if (!byRoot.has(root)) {
+                byRoot.set(root, []);
+            }
+            byRoot.get(root).push(m);
+        }
+        const out = [];
+        for (const [, group] of byRoot) {
+            // Nyaste först inom tråden.
+            group.sort((a, b) => (b.uid || 0) - (a.uid || 0));
+            const newest = group[0];
+            out.push({
+                ...newest,
+                threadCount: group.length,
+                threadUids: group.map((g) => g.uid),
+                threadMessages: group,
+                threadCollapsed: this.state.collapsedThreads.has(root),
+                threadRoot: root,
+            });
+        }
+        // Behåll listans ordning: nyaste tråd överst.
+        out.sort((a, b) => (b.uid || 0) - (a.uid || 0));
+        return out;
+    }
+
+    /**
+     * Trådens rot-id.
+     *
+     * References är en lista av "<id>"-strängar, äldst först. Första
+     * elementet är trådens början. Meddelanden utan References (första
+     * mailet i tråden, eller klienter som inte sätter det) faller tillbaka
+     * på In-Reply-To och till sist det egna Message-ID:t.
+     */
+    _threadRoot(m) {
+        const refs = (m.references || '').trim();
+        if (refs) {
+            const match = refs.match(/<[^>]+>/);
+            if (match) {
+                return match[0];
+            }
+        }
+        const replyTo = (m.in_reply_to || '').trim();
+        if (replyTo) {
+            const match = replyTo.match(/<[^>]+>/);
+            if (match) {
+                return match[0];
+            }
+        }
+        return (m.message_id || `uid:${m.uid}`).trim();
+    }
+
+    /** Fäll ihop/veckla ut en tråd. */
+    onToggleThread(root) {
+        if (this.state.collapsedThreads.has(root)) {
+            this.state.collapsedThreads.delete(root);
+        } else {
+            this.state.collapsedThreads.add(root);
+        }
+        // Set-mutation syns inte för OWL — byt ut den så vyn ritas om.
+        this.state.collapsedThreads = new Set(this.state.collapsedThreads);
+    }
+
+    onToggleThreaded() {
+        this.state.threaded = !this.state.threaded;
     }
     /**
      * Flytta det valda meddelandet till en specialmapp.
@@ -209,7 +300,9 @@ class MailImap extends Component {
     }
 
     async onSendMail(data) {
-        await this.store.sendMail(data.to, data.subject, data.body, data.cc);
+        await this.store.sendMail(
+            data.to, data.subject, data.body, data.cc, data.attachments || []
+        );
         this.closeComposer();
     }
 

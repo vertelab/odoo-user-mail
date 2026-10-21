@@ -3,6 +3,7 @@ from odoo.exceptions import UserError
 from email import policy
 from email.parser import BytesParser
 from email.message import EmailMessage
+import base64
 import email.utils
 import hashlib
 import json
@@ -29,6 +30,72 @@ def _uid_batches(uids, size=UID_BATCH_SIZE):
     uids = list(uids)
     for i in range(0, len(uids), size):
         yield uids[i:i + size]
+
+
+# IMAP-flagga/nyckelord → vår flaggtyp. Samma mappning som
+# sieve_compiler.FLAG_MAP, men åt andra hållet.
+_FLAG_READ = {
+    '\\flagged': 'flagged',
+    '\\answered': 'important',
+    'junk': 'spam',
+    '$junk': 'spam',
+    'todo': 'todo',
+    'personal': 'personal',
+    'work': 'work',
+}
+
+
+def _read_flags(flags):
+    """Våra flaggtyper ur IMAP:s flagglista.
+
+    Returnerar en lista, inte en boolean: klienten sätter sex olika
+    flaggor och listan ska kunna filtreras på vilken som helst. `flagged`
+    behålls som egen boolean för bakåtkompatibilitet med listvyns
+    fetstil och stjärnan.
+    """
+    out = []
+    for f in flags or []:
+        if isinstance(f, bytes):
+            f = f.decode('utf-8', 'ignore')
+        key = _FLAG_READ.get(str(f).lower())
+        if key and key not in out:
+            out.append(key)
+    return out
+
+
+def _collect_headers(msg):
+    """Alla headers i meddelandet som en lista av {name, value}.
+
+    Ordningen bevaras och dubbletter behålls (Received förekommer flera
+    gånger). Värden trunkeras — en lång Received-kedja behövs inte i en
+    väljare, och hela headerblocket kan vara tiotals kilobyte.
+
+    Hoppar över de headers varje mail har och som ingen regel matchar på:
+    de skulle bara göra listan svårläst.
+    """
+    SKIP = {
+        'received', 'dkim-signature', 'arc-seal', 'arc-message-signature',
+        'arc-authentication-results', 'authentication-results',
+        'received-spf', 'mime-version', 'content-type',
+        'content-transfer-encoding', 'date', 'message-id',
+    }
+    out = []
+    seen = set()
+    for name, value in msg.items():
+        key = (name or '').lower()
+        if not key or key in SKIP:
+            continue
+        # En header kan förekomma flera gånger; visa den en gång med
+        # första värdet — väljaren ska vara kort.
+        if key in seen:
+            continue
+        seen.add(key)
+        out.append({
+            'name': name,
+            'value': str(value)[:200],
+        })
+    out.sort(key=lambda h: h['name'].lower())
+    return out
 
 
 def _quote_mailbox(folder):
@@ -459,10 +526,23 @@ class ImapServer(models.AbstractModel):
                         'uid': uid,
                         'seen': b'\\Seen' in flags,
                         'flagged': b'\\Flagged' in flags,
+                        'flags': _read_flags(flags),
                         'from_': str(msg.get('From', '')),
                         'subject': str(msg.get('Subject', '(No subject)')),
                         'date': str(msg.get('Date', '')),
                         'message_id': str(msg.get('Message-ID', '')),
+                        # Trådning: In-Reply-To pekar på föräldern,
+                        # References på hela kedjan. Vi skickar båda —
+                        # References räcker oftast, men vissa klienter
+                        # (och en del mailinglistor) sätter bara
+                        # In-Reply-To.
+                        'in_reply_to': str(msg.get('In-Reply-To', '')),
+                        'references': str(msg.get('References', '')),
+                        # Headers finns redan här — FETCH hämtar hela
+                        # headerblocket. Att skicka dem kostar inget extra
+                        # och gör att regelformuläret kan visa dem utan ett
+                        # andra anrop.
+                        'headers': _collect_headers(msg),
                     }
 
             # Emittera i page-ordningen. Ett UID servern inte svarade på
@@ -631,6 +711,7 @@ class ImapServer(models.AbstractModel):
                     'uid': int(uid),
                     'seen': b'\\Seen' in flags,
                     'flagged': b'\\Flagged' in flags,
+                    'flags': _read_flags(flags),
                     'from_': str(msg.get('From', '')),
                     'subject': str(msg.get('Subject', '(No subject)')),
                     'date': str(msg.get('Date', '')),
@@ -692,6 +773,10 @@ class ImapServer(models.AbstractModel):
                 'date': str(msg.get('Date', '')),
                 'body_html': _prepare_body_html(body_html or body_text or '(No content)'),
                 'attachments': attachments,
+                # Alla headers, för regelformulärets header-väljare. Utan
+                # dem måste användaren skriva headernamnet ur minnet, och
+                # ett felstavat namn ger en regel som aldrig matchar.
+                'headers': _collect_headers(msg),
             }
             _mail_cache[cache_key] = (time.monotonic(), result)
             # Limit cache size (TTL-purge sker vid varje läsning).
@@ -708,7 +793,7 @@ class ImapServer(models.AbstractModel):
         _mail_cache.clear()
         return {'ok': True}
 
-    def action_send_mail(self, to, subject, body, cc=''):
+    def action_send_mail(self, to, subject, body, cc='', attachments=None):
         password = self._decrypt_password()
         if not password:
             raise UserError(_("No IMAP password configured."))
@@ -730,16 +815,93 @@ class ImapServer(models.AbstractModel):
                 msg['Cc'] = cc
             msg['Subject'] = subject
             msg.set_content(body)
+            # Bilagor: base64 från webbläsaren. add_attachment gissar
+            # maintype/subtype ur content_type och sätter
+            # Content-Disposition: attachment — utan den visar
+            # mottagarens klient bilagan inline.
+            for att in attachments or []:
+                try:
+                    content = base64.b64decode(att.get('data') or '')
+                except (ValueError, TypeError):
+                    raise UserError(_(
+                        'Bilagan "%s" kunde inte avkodas.', att.get('filename')))
+                if not content:
+                    continue
+                ctype = (att.get('content_type') or 'application/octet-stream')
+                if '/' not in ctype:
+                    ctype = 'application/octet-stream'
+                maintype, subtype = ctype.split('/', 1)
+                msg.add_attachment(
+                    content, maintype=maintype, subtype=subtype,
+                    filename=att.get('filename') or 'bilaga')
             conn.send_message(msg)
         finally:
             conn.quit()
 
+    def action_fetch_attachment(self, folder, uid, index):
+        """Hämta en bilagas innehåll.
+
+        `index` är bilagans ordningsnummer i meddelandet — samma ordning
+        som action_fetch_mail listar dem. Namnet duger inte som nyckel:
+        två bilagor kan heta samma sak, och då hade den andra varit
+        onåbar.
+
+        Returnerar (filnamn, content_type, råa bytes).
+        """
+        conn = self._connect_imap()
+        try:
+            _select_folder(conn, folder)
+            typ, data = conn.uid('FETCH', str(uid), '(RFC822)')
+        finally:
+            _safe_logout(conn)
+        if typ != 'OK' or not data or not isinstance(data[0], tuple):
+            raise UserError(_('Kunde inte hämta meddelandet.'))
+        msg = BytesParser(policy=policy.default).parsebytes(data[0][1])
+        parts = []
+        if msg.is_multipart():
+            for part in msg.walk():
+                if part.get_filename():
+                    parts.append(part)
+        try:
+            part = parts[int(index)]
+        except (IndexError, ValueError):
+            raise UserError(_('Bilagan finns inte i meddelandet.'))
+        payload = part.get_payload(decode=True) or b''
+        return (
+            part.get_filename() or 'bilaga',
+            part.get_content_type() or 'application/octet-stream',
+            payload,
+        )
+
+    # Vår flaggtyp → IMAP-flagga/nyckelord. Spegel av _FLAG_READ ovan och
+    # av sieve_compiler.FLAG_MAP — tre ställen som måste säga samma sak,
+    # eftersom en regel kan sätta flaggan på servern och användaren sätta
+    # samma flagga i klienten.
+    _FLAG_WRITE = {
+        'flagged': '\\Flagged',
+        'important': '\\Answered',
+        'spam': 'Junk',
+        'todo': 'TODO',
+        'personal': 'Personal',
+        'work': 'Work',
+        'seen': '\\Seen',
+    }
+
     def action_set_flag(self, folder, uids, flag, value):
+        """Sätt eller ta bort en flagga på meddelanden.
+
+        `flag` är vår flaggtyp (flagged/important/spam/todo/personal/work)
+        eller 'seen'. Nyckelord som TODO och Personal är IMAP-keywords —
+        de kräver inget särskilt tillstånd men syns bara i klienter som
+        läser dem (Thunderbird gör det).
+        """
+        imap_flag = self._FLAG_WRITE.get(flag)
+        if not imap_flag:
+            raise UserError(_('Okänd flaggtyp: %s', flag))
         conn = self._connect_imap()
         try:
             _select_folder(conn, folder)
             cmd = '+FLAGS' if value else '-FLAGS'
-            imap_flag = '\\Seen' if flag == 'seen' else '\\Flagged'
             for batch in _uid_batches(uids):
                 uid_list = ','.join(str(u) for u in batch)
                 conn.uid('STORE', uid_list, cmd, imap_flag)

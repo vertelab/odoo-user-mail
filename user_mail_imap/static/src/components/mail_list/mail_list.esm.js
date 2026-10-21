@@ -25,15 +25,49 @@ export class MailList extends Component {
         onMessageClick: Function,
         loadMore: Function,
         openComposer: Function,
-        // Stjärnmärkning och stjärnfilter. `onToggleFlag` sätter/ta bort
-        // \Flagged på ett enskilt mail; `starredOnly` filtrerar listan.
+        // Flaggning och flaggfilter. `onToggleFlag` sätter/ta bort en
+        // flagga på ett enskilt mail; `flagFilter` filtrerar listan på
+        // flaggtyp ('' = alla).
         onToggleFlag: Function,
-        starredOnly: { type: Boolean, optional: true },
-        onToggleStarredFilter: Function,
+        flagFilter: { type: String, optional: true },
+        onSetFlagFilter: Function,
+        // Trådad visning. `threaded` slår på grupperingen; trådens
+        // hopfällning ligger per tråd i `msg.threadCollapsed`.
+        threaded: { type: Boolean, optional: true },
+        onToggleThreaded: Function,
+        onToggleThread: Function,
         // "Skapa regel" i listhuvudet — samma dialog som i meddelandevyn,
         // men nåbar utan att först öppna ett mail.
         openRuleDialog: Function,
     };
+
+    /**
+     * Flaggtyperna, i samma ordning som i regeldialogen.
+     *
+     * `flagged`/`important` är standardflaggor (RFC 3501) som syns i alla
+     * klienter. `todo`/`personal`/`work` är IMAP-nyckelord — samma
+     * märkning Thunderbird använder. `spam` sätts som Junk-nyckelord.
+     */
+    get flagOptions() {
+        return [
+            { value: 'flagged', label: 'Stjärnmärkta', icon: 'fa-star text-warning' },
+            { value: 'important', label: 'Viktiga', icon: 'fa-check-circle text-success' },
+            { value: 'spam', label: 'Skräppost', icon: 'fa-ban text-danger' },
+            { value: 'todo', label: 'Att göra', icon: 'fa-tasks text-primary' },
+            { value: 'personal', label: 'Privat', icon: 'fa-user text-info' },
+            { value: 'work', label: 'Arbete', icon: 'fa-briefcase text-secondary' },
+        ];
+    }
+
+    flagIcon(value) {
+        const opt = this.flagOptions.find((o) => o.value === value);
+        return opt ? opt.icon : 'fa-star-o';
+    }
+
+    flagLabel(value) {
+        const opt = this.flagOptions.find((o) => o.value === value);
+        return opt ? opt.label : 'Alla mail';
+    }
 
     /**
      * Klick på stjärnan ska INTE välja mailet.
