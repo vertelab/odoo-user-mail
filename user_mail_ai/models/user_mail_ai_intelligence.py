@@ -219,10 +219,23 @@ class UserMailAiIntelligence(models.Model):
             return set()
 
     def _matching_rules(self):
-        """Alla aktiva regler för användaren, sorterade på prioritet."""
+        """Alla aktiva KLIENT-regler för användaren, sorterade på prioritet.
+
+        Regler med enforcement='server' är medvetet uteslutna: de körs av
+        Dovecot vid leverans, redan innan mailet når pollern. Att även
+        köra dem här skulle flytta mailet en andra gång — `_move_to_folder`
+        skulle leta efter ett mail som redan ligger i mål mappen, eller
+        flytta det vidare till nästa regel.
+
+        Filtreringen ligger här och inte i _apply_rules() därför att
+        _matching_rules() också används för att visa vilka regler som
+        matchade ett mail (matched_rules). En server-regel som listas där
+        skulle se ut som att Odoo hanterade den.
+        """
         rules = self.env['user_mail_ai.rule'].search([
             ('user_id', '=', self.user_id.id),
             ('active', '=', True),
+            ('enforcement', '=', 'client'),
         ], order='priority')
         return [r for r in rules if self._rule_matches(r)]
 

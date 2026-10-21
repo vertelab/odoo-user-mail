@@ -57,19 +57,19 @@ Deployment is **not** a task here. It is a separate decision after review.
 
 ## Phase 4 — Rules in `user_mail_ai`
 
-- [ ] 4.1 Add `enforcement` selection to `user_mail_ai.rule`
+- [x] 4.1 Add `enforcement` selection to `user_mail_ai.rule`
       (`client` default, `server`)
-- [ ] 4.2 `_apply_rules()` skips `enforcement == 'server'` — the server
+- [x] 4.2 `_apply_rules()` skips `enforcement == 'server'` — the server
       already handled it (prevents double move)
-- [ ] 4.3 `@api.constrains` — `enforcement='server'` with an action Sieve
+- [x] 4.3 `@api.constrains` — `enforcement='server'` with an action Sieve
       cannot express (`nudge`, `draft_reply`, `create_object`,
       `create_activity`, `create_event`, `send_to_specialist`) raises
       `ValidationError`
-- [ ] 4.4 `create`/`write`/`unlink` on `user_mail_ai.rule` →
+- [x] 4.4 `create`/`write`/`unlink` on `user_mail_ai.rule` →
       `user._sieve_rebuild()` for server rules
-- [ ] 4.5 `res.users._sieve_rebuild()` — regenerate the whole script from
+- [x] 4.5 `res.users._sieve_rebuild()` — regenerate the whole script from
       the rule set + vacation block (idempotent, never patched)
-- [ ] 4.6 Tests: a `server` rule produces Sieve; a `client` rule does not;
+- [x] 4.6 Tests: a `server` rule produces Sieve; a `client` rule does not;
       changing a rule rebuilds deterministically
 
 ## Phase 5 — UI

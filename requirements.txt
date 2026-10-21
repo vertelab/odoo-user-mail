@@ -30,3 +30,10 @@ icalendar
 # Parser.parse, Client.connect). 2.x kan byta signatur — ta inte upp
 # utan att testa round-trip mot en riktig server forst.
 sievelib>=1.6,<2
+
+# ── knowledge_joplin (transitivt beroende via user_mail_ai) ──────────────
+# user_mail_ai -> ai_agent_core -> knowledge_joplin kräver diff-match-patch.
+# Utan den vägrar Odoo installera user_mail_ai med "External dependency
+# diff-match-patch not installed" — och felet pekar på knowledge_joplin,
+# inte på user_mail_ai, så det är lätt att leta på fel ställe.
+diff-match-patch

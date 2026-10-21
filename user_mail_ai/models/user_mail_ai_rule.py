@@ -121,6 +121,91 @@ class UserMailAiRule(models.Model):
                     'åtgärden %s kräver en målmodell.'
                     % (rule.name, rule.action))
 
+    # ── Server-side (Sieve) ──────────────────────────────────────────────
+
+    # Åtgärder som Sieve kan utföra. Allt annat kräver Odoo — en
+    # kalenderhändelse, ett crm.lead, en aktivitet, en LLM-bedömning.
+    SIEVE_ACTIONS = ('move_to_folder', 'flag', 'ignore', 'block')
+
+    # Villkor som Sieve kan uttrycka. `category` är Odos klassificering
+    # som bara finns EFTER att AI:n kört, och `llm` är en språkmodell.
+    SIEVE_CONDITIONS = ('sender', 'subject')
+
+    @api.constrains('enforcement', 'action', 'condition_kind')
+    def _check_sieve_expressible(self):
+        """Stoppa server-regler som Sieve inte kan utföra.
+
+        Utan denna kontroll skulle en användare kunna sätta
+        enforcement='server' på en regel som skapar ett crm.lead. Regeln
+        skulle då tyst sluta fungera: kompilatorn hoppar över den, och
+        _matching_rules() hoppar också över den (enforcement='server'),
+        så INGEN skulle köra den. Användaren tror att regeln är aktiv.
+
+        Hårt fel i stället för tyst nedgradering: en regel som inte kan
+        köras där den påstås köra är värre än ingen regel.
+        """
+        for rule in self:
+            if rule.enforcement != 'server':
+                continue
+            if rule.action not in self.SIEVE_ACTIONS:
+                raise ValidationError(
+                    'Regeln "%s" kan inte köras på servern: åtgärden "%s" '
+                    'kräver Odoo.\n\nVälj "I Odoo (efter hämtning)" som '
+                    'verkställighet, eller byt till en åtgärd som Sieve '
+                    'klarar: flytta till mapp, flagga, ignorera.'
+                    % (rule.name, dict(self._fields['action'].selection).get(
+                        rule.action, rule.action)))
+            if rule.condition_kind not in self.SIEVE_CONDITIONS:
+                raise ValidationError(
+                    'Regeln "%s" kan inte köras på servern: villkorstypen '
+                    '"%s" går inte att uttrycka i Sieve.\n\nAnvänd '
+                    'avsändare eller ämne, eller välj "I Odoo".'
+                    % (rule.name, dict(
+                        self._fields['condition_kind'].selection).get(
+                            rule.condition_kind, rule.condition_kind)))
+
+    # ── Synk till servern ────────────────────────────────────────────────
+
+    def _sieve_resync(self):
+        """Bygg om berörda användares Sieve-script.
+
+        Tyst: ett trasigt Sieve-script får aldrig rulla tillbaka
+        användarens regeländring. Felet hamnar i sieve.script
+        (state=error, last_error) och syns i UI:t.
+        """
+        for user in self.mapped('user_id'):
+            try:
+                user._sieve_rebuild()
+            except Exception as e:
+                _logger.warning(
+                    'Sieve-omsynk efter regeländring misslyckades för %s: %s',
+                    user.name, e)
+
+    @api.model_create_multi
+    def create(self, vals_list):
+        rules = super().create(vals_list)
+        rules._sieve_resync()
+        return rules
+
+    def write(self, values):
+        res = super().write(values)
+        self._sieve_resync()
+        return res
+
+    def unlink(self):
+        # Fånga användarna INNAN raderna försvinner — efter unlink() finns
+        # ingen user_id kvar att synka.
+        users = self.mapped('user_id')
+        res = super().unlink()
+        for user in users:
+            try:
+                user._sieve_rebuild()
+            except Exception as e:
+                _logger.warning(
+                    'Sieve-omsynk efter borttagen regel misslyckades för '
+                    '%s: %s', user.name, e)
+        return res
+
     def _parse_config(self):
         try:
             cfg = json.loads(self.action_config or '{}')
