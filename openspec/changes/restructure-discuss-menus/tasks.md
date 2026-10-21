@@ -1,68 +1,80 @@
-# Tasks: Restructure the Discuss mail menus
+# Tasks: Add mail settings to Discuss → Configuration
 
-Deployment is **not** a task here. It is a separate decision after review.
+All work is local to `luke18a`. Deployment is **not** a task in this change —
+it happens only after explicit approval.
 
-## Phase 1 — Root menu (`user_mail_common`)
+## 1. Verify the current state
 
-- [ ] 1.1 In `views/menus_views.xml`: convert `menu_user_mail_settings`
-      from `<menuitem>` to an `<record model="ir.ui.menu">` that renames it
-      to "E-post", keeps `parent_id = mail.menu_root_discuss`, keeps
-      `sequence = 90` and keeps
-      `groups = user_mail_common.group_own_email_settings`.
-      Keep the xmlid — three modules reference it as `parent=`.
-- [ ] 1.2 Update the comment block above the record: it currently explains
-      why the root exists and why the name "Inställningar" was chosen. The
-      name is now "E-post" and the collision with
-      `mail.menu_configuration` is gone — the reasoning must match the code.
+- [x] 1.1 Confirm `mail.menu_configuration` id, name, sequence and children
+      (Notifications 1, Voice & Video 5, Canned Responses 15) in `luke18a`.
+- [x] 1.2 Confirm `mail.menu_configuration` has no group restrictions.
+- [x] 1.3 Confirm `user_mail_client` and `user_mail_ai` both depend on `mail`
+      (directly or transitively) so parenting to `mail.menu_configuration`
+      adds no new dependency.
+- [x] 1.4 Record the current menu tree of all `user_mail*` menus as the
+      before-state.
 
-## Phase 2 — Children renumbered and reparented
+## 2. Move E-postinställningar
 
-- [ ] 2.1 `user_mail_imap/views/menus_views.xml`: parent stays
-      `user_mail_common.menu_user_mail_settings`, sequence `99` → `10`.
-- [ ] 2.2 `user_mail_ai/views/user_mail_ai_mail_views.xml`: parent
-      `mail.menu_root_discuss` → `user_mail_common.menu_user_mail_settings`,
-      sequence `100` → `20`.
-- [ ] 2.3 `user_mail_client/views/menus_views.xml`: sequence `10` → `30`.
-- [ ] 2.4 `user_mail_ai/views/user_mail_ai_rule_views.xml`: sequence `20` → `40`.
-- [ ] 2.5 `user_mail_common/views/sieve_script_views.xml`: rename
-      "Serverregler (Sieve)" → "Sieve-status", sequence `30` → `50`.
-      Update the comment to say why it is a status view and not a rule list.
+- [x] 2.1 In `user_mail_client/views/menus_views.xml`, set
+      `parent_id` to `mail.menu_configuration` and `sequence` to 20 on
+      `menu_user_mail_own_settings`.
+- [x] 2.2 Rename the menu to "E-postinställningar".
+- [x] 2.3 Add `groups="user_mail_common.group_own_email_settings"` to the
+      menu.
+- [x] 2.4 Verify the action still resolves to `env.uid` — an act_window
+      without `res_id` would open a list and fail for a non-admin.
 
-## Phase 3 — Verify the rule list shows both enforcements
+## 3. Move and rename E-postregler
 
-- [ ] 3.1 Confirm `user_mail_ai_rule_action` has no `enforcement` filter
-      in its domain (it should not — only `user_id` and `active_test`).
-- [ ] 3.2 Confirm the rule form shows `enforcement` (added in
-      `add-sieve-rules`), so the distinction is visible inside a rule.
+- [x] 3.1 In `user_mail_ai/views/user_mail_ai_rule_views.xml`, set
+      `parent_id` to `mail.menu_configuration` and `sequence` to 30 on
+      `menu_user_mail_ai_rules`.
+- [x] 3.2 Rename the menu to "E-postregler".
+- [x] 3.3 Add `groups="user_mail_common.group_own_email_settings"`.
+- [x] 3.4 Verify `user_mail_ai_rule_action` still has no `enforcement`
+      filter and keeps `active_test: False`.
 
-## Phase 4 — Verification
+## 4. Retire the "Inställningar" root
 
-- [ ] 4.1 `python3 -m py_compile` on every touched `.py` file (manifests).
-- [ ] 4.2 Parse every touched XML file.
-- [ ] 4.3 Upgrade `user_mail_common`, `user_mail_imap`, `user_mail_ai`,
-      `user_mail_client` in `luke18a` with no errors from this code.
-- [ ] 4.4 Query `ir_ui_menu` and assert the resulting tree matches the
-      design: one root named "E-post", five children in order, no menu
-      named "Inställningar" under Discuss.
-- [ ] 4.5 Confirm all `parent=` xmlid references still resolve (no
-      `ir.model.data` errors during upgrade).
+- [x] 4.1 In `user_mail_common/views/menus_views.xml`, set
+      `active = False` on `menu_user_mail_settings`.
+- [x] 4.2 Do **not** use `<delete>` — `user_mail_common` loads before the
+      two modules that reparent their children, so a delete would run first
+      and orphan them.
+- [x] 4.3 Verify the root is gone from the UI and no child is orphaned.
 
-## Manual test plan
+## 5. Move Sieve status to the settings page
 
-1. **One root:** Discuss shows exactly one "E-post" entry; Imap-mail,
-   Mail-hjälpredan and the settings entries are no longer siblings of it.
-2. **No collision:** no menu named "Inställningar" under Discuss; Odoo's
-   own "Konfiguration" is unambiguous.
-3. **Order:** children appear as Imap-mail, Mail-hjälpredan,
-   E-postkonfiguration, Regler, Sieve-status.
-4. **Both enforcements in Regler:** create one `server` rule and one
-   `client` rule; both appear in the same list.
-5. **Inactive visible:** deactivate a rule; it still appears.
-6. **Sieve-status:** with a failed sync, `last_error` is shown and the
-   view is reachable without opening a rule.
-7. **Own form:** E-postkonfiguration opens the logged-in user's own form,
-   in edit mode, on the "E-mail settings" tab.
-8. **Group isolation:** a user without
-   `user_mail_common.group_own_email_settings` does not see "E-post".
-9. **Bookmarks:** an old bookmark to a menu action still opens it (menu
-   ids unchanged).
+- [x] 5.1 Add a "Sieve-status" control on the E-postinställningar page
+      (button or stat button) opening `sieve_script_action`.
+- [x] 5.2 Remove `menu_sieve_script` from the menu tree in
+      `user_mail_common/views/sieve_script_views.xml` (deactivate, do not
+      delete).
+- [x] 5.3 Verify the script view is still reachable via the button and that
+      `last_error` is visible on a failed sync.
+- [x] 5.4 Confirm the existing red banner in the "E-mail settings" tab still
+      appears on `sieve_script_state == 'error'`.
+
+## 6. Upgrade and verify
+
+- [x] 6.1 Stop `odoo`, upgrade `user_mail_common`, `user_mail_client`,
+      `user_mail_ai` with `-u`, start `odoo`.
+- [x] 6.2 Check the log for errors from this change.
+- [x] 6.3 Verify the menu tree matches the design: Discuss → Konfiguration
+      with five children in the right order.
+- [x] 6.4 Verify no "Inställningar" root and no "Serverregler (Sieve)" entry.
+- [x] 6.5 Verify Imap-mail and Mail-hjälpredan are still direct children of
+      Discuss.
+- [x] 6.6 Log in as a user in `group_own_email_settings` and confirm both
+      entries open correctly.
+- [x] 6.7 Log in as a user **without** the group and confirm our two entries
+      are hidden while Odoo's three are shown.
+- [x] 6.8 Create one `server` rule and one `client` rule; confirm both appear
+      in E-postregler.
+
+## 7. Documentation
+
+- [x] 7.1 Update `openspec/config.yaml` if the module map or conventions
+      changed.
+- [x] 7.2 Run `openspec validate restructure-discuss-menus`.

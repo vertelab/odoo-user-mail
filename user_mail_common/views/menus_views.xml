@@ -3,26 +3,27 @@
     <data>
 
         <!--
-            Rotmenyn "Inställningar" under Discuss.
+            Tidigare roten "Inställningar" under Discuss.
 
-            Ligger i user_mail_common därför att BÅDA grenarna hänger sina
-            poster här:
-                user_mail_client  → E-postkonfiguration
-                user_mail_ai      → Regler
+            Dess två poster har flyttat till Odoos egen
+            mail.menu_configuration (Discuss → Konfiguration), där de ligger
+            bredvid Notifications / Voice & Video / Canned Responses. Kvar
+            blir en tom meny — den avaktiveras i stället för att raderas.
 
-            user_mail_ai beror INTE på user_mail_client (och tvärtom), så
-            ingen av dem kan äga roten. Basmodulen kan.
+            Varför inte <delete>:
+              * user_mail_common laddas FÖRE user_mail_client och user_mail_ai
+                (båda beror på den). En <delete> här skulle köra innan
+                barnen hunnit flyttas och lämna dem föräldralösa.
+              * Odoo 18 kraschar på <delete> mot en xmlid som inte finns.
+              * Posten kan behövas igen; active=False är reversibelt.
 
-            Namnet "Inställningar" kolliderar med Odoos egen
-            mail.menu_configuration ("Configuration" → "Inställningar" på
-            svenska). Vi lägger oss efter den (sequence 90) och håller våra
-            poster separerade — vi skriver inte i Odoos meny.
+            Vi rör INTE mail.menu_configuration — vi hänger bara våra poster
+            under den. Vad Odoos meny heter på svenska är en
+            översättningsfråga, inte en strukturfråga.
         -->
-        <menuitem id="menu_user_mail_settings"
-            name="Inställningar"
-            parent="mail.menu_root_discuss"
-            sequence="90"
-            groups="user_mail_common.group_own_email_settings"/>
+        <record id="menu_user_mail_settings" model="ir.ui.menu">
+            <field name="active" eval="False"/>
+        </record>
 
     </data>
 </odoo>

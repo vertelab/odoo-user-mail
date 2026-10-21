@@ -111,14 +111,21 @@
         <field name="context">{'active_test': False}</field>
     </record>
 
-    <!-- Regler ligger under Inställningar i Discuss (tillsammans med
-         E-postkonfiguration), inte under Mail-hjälpredan. Roten ägs av
-         user_mail_common eftersom user_mail_ai inte beror på
-         user_mail_client — ingen av dem kan äga den gemensamma roten. -->
+    <!-- E-postregler — EN lista för BÅDA enforcement-lägena.
+
+         Det finns bara en modell, user_mail_ai.rule. `enforcement` avgör var
+         regeln körs (client = i Odoo efter hämtning, server = kompilerad till
+         Sieve vid leverans), inte vilken sorts regel det är. Vyn har medvetet
+         inget enforcement-filter — att filtrera här var det som fick det att
+         se ut som två regelsystem.
+
+         Ligger under Odoos Discuss → Konfiguration, efter E-postinställningar
+         (sequence 20). -->
     <menuitem id="menu_user_mail_ai_rules"
-        name="Regler"
-        parent="user_mail_common.menu_user_mail_settings"
+        name="E-postregler"
+        parent="mail.menu_configuration"
         action="user_mail_ai_rule_action"
-        sequence="20"/>
+        sequence="30"
+        groups="user_mail_common.group_own_email_settings"/>
 
 </odoo>

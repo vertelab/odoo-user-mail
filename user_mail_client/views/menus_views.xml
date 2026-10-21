@@ -39,11 +39,23 @@ action = {
             </field>
         </record>
 
+        <!--
+            E-postinställningar — användarens egen res.users-form, fliken
+            "E-mail settings".
+
+            Ligger under Odoos egen Discuss → Konfiguration tillsammans med
+            Notifications / Voice & Video / Canned Responses. Vi bygger ingen
+            egen rot: en parallell "Konfiguration" hade kolliderat med den
+            som redan finns.
+
+            Sequence 20 sätter oss efter Canned Responses (15) utan att röra
+            Odoos numrering.
+        -->
         <menuitem id="menu_user_mail_own_settings"
-            name="E-postkonfiguration"
-            parent="user_mail_common.menu_user_mail_settings"
+            name="E-postinställningar"
+            parent="mail.menu_configuration"
             action="action_user_mail_own_settings"
-            sequence="10"
+            sequence="20"
             groups="user_mail_common.group_own_email_settings"/>
 
     </data>

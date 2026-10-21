@@ -20,6 +20,29 @@
                 <notebook position="inside">
                     <page string="E-mail settings">
                         <!--
+                            Sieve-status.
+
+                            Den genererade sieve.script-vyn är ingen
+                            regellista — den är scriptet med synkstatus och
+                            senaste fel. Den hade tidigare en egen menypost
+                            bredvid E-postregler, vilket fick det att se ut
+                            som två regelsystem. Nu nås den härifrån, där
+                            frågan "körs mina regler verkligen?" ställs.
+
+                            Knappen är alltid synlig (inte bara vid fel):
+                            man ska kunna inspektera scriptet även när det
+                            fungerar.
+                        -->
+                        <div class="mb-2">
+                            <button type="object"
+                                name="action_open_sieve_script"
+                                class="btn btn-link p-0"
+                                string="Sieve-status"/>
+                            <span class="text-muted ms-2">
+                                Det genererade serverregelscriptet och dess synkstatus.
+                            </span>
+                        </div>
+                        <!--
                             Synkfelet måste synas här, inte bara i
                             sieve.script. En användare som sätter en regel
                             och får "sparat" tror att den är aktiv på

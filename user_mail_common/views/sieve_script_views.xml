@@ -88,12 +88,18 @@
             <field name="domain">[('user_id', '=', uid)]</field>
         </record>
 
-        <menuitem id="menu_sieve_script"
-            name="Serverregler (Sieve)"
-            parent="menu_user_mail_settings"
-            action="sieve_script_action"
-            sequence="30"
-            groups="user_mail_common.group_own_email_settings"/>
+        <!--
+            Ingen meny för sieve.script.
+
+            Vyn är inte en regellista — den är det GENERERADE scriptet med
+            synkstatus och senaste fel. Att lägga den bredvid E-postregler
+            var det som fick det att se ut som två regelsystem.
+
+            Den nås i stället via knappen "Sieve-status" på
+            E-postinställningar (se res_users_view.xml), där frågan "körs
+            mina regler verkligen?" faktiskt ställs. Vyn och action finns
+            kvar — bara menyposten är borta.
+        -->
 
     </data>
 </odoo>

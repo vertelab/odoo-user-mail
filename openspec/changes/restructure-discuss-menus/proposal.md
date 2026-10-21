@@ -1,10 +1,9 @@
-# Proposal: Restructure the Discuss mail menus
+# Proposal: Add mail settings to Discuss → Configuration
 
 ## Why
 
-The mail menus have grown by accretion. Each module added its own root entry
-under Discuss, so there are now **three sibling roots** where there should be
-one hierarchy:
+The mail modules each added their own root menu under Discuss, so there are
+now **three sibling roots** where there should be one:
 
 ```
 Diskutera
@@ -16,114 +15,96 @@ Diskutera
     └── Serverregler (Sieve)
 ```
 
-Three problems, in order of how much they cost the user:
+Odoo already has the right home for the last one. Discuss ships a
+**Configuration** menu (`mail.menu_configuration`, id 72) holding
+Notifications, Voice & Video and Canned Responses. Mail settings belong
+there, next to the other Discuss settings — not in a fourth root of our own.
 
-1. **"Inställningar" collides with Odoo's own Discuss → Configuration**
-   (`mail.menu_configuration`, already translated to "Konfiguration" in
-   Swedish). Two menus that both read as "settings" under the same root is a
-   coin flip for the user.
+Two further problems with the current layout:
 
-2. **"Regler" and "Serverregler (Sieve)" look like two kinds of rule.** They
-   are not. They are the same `user_mail_ai.rule` record, split by the
+1. **"Regler" and "Serverregler (Sieve)" look like two kinds of rule.** They
+   are not. There is one model, `user_mail_ai.rule`, split by the
    `enforcement` field: `client` rules run in Odoo after fetch, `server` rules
    are compiled into Sieve and run at delivery. A user who creates a rule in
    one menu cannot find it in the other, and concludes it was not saved.
 
-   "Serverregler (Sieve)" is not even a rule list — it is the generated
+   "Serverregler (Sieve)" is not a rule list at all — it is the generated
    `sieve.script` (read-only body, sync state, last error). It is a *status
-   view*, not a place to manage rules.
+   view*.
 
-3. **"Mail-hjälpredan" is a fourth name for the same feature.** It is the
-   AI triage inbox (`user_mail_ai.mail`), which is a mail list, not a
-   settings page — but sitting next to two settings-ish menus it reads as
-   configuration.
-
-The user's own words: *"Fråga varför skilja på Regler och Sieve-regler i
-menyn (Behövs Mail-hjälpredan?)"* — the split is not defensible, and the
-proposal should answer whether Mail-hjälpredan earns its place.
+2. **"Inställningar" is a fourth root for three items**, two of which are
+   configuration and one of which is status.
 
 ## What changes
 
-Target structure:
-
 ```
 Diskutera
-└── E-post                            (new root, user_mail_common)
-    ├── Imap-mail                     (the mail client)
-    ├── Mail-hjälpredan               (AI triage inbox)
-    ├── E-postkonfiguration           (own user form, E-mail settings tab)
-    ├── Regler                        (all rules, both enforcements)
-    └── Serverregler (Sieve)          (script status — renamed)
+├── Imap-mail                          ← unchanged, top level
+├── Mail-hjälpredan                    ← unchanged, top level
+└── Konfiguration                      (mail.menu_configuration, Odoo's own)
+    ├── Notifications                  (Odoo)
+    ├── Voice & Video                  (Odoo)
+    ├── Canned Responses               (Odoo)
+    ├── E-postinställningar            ← moved here (was E-postkonfiguration)
+    └── E-postregler                   ← moved here (was Regler)
 ```
 
-Changes:
+- **The root "Inställningar" is removed.** Its two settings entries move into
+  Odoo's existing Configuration menu, after Canned Responses.
 
-- **One root** `E-post` under Discuss, owned by `user_mail_common`. The three
-  current roots become children. `user_mail_ai` and `user_mail_imap` cannot
-  own a shared root (neither depends on the other), which is why it lives in
-  the base module — same reasoning as the existing `menu_user_mail_settings`.
+- **"E-postkonfiguration" → "E-postinställningar".** It opens the user's own
+  `res.users` form on the "E-mail settings" tab. The new name says what the
+  page contains rather than what it configures.
 
-- **"Inställningar" disappears** as a name. Its children move up to the new
-  root. This removes the collision with `mail.menu_configuration`.
+- **"Regler" → "E-postregler".** Same action, no `enforcement` filter — it
+  already shows both kinds. The prefix distinguishes it from Odoo's own mail
+  settings.
 
-- **"Regler" shows all rules.** The action already uses
-  `{'active_test': False}`; it gains no `enforcement` filter. The form gets
-  the `enforcement` field (already added in `add-sieve-rules`), so the
-  distinction is visible *inside* a rule instead of as two menus.
+- **"Serverregler (Sieve)" leaves the menu.** It is not a rule list; it is the
+  generated `sieve.script` with sync state and last error. Keeping it beside
+  "E-postregler" is what created the impression of two rule systems.
 
-- **"Serverregler (Sieve)" is renamed** to make clear it is status, not
-  management: **"Sieve-status"**. It keeps the script view — that is where a
-  failed sync is visible, and it must not be hidden.
+  The status must stay reachable — a failed sync has to be visible. It moves
+  to a **button on the E-postinställningar page** ("Sieve-status") which opens
+  the script view. That is where a user who wonders "are my rules actually
+  running?" is already looking.
 
-- **`E-postkonfiguration` opens the user's own form** at the "E-mail settings"
-  tab. Already implemented as an `ir.actions.server` returning an act_window
-  with `res_id = env.uid`; unchanged by this proposal apart from its parent.
+## Naming
 
-## Open question — does Mail-hjälpredan belong?
+**We do not rename Odoo's Configuration menu.** It stays "Konfiguration" in
+Swedish and "Configuration" in English. Whether the label is the best one is a
+translation question, not a structural one — and it is not ours to decide by
+renaming another module's menu.
 
-The user asked. The honest answer is **yes, but it is mis-parented today**.
-
-It is not a settings page and not a duplicate of Imap-mail:
-
-| | Imap-mail | Mail-hjälpredan |
-|---|---|---|
-| Shows | raw mail from IMAP | messages after AI triage |
-| Data | live IMAP folders | `user_mail_ai.mail` records |
-| Purpose | read and send mail | review classification, rules, handoffs |
-| Works without AI | yes | no |
-
-So it stays — but under `E-post` as a sibling of Imap-mail, not as a
-third root. If the AI module is not installed the menu is absent anyway,
-because it is defined in `user_mail_ai`.
-
-**Decision needed:** keep the name "Mail-hjälpredan", or rename to something
-that says what it is (e.g. "AI-inkorg")? Keeping it is the smaller change;
-renaming costs a `sv.po` entry and user retraining.
+The two entries we add are named so they cannot be confused with Odoo's own:
+**E-postinställningar** and **E-postregler** both carry the "E-post-" prefix,
+which none of Odoo's three children do.
 
 ## Non-goals
 
-- No change to what any of the actions do — only where they hang.
+- No change to what any action does — only names, parents and sequence.
 - No change to rule semantics, `enforcement`, or the Sieve compiler.
-- No merging of `user_mail_ai.mail` and the IMAP message list. They are
-  different data with different lifetimes.
-- No new module. All menu records stay where they are; only `parent` and
-  `sequence` change.
+- No merging of `user_mail_ai.mail` and the IMAP message list.
+- No new module. All menu records stay in their current modules.
+- No rename of `mail.menu_configuration` or any other Odoo menu.
 
 ## Risks
 
-- **Existing user bookmarks.** Anyone who has bookmarked a menu URL keeps a
-  working action — menu ids are unchanged, only their parent. Low risk.
+- **Existing user bookmarks.** Menu ids are unchanged, only names and parents,
+  so a bookmarked action still opens. Low risk.
 
-- **`groups` on the root.** The new root must carry
-  `user_mail_common.group_own_email_settings`, or users without it see an
-  empty "E-post" menu. The children already carry their own groups; the root
-  must not be more permissive than its children.
+- **Removing "Serverregler (Sieve)" from the menu** must not remove the view.
+  If the button on E-postinställningar is not added in the same change, the
+  only place a failed sync is visible disappears from the UI.
 
-- **Ordering.** `menu_user_mail_settings` is currently `sequence 90` under
-  Discuss. Moving it under a new root changes what the user sees at the top
-  level: one "E-post" entry instead of three. That is the point, but it is a
-  visible change and should be mentioned in the release note.
+- **Groups.** `mail.menu_configuration` has no group restrictions — every
+  internal user sees it. Our two entries must carry
+  `user_mail_common.group_own_email_settings` so they are hidden from users
+  who cannot use them, rather than showing entries that fail on click.
 
-- **The old root must be removed, not orphaned.** Leaving
-  `menu_user_mail_settings` in place with no children produces an empty
-  "Inställningar" menu under Discuss.
+- **Module dependency.** `user_mail_common` already depends on `mail`, so
+  parenting to `mail.menu_configuration` adds no new dependency. Verify the
+  same for `user_mail_client` and `user_mail_ai`.
+
+- **Sequence collision.** Odoo's children use 1, 5 and 15. Our entries take
+  20 and 30 so they sort after Canned Responses without renumbering Odoo's.

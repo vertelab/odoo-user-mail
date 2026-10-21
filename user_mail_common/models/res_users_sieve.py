@@ -99,3 +99,27 @@ class ResUsers(models.Model):
     # `_sieve_password()` ligger i res_users_password.py, tillsammans med
     # fältet `sieve_password` och den write()-hook som fångar klartexten.
     # Att ha den där och inte här håller lösenordshanteringen på ett ställe.
+
+    # ── Navigering ───────────────────────────────────────────────────────
+
+    def action_open_sieve_script(self):
+        """Öppna det genererade Sieve-scriptet för inloggad användare.
+
+        Ersätter den tidigare menyposten "Serverregler (Sieve)". Vyn är
+        ingen regellista — den är scriptet med synkstatus och senaste fel —
+        och hör därför på inställningssidan, inte i menyn bredvid
+        E-postregler.
+
+        Skapar scriptet om det saknas, så knappen alltid leder någonstans
+        och statusen alltid går att inspektera (även innan första regeln).
+        """
+        self.ensure_one()
+        script = self._sieve_script(create=True)
+        return {
+            'type': 'ir.actions.act_window',
+            'name': _('Sieve-status'),
+            'res_model': 'sieve.script',
+            'res_id': script.id,
+            'view_mode': 'form',
+            'target': 'current',
+        }

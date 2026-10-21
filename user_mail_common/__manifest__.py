@@ -49,7 +49,12 @@ User Mail Common
     'repository': 'https://github.com/vertelab/odoo-user-mail',
     # Any module necessary for this one to work correctly
 
-    'depends': ['base', 'base_setup'],
+    # `mail` krävs: menyn hänger under mail.menu_root_discuss och
+    # mail.menu_configuration. Utan beroendet laddas den här modulen före
+    # mail och menyn får ingen förälder — Odoo 18 kastar då
+    # "External ID not found" vid uppgradering på en ren installation.
+    # Det syntes aldrig här eftersom mail alltid redan var installerad.
+    'depends': ['base', 'base_setup', 'mail'],
     'external_dependencies': {
         # sievelib: ManageSieve-klient (RFC 5804) + Sieve-parser/factory.
         # KRITISK — utan den kan inga server-side regler eller vacation
