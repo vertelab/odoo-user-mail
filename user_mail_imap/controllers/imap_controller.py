@@ -1,7 +1,7 @@
 import json
 import urllib.parse
 
-from odoo import http
+from odoo import _, http
 from odoo.exceptions import UserError, ValidationError
 from odoo.http import request
 
