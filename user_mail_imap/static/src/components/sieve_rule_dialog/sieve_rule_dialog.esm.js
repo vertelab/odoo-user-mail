@@ -21,8 +21,9 @@ export class SieveRuleDialog extends Component {
     static template = "user_mail_imap.SieveRuleDialog";
     static components = { Dialog };
     static props = {
-        message: Object,
-        close: Function,
+        // `close` injiceras av dialogService, inte av anroparen.
+        close: { type: Function, optional: true },
+        message: { type: [Object, { value: null }], optional: true },
     };
 
     setup() {
@@ -30,7 +31,7 @@ export class SieveRuleDialog extends Component {
         this.state = useState({
             name: "",
             conditionKind: "sender",
-            conditionText: this.props.message.from_email || "",
+            conditionText: (this.props.message && this.props.message.from_email) || "",
             action: "move_to_folder",
             folder: "",
             enforcement: "server",

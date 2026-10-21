@@ -32,9 +32,13 @@ class MailImap extends Component {
         // pattern Odoo core uses (`this.ui = useState(useService("ui"))`).
         this.state = useState(this.store.state);
         this.showComposer = useState({ visible: false, type: 'new', message: null });
-        // Dialogen för "Skapa regel" — öppnas från meddelandevyn med det
-        // valda meddelandet som förlaga.
-        this.showRuleDialog = useState({ visible: false, message: null });
+        // Dialogen öppnas via dialogService, inte genom att rendera <Dialog>
+        // i mallen. Odoos Dialog-komponent gör `useState(this.env.dialogData)`
+        // i sin setup, och `dialogData` sätts bara av dialogService. Renderas
+        // den direkt blir värdet undefined och useState kastar
+        // "Cannot make the given value reactive" — vilket dödar hela
+        // webbklienten, inte bara dialogen.
+        this.dialog = useService("dialog");
         this.passwordInput = useRef("passwordInput");
         this.mailListContainer = useRef("mailListContainer");
         this._resizeActive = false;
@@ -201,12 +205,7 @@ class MailImap extends Component {
     }
 
     openRuleDialog(msg) {
-        this.showRuleDialog.message = msg;
-        this.showRuleDialog.visible = true;
-    }
-
-    closeRuleDialog() {
-        this.showRuleDialog.visible = false;
+        this.dialog.add(SieveRuleDialog, { message: msg });
     }
 
     async onSendMail(data) {

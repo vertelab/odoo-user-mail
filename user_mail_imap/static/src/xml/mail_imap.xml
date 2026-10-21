@@ -61,10 +61,6 @@
                         onToggleFlag="(msg, v) => this.onToggleFlag(msg, v)"/>
                 </div>
             </t>
-            <t t-if="showRuleDialog.visible">
-                <SieveRuleDialog message="showRuleDialog.message"
-                    close="() => this.closeRuleDialog()"/>
-            </t>
             <t t-if="showComposer.visible">
                 <Composer type="showComposer.type"
                     message="showComposer.message"
