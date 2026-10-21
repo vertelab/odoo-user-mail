@@ -1,6 +1,6 @@
 {
     'name': 'User Mail: IMAP Client',
-    'version': '18.0.1.10.0',
+    'version': '18.0.1.10.1',
     'summary': 'IMAP email client integrated in Odoo — with per-user poller.',
     'description': '''
 IMAP Client
@@ -33,6 +33,9 @@ IMAP Client
         'wizards/imap_password_wizard.xml',
         'views/menus_views.xml',
         'views/res_users_view.xml',
+        # Fylld markör i user_mail_clients fristående E-postinställningar.
+        # Måste laddas EFTER user_mail_client — se views/own_settings/.
+        'views/own_settings/res_users_view.xml',
     ],
     'assets': {
         'web.assets_backend': [

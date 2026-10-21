@@ -19,7 +19,7 @@
 ##############################################################################
 
 from odoo import models, fields, api, _
-from odoo.exceptions import UserError, ValidationError
+from odoo.exceptions import AccessError, UserError, ValidationError
 from odoo import tools
 import uuid
 import re
@@ -118,6 +118,104 @@ class res_users(models.Model):
     email = fields.Char(help="Your e-mail address, Company or External")
     login = fields.Char(string="Email or login")
     login = fields.Char(help="External e-mail or login. Your Company e-mail address are constructed from login")
+
+    # ── Egen e-postinställnings-form: skrivbara fält för ägaren ──────────
+    # base.res_users.write() släpper bara igenom en skrivning på den egna
+    # posten om ALLA nycklar finns i SELF_WRITEABLE_FIELDS (res_users.py:741)
+    # — annars faller den igenom till check_access('write'), och
+    # base.group_user har bara läsrätt på res.users. Gruppen
+    # group_own_email_settings ger inte skrivrätt på modellen (det skulle
+    # öppna hela användarposten), så fälten måste listas här.
+    #
+    # Detta är samma mekanism som Odoo själv använder för name/email/lang:
+    # listan är en vitlista av fält som är ofarliga att skriva på SIG SJÄLV.
+    # Posten som skrivs är alltid env.user (res_id = env.uid i
+    # server-actionen).
+    #
+    # VIKTIGT: base.write() gör `self = self.sudo()` så snart alla nycklar
+    # står i listan — den kontrollerar INTE grupptillhörighet. Vitlistan är
+    # alltså ett fälturval, inte en behörighetsgrind: en internal user som
+    # saknar group_own_email_settings skulle ändå kunna spara mailfälten.
+    # Grinden sätts därför explicit i write() nedan (_check_mail_settings_
+    # rights), som nekar varje skrivning av mailfälten utan gruppen.
+    #
+    # UTANFÖR listan med flit: postfix_mail/maildir (härledda),
+    # dovecot_password (sätts via user_mail_client.write() →
+    # generate_dovecot_sha512, aldrig direkt), quota (admin),
+    # sieve_script_id (härledd), postfix_active (serverns sanning — vad
+    # postfix faktiskt levererar till, se user_mail_server).
+    @property
+    def SELF_WRITEABLE_FIELDS(self):
+        return super().SELF_WRITEABLE_FIELDS + [
+            'forward_active', 'forward_address', 'forward_cp',
+            'postfix_alias_ids',
+            'spam_active', 'spam_killevel', 'spam_tag', 'spam_tag2',
+            'vacation_active', 'vacation_subject', 'vacation_text',
+            'vacation_from', 'vacation_to', 'vacation_forward',
+            'virus_active',
+        ]
+
+    @property
+    def SELF_READABLE_FIELDS(self):
+        return super().SELF_READABLE_FIELDS + [
+            'postfix_active', 'postfix_alias_ids', 'postfix_mail',
+            'maildir', 'quota', 'forward_active', 'forward_address',
+            'forward_cp', 'spam_active', 'spam_killevel', 'spam_tag',
+            'spam_tag2', 'vacation_active', 'vacation_subject',
+            'vacation_text', 'vacation_from', 'vacation_to',
+            'vacation_forward', 'virus_active',
+            'sieve_script_state', 'sieve_script_error',
+        ]
+
+    # Fält som kräver group_own_email_settings när användaren skriver på
+    # SIG SJÄLV. Samma urval som SELF_WRITEABLE_FIELDS, minus de som
+    # servern äger. Skrivs av admin (eller av gruppen) på annans post
+    # gäller vanliga ACL:er — grinden nedan gäller bara self-write.
+    MAIL_SETTINGS_FIELDS = {
+        'forward_active', 'forward_address', 'forward_cp',
+        'postfix_alias_ids', 'spam_active', 'spam_killevel',
+        'spam_tag', 'spam_tag2', 'vacation_active', 'vacation_subject',
+        'vacation_text', 'vacation_from', 'vacation_to',
+        'vacation_forward', 'virus_active',
+    }
+
+    def _check_mail_settings_rights(self, values):
+        """Neka self-write av mailfälten utan group_own_email_settings.
+
+        Nödvändig därför att base.write() byter till sudo() så fort alla
+        nycklar finns i SELF_WRITEABLE_FIELDS (res_users.py:741-750) och
+        därmed aldrig prövar ACL:er för den egna posten. Utan den här
+        kontrollen skulle varje internal user kunna sätta vacation,
+        vidarebefordran och spamnivåer på sitt eget konto.
+
+        Admin (group_erp_manager) släpps alltid igenom — den gruppen har
+        fulla rättigheter på res.users och sätter fälten i
+        användarformuläret.
+        """
+        if not set(values) & self.MAIL_SETTINGS_FIELDS:
+            return
+        if self.env.su:
+            return
+        if self.env.user.has_group('base.group_erp_manager'):
+            return
+        if not self.env.user.has_group(
+                'user_mail_common.group_own_email_settings'):
+            raise AccessError(_(
+                "Du saknar behörigheten 'Administrate own email settings' "
+                "och kan därför inte ändra dina e-postinställningar. "
+                "Kontakta din administratör."))
+
+    def write(self, values):
+        """Grind före base.write()s sudo-genväg.
+
+        Ordningen är avgörande: base.res_users.write() gör `self = self.sudo()`
+        när alla nycklar står i SELF_WRITEABLE_FIELDS, och släpper då förbi
+        varje ACL. Grinden måste därför ligga här — före super() — annars är
+        den verkningslös.
+        """
+        if self == self.env.user:
+            self._check_mail_settings_rights(values)
+        return super().write(values)
 
     USER_MAIL_FIELDS = ['name', 'login',
                         'dovecot_password',

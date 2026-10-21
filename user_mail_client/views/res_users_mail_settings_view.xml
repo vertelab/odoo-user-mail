@@ -3,7 +3,134 @@
     <data>
 
         <!--
-            E-postinställningar för den inloggade användaren.
+            E-postinställningar för den inloggade användaren — menyns yta.
+
+            VARFÖR EN FRISTÅENDE VY (ingen inherit_id):
+            Vyn nedan (view_users_form_simple_modif_mail) hänger in
+            e-postinställningarna som en flik i base.view_users_form_simple_modif.
+            Det gör att användaren FÅR HELA Min profil-formuläret: Preferences,
+            Security och varje flik som en tredjepartsmodul har lagt till, med
+            e-posten nedstoppad på en flik i mitten.
+
+            Dessutom filtrerar base.view_users_form_simple_modif sin arch mot
+            SELF_READABLE_FIELDS / SELF_WRITEABLE_FIELDS (res_users.py:343 i
+            Odoo core). Fält som ingen modul har registrerat där renderas som
+            tomma grupper — etiketter utan inmatningsfält.
+
+            Den här vyn ärver ingenting. Den deklarerar sina fält direkt, så
+            den är varken filtrerad eller beroende av andra modulers flikar.
+            Menyn pekar hit; Min profil behåller den ärvda vyn.
+        -->
+        <record id="view_user_mail_own_settings_form" model="ir.ui.view">
+            <field name="name">res.users.mail.own.settings.form</field>
+            <field name="model">res.users</field>
+            <field name="arch" type="xml">
+                <form string="E-postinställningar">
+
+                    <!-- Namnet först: användaren ska se vems inställningar
+                         hen ändrar. Övriga profilfält (språk, tidszon,
+                         signatur) hör till Min profil och släpps inte in. -->
+                    <div class="oe_title">
+                        <h1>
+                            <field name="name" placeholder="Namn" required="1"/>
+                        </h1>
+                    </div>
+
+                    <!-- Lösenordssektionen injiceras av user_mail_imap via
+                         den här markören (design.md, beslut 4). user_mail_client
+                         känner inte till imap_password — beroenderiktningen
+                         är client -> common, inte client -> imap. -->
+                    <div name="mail_credentials_anchor"/>
+
+                    <!--
+                        Synkfelet måste synas här, inte bara i
+                        sieve.script. En användare som sätter en regel
+                        och får "sparat" tror att den är aktiv på
+                        servern. Är den inte det ska det stå rakt ut.
+                    -->
+                    <div class="alert alert-danger" role="alert"
+                        invisible="sieve_script_state != 'error'">
+                        <field name="sieve_script_state" invisible="1"/>
+                        <strong>Dina serverregler är inte aktiva.</strong>
+                        Scriptet kunde inte laddas upp till mejlservern,
+                        så reglerna och semesterautosvaret körs inte.
+                        <field name="sieve_script_error" nolabel="1"
+                            class="mt-2 font-monospace small"/>
+                    </div>
+
+                    <!-- Sieve-status. Den genererade sieve.script-vyn är
+                         ingen regellista — den är scriptet med synkstatus
+                         och senaste fel. -->
+                    <div class="mb-2">
+                        <button type="object"
+                            name="action_open_sieve_script"
+                            class="btn btn-link p-0"
+                            string="Sieve-status"/>
+                        <span class="text-muted ms-2">
+                            Det genererade serverregelscriptet och dess synkstatus.
+                        </span>
+                    </div>
+
+                    <group>
+                        <field name="postfix_active" string="Postfix Active"/>
+                    </group>
+                    <group invisible="postfix_active == False">
+                        <field groups="base.group_erp_manager" name="postfix_mail" readonly="1"/>
+                    </group>
+
+                    <group invisible="postfix_active == False" string="Vacation">
+                        <group>
+                            <field name="vacation_active"/>
+                            <field invisible="vacation_active == False" name="vacation_from" required="vacation_active == True"/>
+                            <field invisible="vacation_active == False" name="vacation_to" required="vacation_active == True"/>
+                        </group>
+                        <group>
+                            <field invisible="vacation_active == False" name="vacation_subject" placeholder="I am at vacation" required="vacation_active == True"/>
+                            <field invisible="vacation_active == False" name="vacation_text" required="vacation_active == True"/>
+                            <field invisible="vacation_active == False" name="vacation_forward" placeholder="my@vacationmail.com" required="vacation_active == True"/>
+                        </group>
+                    </group>
+
+                    <group invisible="postfix_active == False">
+                        <group string="Forward">
+                            <field name="forward_active"/>
+                            <field invisible="forward_active == False" name="forward_address" placeholder="my@temporarymail.com" required="forward_active == True"/>
+                            <field invisible="forward_active == False" name="forward_cp"/>
+                        </group>
+                        <group string="Virus check">
+                            <field name="virus_active"/>
+                        </group>
+                    </group>
+
+                    <group invisible="postfix_active == False">
+                        <group string="Spam check">
+                            <field name="spam_active"/>
+                            <field invisible="spam_active == False" name="spam_tag" required="spam_active == True"/>
+                            <field invisible="spam_active == False" name="spam_tag2" required="spam_active == True"/>
+                            <field invisible="spam_active == False" name="spam_killevel" required="spam_active == True"/>
+                        </group>
+                        <group string="Misc">
+                            <field name="maildir" readonly="1"/>
+                            <field name="quota"/>
+                        </group>
+                    </group>
+
+                    <group invisible="postfix_active == False" string="Alias">
+                        <field colspan="2" name="postfix_alias_ids" nolabel="1" widget="one2many_list">
+                            <list editable="bottom" string="Mail alias">
+                                <field name="name"/>
+                                <field class="oe_read_only" invisible="name == ''" name="mail"/>
+                                <field name="active"/>
+                            </list>
+                        </field>
+                    </group>
+
+                </form>
+            </field>
+        </record>
+
+        <!--
+            E-postinställningar för den inloggade användaren — Min profil.
 
             VARFÖR EN EGEN VY OCH INTE base.view_users_form:
             Administratören öppnar en användare via Inställningar → Användare
@@ -20,8 +147,12 @@
 
             Den här vyn hänger e-postinställningarna som en EGEN flik i
             simple_modif-formuläret, med samma fält och samma synlighetsregler
-            som adminvyn. Fliken hamnar först, eftersom det är det enda
-            ärendet menyn leder till.
+            som adminvyn. Fliken hamnar först.
+
+            Menyn pekar INTE längre hit — den öppnar den fristående vyn ovan.
+            Den här vyn behålls för att Min profil ska ha kvar sin
+            e-postflik; att ta bort den hade stängt en väg till
+            inställningarna som användare redan hittar.
         -->
         <record id="view_users_form_simple_modif_mail" model="ir.ui.view">
             <field name="name">res.users.preferences.form.mail</field>

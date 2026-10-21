@@ -3,11 +3,11 @@
     <data>
 
         <!--
-            Inställningar → E-postkonfiguration
+            Inställningar → E-postinställningar
 
-            Öppnar användarens EGET formulär på fliken "E-mail settings" —
-            samma formulär som administratören ser under Inställningar →
-            Användare, men scopat till sig själv.
+            Öppnar användarens EGNA e-postinställningar i en fristående form
+            (view_user_mail_own_settings_form): namn överst, e-postfälten
+            under, inga profil- eller säkerhetsflikar.
 
             VARFÖR EN SERVER ACTION OCH INTE EN act_window MED res_id:
             `ir.actions.act_window.res_id` är ett STATISKT heltal. Vi kan
@@ -23,20 +23,20 @@
             <field name="state">code</field>
             <field name="groups_id" eval="[(4, ref('user_mail_common.group_own_email_settings'))]"/>
             <field name="code">
-# Öppna den inloggade användarens eget formulär.
-# form_view_initial_mode=edit gör att fliken är redigerbar direkt —
+# Öppna den inloggade användarens egna e-postinställningar.
+# form_view_initial_mode=edit gör att formuläret är redigerbart direkt —
 # användaren kommer hit för att ÄNDRA sin e-postkonfiguration.
 action = {
     'type': 'ir.actions.act_window',
-    'name': 'E-postkonfiguration',
+    'name': 'E-postinställningar',
     'res_model': 'res.users',
     'res_id': env.uid,
     'view_mode': 'form',
-    # Explicit simple_modif-vyn, inte base.view_users_form. En vanlig
-    # användare får inte läsa andra användare; adminformuläret skulle
-    # dessutom visa fliken "Preferences" först och e-postinställningarna
-    # på en flik hen inte letar på. Se res_users_mail_settings_view.xml.
-    'views': [(env.ref('user_mail_client.view_users_form_simple_modif_mail').id, 'form')],
+    # Fristående vy, inte simple_modif. Den ärvda vyn tvingade in hela
+    # Min profil (alla flikar) och filtrerades dessutom mot
+    # SELF_*_FIELDS, så e-postfälten blev tomma grupper. Se
+    # res_users_mail_settings_view.xml.
+    'views': [(env.ref('user_mail_client.view_user_mail_own_settings_form').id, 'form')],
     'target': 'current',
     'context': {'form_view_initial_mode': 'edit'},
 }
@@ -44,8 +44,7 @@ action = {
         </record>
 
         <!--
-            E-postinställningar — användarens egen res.users-form, fliken
-            "E-mail settings".
+            E-postinställningar — användarens egen fristående mailform.
 
             Ligger under Odoos egen Discuss → Konfiguration tillsammans med
             Notifications / Voice & Video / Canned Responses. Vi bygger ingen
