@@ -2,11 +2,39 @@
 <templates xml:space="preserve">
     <t t-name="user_mail_imap.MailList" owl="1">
         <section class="d-flex flex-column border-end h-100">
-            <div class="p-2 border-bottom bg-light">
-                <h6 class="mb-0">
+            <!--
+                Listhuvudet: mappnamn + antal, och de två åtgärder som hör
+                till listan som helhet — stjärnfilter och "Skapa regel".
+                De låg tidigare bara i meddelandevyn, vilket krävde att man
+                öppnade ett mail för att komma åt dem.
+            -->
+            <div class="p-2 border-bottom bg-light d-flex align-items-center gap-2">
+                <h6 class="mb-0 flex-grow-1 text-truncate">
                     <t t-out="props.currentFolder"/>
                     <span class="text-muted small ms-2" t-if="props.total">(<t t-out="props.total"/>)</span>
                 </h6>
+                <!--
+                    Stjärnfilter. Växlar listan till att bara visa
+                    \Flagged-mail. Aktivt läge färgas så det syns att
+                    filtret är på — annars ser en kort lista ut som en tom
+                    mapp.
+                -->
+                <button class="btn btn-sm"
+                    t-att-class="props.starredOnly ? 'btn-warning' : 'btn-outline-secondary'"
+                    t-att-title="props.starredOnly ? 'Visa alla mail' : 'Visa bara stjärnmärkta'"
+                    t-on-click="() => props.onToggleStarredFilter()">
+                    <i class="fa fa-star"/>
+                </button>
+                <!--
+                    "Skapa regel" utan valt meddelande: dialogen öppnas utan
+                    förifylld avsändare, så man kan bygga en regel i förväg.
+                -->
+                <button class="btn btn-sm btn-outline-secondary"
+                    t-att-disabled="!props.selectedMessage"
+                    t-att-title="props.selectedMessage ? 'Skapa regel från valt meddelande' : 'Välj ett meddelande först'"
+                    t-on-click="() => props.openRuleDialog(props.selectedMessage)">
+                    <i class="fa fa-filter me-1"/>Regel
+                </button>
             </div>
             <!--
                 The search field belongs to the mail list, not to the folder
@@ -40,7 +68,8 @@
                 </t>
                 <t t-elif="!props.messages || !props.messages.length">
                     <div class="text-center p-4 text-muted">
-                        <t t-if="props.searchActive">No messages match your search</t>
+                        <t t-if="props.starredOnly">Inga stjärnmärkta mail i mappen</t>
+                        <t t-elif="props.searchActive">No messages match your search</t>
                         <t t-else="">Inga meddelanden</t>
                     </div>
                 </t>
@@ -49,6 +78,18 @@
                         <div class="d-flex p-3 border-bottom cursor-pointer"
                             t-att-class="msg.uid === (props.selectedMessage &amp;&amp; props.selectedMessage.uid) ? 'bg-primary-subtle' : (msg.seen ? '' : 'fw-bold bg-white')"
                             t-on-click="() => props.onMessageClick(msg.uid)">
+                            <!--
+                                Stjärnan sitter först i raden, som i
+                                Thunderbird. Klicket stannar här (se
+                                onStarClick) — annars byter det valt
+                                meddelande samtidigt som det stjärnmärker.
+                            -->
+                            <div class="me-2 pt-1"
+                                t-on-click="(ev) => this.onStarClick(ev, msg)">
+                                <i class="fa"
+                                    t-att-class="msg.flagged ? 'fa-star text-warning' : 'fa-star-o text-muted'"
+                                    t-att-title="msg.flagged ? 'Ta bort stjärnmärkning' : 'Stjärnmärk'"/>
+                            </div>
                             <div class="flex-grow-1 min-width-0">
                                 <div class="d-flex justify-content-between">
                                     <span class="text-truncate" t-out="msg.from_"/>

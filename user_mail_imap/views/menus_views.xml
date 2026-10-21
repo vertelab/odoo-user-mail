@@ -5,9 +5,14 @@
         <field name="tag">user_mail_imap.dashboard</field>
     </record>
 
+    <!--
+        Sequence 0: Imap-mail ska ligga FÖRST under Discuss, före
+        Konfiguration (1) och Integrationer (10). Det är den meny man
+        använder dagligen; inställningarna hör sist.
+    -->
     <menuitem id="menu_user_mail_imap"
         name="Imap-mail"
         parent="mail.menu_root_discuss"
         action="action_user_mail_imap"
-        sequence="99"/>
+        sequence="0"/>
 </odoo>

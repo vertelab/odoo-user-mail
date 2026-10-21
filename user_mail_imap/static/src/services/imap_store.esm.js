@@ -41,6 +41,10 @@ const store = {
             folderError: null,
             searchQuery: '',
             searchActive: false,
+            // Stjärnfilter: visar bara \Flagged-mail i den hämtade sidan.
+            // Klient-side med flit — se onToggleStarredFilter i
+            // mail_imap.esm.js.
+            starredOnly: false,
             searchTotal: 0,
         });
 

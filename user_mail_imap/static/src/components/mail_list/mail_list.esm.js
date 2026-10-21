@@ -25,5 +25,26 @@ export class MailList extends Component {
         onMessageClick: Function,
         loadMore: Function,
         openComposer: Function,
+        // Stjärnmärkning och stjärnfilter. `onToggleFlag` sätter/ta bort
+        // \Flagged på ett enskilt mail; `starredOnly` filtrerar listan.
+        onToggleFlag: Function,
+        starredOnly: { type: Boolean, optional: true },
+        onToggleStarredFilter: Function,
+        // "Skapa regel" i listhuvudet — samma dialog som i meddelandevyn,
+        // men nåbar utan att först öppna ett mail.
+        openRuleDialog: Function,
     };
+
+    /**
+     * Klick på stjärnan ska INTE välja mailet.
+     *
+     * Raden har en klickhanterare som öppnar meddelandet. Utan
+     * stopPropagation skulle ett stjärnklick både markera mailet och byta
+     * det valda meddelandet — användaren tappar sin plats i listan för att
+     * hen ville stjärnmärka något annat.
+     */
+    onStarClick(ev, msg) {
+        ev.stopPropagation();
+        this.props.onToggleFlag(msg, !msg.flagged);
+    }
 }

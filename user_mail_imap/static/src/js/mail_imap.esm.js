@@ -101,6 +101,50 @@ class MailImap extends Component {
     async onMessageClick(uid) {
         await this.store.loadMail(this.state.currentFolder, uid);
     }
+
+    /**
+     * Stjärnmärk eller avstjärna ett mail.
+     *
+     * Flaggan sätts på servern först och därefter i den lokala listan.
+     * Ordningen är medveten: misslyckas IMAP-anropet ska stjärnan inte
+     * ändras i UI:t — annars visar listan ett läge som servern inte har,
+     * och nästa omladdning tar tillbaka den utan förklaring.
+     */
+    async onToggleFlag(msg, value) {
+        try {
+            await this.store.setFlag(this.state.currentFolder, [msg.uid], 'flagged', value);
+            msg.flagged = value;
+            // Det valda meddelandet kan vara samma post — håll dem i takt.
+            if (this.state.selectedMessage && this.state.selectedMessage.uid === msg.uid) {
+                this.state.selectedMessage.flagged = value;
+            }
+        } catch (e) {
+            this.state.folderError = `Kunde inte stjärnmärka: ${e.message || e}`;
+        }
+    }
+
+    /**
+     * Stjärnfilter. Filtrerar den REDAN hämtade sidan i klienten.
+     *
+     * Ett server-side-filter (`SEARCH FLAGGED`) hade varit riktigare för
+     * stora mappar, men kräver en egen sökväg genom cachen och
+     * pagineringen. Filtret här är avsett som en snabb vy av det man ser —
+     * stjärnmärkta mail längre bak i mappen kräver fortfarande att man
+     * scrollar eller söker.
+     */
+    onToggleStarredFilter() {
+        this.state.starredOnly = !this.state.starredOnly;
+    }
+
+    /**
+     * Listan efter stjärnfiltret. `props.messages` är sidan som hämtats;
+     * filtreringen sker här så att `total` fortfarande visar mappens
+     * verkliga antal.
+     */
+    get visibleMessages() {
+        const msgs = this.state.messages || [];
+        return this.state.starredOnly ? msgs.filter((m) => m.flagged) : msgs;
+    }
     openComposer(type, msg) {
         this.showComposer.visible = true;
         this.showComposer.type = type;

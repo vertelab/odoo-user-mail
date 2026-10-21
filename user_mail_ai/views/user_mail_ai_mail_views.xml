@@ -145,10 +145,19 @@
         </field>
     </record>
 
-    <menuitem id="menu_user_mail_ai"
-        name="Mail-hjälpredan"
-        parent="mail.menu_root_discuss"
-        action="user_mail_ai_mail_action"
-        sequence="100"/>
+    <!--
+        Ingen menypost för Mail-hjälpredan.
+
+        Vyn (user_mail_ai_mail_action) finns kvar och nås via AI-menyn —
+        men den ska inte ligga som en egen post under Discuss bredvid
+        Imap-mail. Två brevlådor sida vid sida gjorde det oklart vilken
+        som är den riktiga.
+
+        Posten avaktiveras i stället för att raderas: xmlid:t kan
+        refereras av andra moduler, och active=False är reversibelt.
+    -->
+    <record id="menu_user_mail_ai" model="ir.ui.menu">
+        <field name="active" eval="False"/>
+    </record>
 
 </odoo>

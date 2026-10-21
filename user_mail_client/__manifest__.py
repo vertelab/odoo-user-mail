@@ -65,6 +65,7 @@ User Mail Client
     'data': [
         'security/ir.model.access.csv',
         'views/res_users_view.xml',
+        'views/res_users_mail_settings_view.xml',
         'views/res_users_data.xml',
         'views/res_users_report.xml',
         'views/menus_views.xml'

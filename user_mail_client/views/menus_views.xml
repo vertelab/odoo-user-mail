@@ -32,7 +32,11 @@ action = {
     'res_model': 'res.users',
     'res_id': env.uid,
     'view_mode': 'form',
-    'views': [(False, 'form')],
+    # Explicit simple_modif-vyn, inte base.view_users_form. En vanlig
+    # användare får inte läsa andra användare; adminformuläret skulle
+    # dessutom visa fliken "Preferences" först och e-postinställningarna
+    # på en flik hen inte letar på. Se res_users_mail_settings_view.xml.
+    'views': [(env.ref('user_mail_client.view_users_form_simple_modif_mail').id, 'form')],
     'target': 'current',
     'context': {'form_view_initial_mode': 'edit'},
 }

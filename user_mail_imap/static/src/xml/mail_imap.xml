@@ -30,7 +30,7 @@
                     openComposer="() => this.openComposer('new', null)"/>
                 <div class="d-flex flex-grow-1" style="min-width: 0; position: relative;">
                     <div class="d-flex flex-column" t-ref="mailListContainer" style="width: 380px; min-width: 200px;">
-                        <MailList messages="state.messages"
+                        <MailList messages="visibleMessages"
                             total="state.totalMessages"
                             loading="state.loading"
                             selectedMessage="state.selectedMessage"
@@ -39,10 +39,14 @@
                             searchActive="state.searchActive"
                             searchQuery="state.searchQuery"
                             searchTotal="state.searchTotal"
+                            starredOnly="state.starredOnly"
+                            onToggleStarredFilter="() => this.onToggleStarredFilter()"
+                            onToggleFlag="(msg, v) => this.onToggleFlag(msg, v)"
                             onSearch="(q) => this.onSearch(q)"
                             onClearSearch="() => this.onClearSearch()"
                             onMessageClick="(uid) => this.onMessageClick(uid)"
                             loadMore="() => this.loadMore()"
+                            openRuleDialog="(msg) => this.openRuleDialog(msg)"
                             openComposer="(type, msg) => this.openComposer(type, msg)"/>
                     </div>
                     <div class="bg-light" style="width: 4px; cursor: col-resize; flex-shrink: 0;"

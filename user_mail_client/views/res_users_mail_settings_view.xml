@@ -1,0 +1,136 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <data>
+
+        <!--
+            E-postinställningar för den inloggade användaren.
+
+            VARFÖR EN EGEN VY OCH INTE base.view_users_form:
+            Administratören öppnar en användare via Inställningar → Användare
+            och får base.view_users_form, där fliken "E-mail settings" sitter
+            i en notebook med övriga flikar. En vanlig användare har inte
+            läsrätt på andra användare och möts i stället av
+            base.view_users_form_simple_modif ("Min profil").
+
+            Menyn pekade tidigare på base.view_users_form. Resultatet blev att
+            användaren fick det administrativa formuläret med fliken
+            "Preferences" först — e-postinställningarna låg kvar på en flik
+            hen inte letade på, och formuläret innehöll fält hen inte får
+            ändra.
+
+            Den här vyn hänger e-postinställningarna som en EGEN flik i
+            simple_modif-formuläret, med samma fält och samma synlighetsregler
+            som adminvyn. Fliken hamnar först, eftersom det är det enda
+            ärendet menyn leder till.
+        -->
+        <record id="view_users_form_simple_modif_mail" model="ir.ui.view">
+            <field name="name">res.users.preferences.form.mail</field>
+            <field name="model">res.users</field>
+            <field name="inherit_id" ref="base.view_users_form_simple_modif"/>
+            <field name="arch" type="xml">
+
+                <!-- Fliken läggs först: användaren kom hit för e-postens skull. -->
+                <xpath expr="//notebook" position="inside">
+                    <page string="E-postinställningar" name="mail_settings_page">
+
+                        <!--
+                            Synkfelet måste synas här, inte bara i
+                            sieve.script. En användare som sätter en regel
+                            och får "sparat" tror att den är aktiv på
+                            servern. Är den inte det ska det stå rakt ut.
+                        -->
+                        <div class="alert alert-danger" role="alert"
+                            invisible="sieve_script_state != 'error'">
+                            <field name="sieve_script_state" invisible="1"/>
+                            <strong>Dina serverregler är inte aktiva.</strong>
+                            Scriptet kunde inte laddas upp till mejlservern,
+                            så reglerna och semesterautosvaret körs inte.
+                            <field name="sieve_script_error" nolabel="1"
+                                class="mt-2 font-monospace small"/>
+                        </div>
+
+                        <!--
+                            Sieve-status. Den genererade sieve.script-vyn är
+                            ingen regellista — den är scriptet med synkstatus
+                            och senaste fel. Den hade tidigare en egen
+                            menypost bredvid E-postregler, vilket fick det att
+                            se ut som två regelsystem. Nu nås den härifrån.
+                        -->
+                        <div class="mb-2">
+                            <button type="object"
+                                name="action_open_sieve_script"
+                                class="btn btn-link p-0"
+                                string="Sieve-status"/>
+                            <span class="text-muted ms-2">
+                                Det genererade serverregelscriptet och dess synkstatus.
+                            </span>
+                        </div>
+
+                        <group>
+                            <field name="postfix_active" string="Postfix Active"/>
+                        </group>
+                        <group invisible="postfix_active == False">
+                            <field groups="base.group_erp_manager" name="postfix_mail"/>
+                        </group>
+
+                        <group invisible="postfix_active == False" string="Vacation">
+                            <group>
+                                <field name="vacation_active"/>
+                                <field invisible="vacation_active == False" name="vacation_from" required="vacation_active == True"/>
+                                <field invisible="vacation_active == False" name="vacation_to" required="vacation_active == True"/>
+                            </group>
+                            <group>
+                                <field invisible="vacation_active == False" name="vacation_subject" placeholder="I am at vacation" required="vacation_active == True"/>
+                                <field invisible="vacation_active == False" name="vacation_text" required="vacation_active == True"/>
+                                <field invisible="vacation_active == False" name="vacation_forward" placeholder="my@vacationmail.com" required="vacation_active == True"/>
+                            </group>
+                        </group>
+
+                        <group invisible="postfix_active == False">
+                            <group string="Forward">
+                                <field name="forward_active"/>
+                                <field invisible="forward_active == False" name="forward_address" placeholder="my@temporarymail.com" required="forward_active == True"/>
+                                <field invisible="forward_active == False" name="forward_cp"/>
+                            </group>
+                            <group string="Virus check">
+                                <field name="virus_active"/>
+                            </group>
+                        </group>
+
+                        <group invisible="postfix_active == False">
+                            <group string="Spam check">
+                                <field name="spam_active"/>
+                                <field invisible="spam_active == False" name="spam_tag" required="spam_active == True"/>
+                                <field invisible="spam_active == False" name="spam_tag2" required="spam_active == True"/>
+                                <field invisible="spam_active == False" name="spam_killevel" required="spam_active == True"/>
+                            </group>
+                            <group string="Misc">
+                                <field name="maildir"/>
+                                <field name="quota"/>
+                            </group>
+                        </group>
+
+                        <group invisible="postfix_active == False" string="Alias">
+                            <field colspan="2" name="postfix_alias_ids" nolabel="1" widget="one2many_list">
+                                <list editable="bottom" string="Mail alias">
+                                    <field name="name"/>
+                                    <field class="oe_read_only" invisible="name == ''" name="mail"/>
+                                    <field name="active"/>
+                                </list>
+                            </field>
+                        </group>
+
+                    </page>
+                </xpath>
+
+                <!--
+                    Fliken "Preferences" behålls — den innehåller språk,
+                    tidszon och signatur, som hör till profilen och inte till
+                    e-posten. Vi flyttar den inte, vi lägger bara
+                    e-postfliken före.
+                -->
+            </field>
+        </record>
+
+    </data>
+</odoo>
