@@ -120,14 +120,21 @@ class MailMessageAI(models.Model):
         return ' '.join(bits) or None
 
     def _okf_dirty_fields(self):
-        """Fält vars ändring gör OKF-fälten inaktuella.
+        """Inga fält — `mail.message` indexeras inte längre (2026-10-21).
 
-        Minsta möjliga mängd — `mail.message` är en av Odoos mest
-        trafikerade modeller. `body` och `subject` är innehållet; allt
-        annat (message_type, model, res_id) sätts vid skapandet och ändras
-        sällan. Hooken läser bara fältnamnen i `vals` — billigt.
+        Modellen låg tidigare i dirty-kön med `{'body', 'subject'}`. I drift
+        var den 83 959 av 108 378 köade poster (77,5 %) — och producerade
+        noll koncept som någon läste: sökfältet slår mot
+        `user_mail_ai.mail`, som har egen registrering, och den
+        företagsägda catchall-grenen hade 0 koncept i drift (alla 40
+        mail-koncept ägs av en användare). Se
+        `openspec/changes/fix-mail-search-no-hits` (D2).
+
+        Tom mängd = hooken sätter aldrig `okf_dirty`. Modellen behåller
+        `ai.okf.mixin` (fälten finns kvar, historiska rader rörs inte) —
+        den registreras bara inte längre för indexering.
         """
-        return {'body', 'subject'}
+        return set()
 
     def _okf_concept_key(self, lang=None, owner_id=None):
         """`mail:<message_id>` — samma nyckel som user_mail_ai.mail.
@@ -177,16 +184,13 @@ class MailMessageAI(models.Model):
         return None
 
     # ==================================================================
-    # Registrering — kärnan ska inte känna mail.message
+    # Ingen registrering — medvetet (2026-10-21)
     # ==================================================================
-
-    def _register_hook(self):
-        """Registrera mail.message för dirty-indexering.
-
-        Registrering, inte överridning: `_okf_indexable_models()` är
-        `@api.model` på den ABSTRAKTA modellen — en överridning här hade
-        ingen verkan på cronen (mätt i kärnan 2026-09-22).
-        """
-        res = super()._register_hook()
-        self.env['ai.okf.mixin']._okf_register_indexable('mail.message')
-        return res
+    #
+    # `_register_hook()` registrerade tidigare `mail.message` för
+    # dirty-indexering. Det är borttaget: modellen stod för 77,5 % av kön
+    # utan att någon läste koncepten (se `_okf_dirty_fields` ovan och
+    # `openspec/changes/fix-mail-search-no-hits` D2).
+    #
+    # Bryggan som faktiskt driver sökfältet är `user_mail_ai.mail`
+    # (`user_mail_ai_okf.py`), som registrerar sig själv.

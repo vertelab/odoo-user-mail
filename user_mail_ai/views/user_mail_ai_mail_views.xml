@@ -155,9 +155,20 @@
 
         Posten avaktiveras i stället för att raderas: xmlid:t kan
         refereras av andra moduler, och active=False är reversibelt.
+
+        VARFÖR INGEN <record> HÄR (2026-10-21):
+        En <record id="menu_user_mail_ai"> med bara active=False blir ett
+        create() när raden saknas — och då är name NOT NULL ouppfyllt:
+            psycopg2.errors.NotNullViolation: null value in column "name"
+            of relation "ir_ui_menu"
+        Hela registret föll och Odoo startade aldrig. Fällan är identisk med
+        den som redan kostade en uppgradering i user_mail_common samma dag
+        (se kommentaren i user_mail_common/views/menus_views.xml).
+
+        Menyn skapas därför inte här alls. I en färsk databas finns ingen
+        post — vilket är precis vad vi vill. I en databas som redan har den
+        (ledningssystem: id 1825, active=f, name satt) ligger den kvar orörd:
+        tom, osynlig och utan barn. Att röra den vore att upprepa fällan.
     -->
-    <record id="menu_user_mail_ai" model="ir.ui.menu">
-        <field name="active" eval="False"/>
-    </record>
 
 </odoo>

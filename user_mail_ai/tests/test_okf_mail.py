@@ -41,10 +41,22 @@ class TestOkfMail(TransactionCase):
             self.assertIn(fname, self.Mail._fields)
             self.assertIn(fname, self.env['mail.message']._fields)
 
+    def _indexable_models(self):
+        """Kortväg — attributskyddet ligger i setUp/tearDown."""
+        return self.env['ai.okf.mixin']._okf_indexable_models()
+
     def test_registered_indexable(self):
-        models = self.env['ai.okf.mixin']._okf_indexable_models()
+        models = self._indexable_models()
         self.assertIn('user_mail_ai.mail', models)
-        self.assertIn('mail.message', models)
+
+    def test_mail_message_not_registered(self):
+        """`mail.message` ska INTE längre indexeras (D2, 2026-10-21).
+
+        Modellen stod för 77,5 % av dirty-kön utan att någon läste
+        koncepten — sökfältet slår mot `user_mail_ai.mail`.
+        """
+        models = self._indexable_models()
+        self.assertNotIn('mail.message', models)
 
     def test_registration_idempotent(self):
         """Ett andra anrop ger ingen dubblett.
@@ -223,6 +235,25 @@ class TestOkfMail(TransactionCase):
         self.assertIn('subject', rec._okf_dirty_fields())
         self.assertNotIn('memory_state', rec._okf_dirty_fields())
         self.assertNotIn('message_id', rec._okf_dirty_fields())
+
+    def test_mail_message_dirty_fields_empty(self):
+        """`mail.message` ska ha tom dirty-mängd — den indexeras inte."""
+        self.assertEqual(self.env['mail.message']._okf_dirty_fields(), set())
+
+    def test_mail_message_write_keeps_clean(self):
+        """Skrivning av body/subject på mail.message ska inte sätta okf_dirty."""
+        msg = self.env['mail.message'].create({
+            'message_type': 'email',
+            'subject': 'Faktura',
+            'body': '<p>Hej</p>',
+            'model': 'res.partner',
+            'res_id': self.env.user.partner_id.id,
+        })
+        msg._clear_okf_dirty()
+        self.assertFalse(msg.okf_dirty)
+        msg.write({'subject': 'Nytt ämne', 'body': '<p>Nytt</p>'})
+        self.assertFalse(msg.okf_dirty,
+                         'mail.message ska inte längre hamna i dirty-kön')
 
     def test_write_outside_dirty_fields_keeps_clean(self):
         rec = self._ingest(message_id='<okf-dirty-2@example.com>')
