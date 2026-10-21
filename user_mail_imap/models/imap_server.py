@@ -63,6 +63,26 @@ def _read_flags(flags):
     return out
 
 
+def _thread_root(m):
+    """Trådens rot-id för ett meddelande.
+
+    References är en lista ``<id> <id> …``, äldst först — första
+    elementet är trådens början. Saknas den faller vi tillbaka på
+    In-Reply-To och till sist meddelandets eget Message-ID.
+    """
+    refs = (m.get('references') or '').strip()
+    if refs:
+        found = re.search(r'<[^>]+>', refs)
+        if found:
+            return found.group(0)
+    reply_to = (m.get('in_reply_to') or '').strip()
+    if reply_to:
+        found = re.search(r'<[^>]+>', reply_to)
+        if found:
+            return found.group(0)
+    return (m.get('message_id') or 'uid:%s' % m.get('uid')).strip()
+
+
 def _collect_headers(msg):
     """Alla headers i meddelandet som en lista av {name, value}.
 
@@ -563,6 +583,127 @@ class ImapServer(models.AbstractModel):
         finally:
             _safe_logout(conn)
 
+    def action_fetch_threads(self, folder='INBOX', offset=0, limit=40):
+        """Hämta meddelanden grupperade i trådar, server-side.
+
+        Klient-side trådning över en sida fungerar inte i praktiken: en
+        inkorg på 10 000 mail har sällan både förälder och svar inom samma
+        80-meddelandensfönster, så varje tråd blir en ensam rad och
+        funktionen ser ut att vara avstängd.
+
+        Här görs det i stället rätt: hämta en sida med NYASTE
+        meddelandena, läs deras References/In-Reply-To, och slå sedan upp
+        hela tråden med IMAP:s egen ``SEARCH HEADER Message-ID`` — även de
+        delar som ligger utanför sidan. Det kostar ett SEARCH per unik
+        trådrot, men antalet rötter per sida är litet (oftast färre än
+        antalet meddelanden).
+
+        Returnerar ``{'threads': [...], 'total': n}`` där varje tråd är
+        ``{'root': <message-id>, 'messages': [...]}``, nyaste tråd först.
+        """
+        page = self.action_fetch_mails(folder, offset, limit)
+        msgs = page.get('messages') if isinstance(page, dict) else page
+        # Rot per meddelande. Samma regel som klienten använde, men här
+        # får den ligga i Python där den kan slå upp resten av tråden.
+        roots = {}
+        order = []
+        for m in msgs:
+            root = _thread_root(m)
+            if root not in roots:
+                roots[root] = []
+                order.append(root)
+            roots[root].append(m)
+
+        conn = self._connect_imap()
+        try:
+            _select_folder(conn, folder)
+            for root in order:
+                if len(roots[root]) > 1:
+                    # Tråden är redan komplett inom sidan.
+                    continue
+                # Finns resten av tråden i mappen? Sök på rotens
+                # Message-ID i både References och In-Reply-To — ett svar
+                # kan referera till roten via endera.
+                extra = self._search_thread_members(conn, root, msgs)
+                if extra:
+                    roots[root].extend(extra)
+        finally:
+            _safe_logout(conn)
+
+        threads = []
+        for root in order:
+            members = roots[root]
+            members.sort(key=lambda x: x.get('uid') or 0, reverse=True)
+            threads.append({'root': root, 'messages': members})
+        threads.sort(
+            key=lambda t: (t['messages'][0].get('uid') or 0), reverse=True)
+        return {'threads': threads, 'total': page.get('total', 0)
+                if isinstance(page, dict) else len(msgs)}
+
+    def _search_thread_members(self, conn, root, known):
+        """Meddelanden i mappen som refererar till ``root``.
+
+        ``SEARCH HEADER`` matchar headerinnehåll som delsträng, så
+        ``HEADER References <root>`` hittar alla svar oavsett var i
+        kedjan roten står. Svaret är sekvensnummer; de översätts till
+        UID:n med ett FETCH, eftersom resten av koden arbetar i UID.
+        """
+        known_uids = {m.get('uid') for m in known}
+        found = []
+        for header in ('References', 'In-Reply-To'):
+            try:
+                typ, data = conn.uid(
+                    'SEARCH', None, 'HEADER', header, root)
+            except Exception:
+                continue
+            if typ != 'OK' or not data or not data[0]:
+                continue
+            uids = [u for u in data[0].split() if u]
+            if not uids:
+                continue
+            for batch in _uid_batches(uids[:50]):
+                uid_set = ','.join(
+                    u.decode() if isinstance(u, bytes) else str(u)
+                    for u in batch)
+                typ2, msg_data = conn.uid(
+                    'FETCH', uid_set, '(FLAGS BODY.PEEK[HEADER])')
+                if typ2 != 'OK':
+                    continue
+                for item in msg_data or []:
+                    if not isinstance(item, tuple):
+                        continue
+                    meta, header_raw = item[0], item[1]
+                    if isinstance(meta, bytes):
+                        meta = meta.decode('utf-8', 'ignore')
+                    m = re.search(r'UID\s+(\d+)', meta or '')
+                    if not m:
+                        continue
+                    uid = int(m.group(1))
+                    if uid in known_uids:
+                        continue
+                    try:
+                        msg = BytesParser(
+                            policy=policy.default).parsebytes(header_raw)
+                    except Exception:
+                        continue
+                    known_uids.add(uid)
+                    found.append({
+                        'uid': uid,
+                        'seen': b'\\Seen' in (meta or '').encode(),
+                        'flagged': b'\\Flagged' in (meta or '').encode(),
+                        'flags': _read_flags(
+                            [f for f in ('\\Seen', '\\Flagged')
+                             if f in (meta or '')]),
+                        'from_': str(msg.get('From', '')),
+                        'subject': str(msg.get('Subject', '(No subject)')),
+                        'date': str(msg.get('Date', '')),
+                        'message_id': str(msg.get('Message-ID', '')),
+                        'in_reply_to': str(msg.get('In-Reply-To', '')),
+                        'references': str(msg.get('References', '')),
+                        'headers': _collect_headers(msg),
+                    })
+        return found
+
     def action_search_mails(self, folder='INBOX', query='', offset=0, limit=80):
         """Search the current folder, OKF-backed when available.
 
@@ -611,6 +752,13 @@ class ImapServer(models.AbstractModel):
             # OKF present but the mail model is not: nothing to resolve.
             return {'messages': [], 'total': 0}
         Mail = self.env['user_mail_ai.mail']
+        # OKF-sökningen slår bara mot mail som INGESTERATS till
+        # user_mail_ai.mail. Är den tabellen tom (ingen indexering har
+        # körts) ger OKF noll träffar på varje fråga — sökfältet ser
+        # trasigt ut trots att IMAP kan svara. Faller då tillbaka på
+        # IMAP:s SEARCH, som alltid fungerar.
+        if not Mail.search_count([('user_id', '=', self.env.user.id)], limit=1):
+            return self._search_mails_imap(folder, term, offset, limit)
         hits = Concept._okf_search(
             query=term, scope='personal', owner_id=self.env.user.id,
             limit=limit + max(0, offset), semantic=False)

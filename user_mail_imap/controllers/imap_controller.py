@@ -66,6 +66,16 @@ class ImapController(http.Controller):
         imap.action_clear_cache()
         return {'ok': True}
 
+    @http.route('/imap/threads', type='json', auth='user')
+    def threads(self, folder='INBOX', offset=0, limit=40):
+        """Meddelanden grupperade i trådar, server-side.
+
+        Klient-side trådning över en sida ger nästan bara ensamma rader —
+        föräldern ligger oftast utanför fönstret i en stor mapp.
+        """
+        imap = request.env['user.mail.imap'].sudo()
+        return imap.action_fetch_threads(folder, int(offset), int(limit))
+
     @http.route('/imap/attachment', type='http', auth='user')
     def attachment(self, folder, uid, index, **kw):
         """Ladda ner en bilaga.

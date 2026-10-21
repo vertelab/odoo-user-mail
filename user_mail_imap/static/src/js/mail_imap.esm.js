@@ -156,7 +156,10 @@ class MailImap extends Component {
         const filtered = want
             ? msgs.filter((m) => (m.flags || []).includes(want))
             : msgs;
-        return this.state.threaded ? this.threadMessages(filtered) : filtered;
+        // Trådningen görs på servern (loadThreads) — här behövs bara
+        // flaggfiltret. Att gruppera igen i klienten skulle bara se de
+        // meddelanden som redan hämtats, vilket var hela problemet.
+        return filtered;
     }
 
     /**
@@ -242,8 +245,21 @@ class MailImap extends Component {
         this.state.collapsedThreads = new Set(this.state.collapsedThreads);
     }
 
-    onToggleThreaded() {
+    /**
+     * Slå på/av trådad visning.
+     *
+     * Trådarna hämtas från servern — servern kan slå upp hela tråden även
+     * när delar ligger utanför den hämtade sidan, vilket klienten inte
+     * kan. Därför ett nytt anrop när läget ändras, inte bara en
+     * omgruppering av det som redan finns i minnet.
+     */
+    async onToggleThreaded() {
         this.state.threaded = !this.state.threaded;
+        if (this.state.threaded) {
+            await this.store.loadThreads(this.state.currentFolder, 0);
+        } else {
+            await this.store.loadMessages(this.state.currentFolder, 0);
+        }
     }
     /**
      * Flytta det valda meddelandet till en specialmapp.

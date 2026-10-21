@@ -279,6 +279,50 @@ const store = {
                 }
             },
 
+            /**
+             * Trådar från servern.
+             *
+             * Skiljer sig från loadMessages: servern slår upp hela tråden
+             * med SEARCH, så även delar utanför den hämtade sidan följer
+             * med. Klient-side gruppering kunde bara se det som redan
+             * hämtats, och i en stor mapp är det nästan aldrig både
+             * förälder och svar i samma fönster.
+             */
+            async loadThreads(folder = null, offset = 0) {
+                const targetFolder = folder || state.currentFolder;
+                if (offset === 0) {
+                    state.loading = true;
+                    state.currentFolder = targetFolder;
+                }
+                try {
+                    const res = await rpc('/imap/threads', {
+                        folder: targetFolder,
+                        offset,
+                        limit: 40,
+                    });
+                    const threads = res.threads || [];
+                    // Platta ut till listrader: trådens nyaste meddelande
+                    // blir raden, resten hänger på den.
+                    const rows = threads.map((t) => {
+                        const newest = t.messages[0];
+                        return {
+                            ...newest,
+                            threadRoot: t.root,
+                            threadCount: t.messages.length,
+                            threadMessages: t.messages,
+                            threadCollapsed: state.collapsedThreads.has(t.root),
+                        };
+                    });
+                    state.messages = offset === 0
+                        ? rows
+                        : state.messages.concat(rows);
+                    state.total = res.total || rows.length;
+                    state.offset = offset;
+                } finally {
+                    state.loading = false;
+                }
+            },
+
             async sendMail(to, subject, body, cc, attachments) {
                 await rpc('/imap/send', { to, subject, body, cc, attachments });
             },
