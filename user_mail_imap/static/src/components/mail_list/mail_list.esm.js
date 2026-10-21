@@ -14,6 +14,9 @@ export class MailList extends Component {
         // explicitly — otherwise OWL's dev-mode prop validation throws.
         selectedMessage: { type: [Object, { value: null }], optional: true },
         currentFolder: String,
+        // IMAP-fel för aktuell mapp (t.ex. avvisat SELECT). Renderas som en
+        // varning i listan i stället för en tyst tom mapp.
+        folderError: { type: [String, { value: null }], optional: true },
         searchActive: { type: Boolean, optional: true },
         searchQuery: { type: String, optional: true },
         searchTotal: { type: Number, optional: true },

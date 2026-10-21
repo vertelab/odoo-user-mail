@@ -31,6 +31,73 @@ def _uid_batches(uids, size=UID_BATCH_SIZE):
         yield uids[i:i + size]
 
 
+def _quote_mailbox(folder):
+    """Quote a mailbox name for an IMAP command when it needs it.
+
+    ``imaplib`` does NOT quote arguments -- ``_command()`` appends each
+    argument raw (``data + b' ' + arg``). A folder name containing a space
+    therefore reaches Dovecot as *two* arguments:
+
+        SELECT INBOX.Linkedin mm
+        -> NO Mailbox doesn't exist: INBOX.Linkedin
+
+    The trailing `` mm`` is silently dropped by the server, so the folder
+    looks empty instead of failing loudly. Folders without spaces
+    (``INBOX``, ``INBOX.Teamweb``) worked, which is why only some folders
+    appeared broken.
+
+    RFC 3501 allows either an atom or a quoted string. Quote whenever the
+    name contains a space, a quote, a backslash or a control character --
+    and also when it is empty. Backslash and double quote are escaped.
+    """
+    if not folder:
+        return '""'
+    if not any(c in folder for c in ' "\\') and folder.isprintable():
+        return folder
+    escaped = folder.replace('\\', '\\\\').replace('"', '\\"')
+    return '"%s"' % escaped
+
+
+def _select_folder(conn, folder):
+    """SELECT a folder and fail loudly when the server refuses.
+
+    ``imaplib.select()`` returns ``(typ, data)`` and resets ``state`` to
+    ``AUTH`` on anything but ``OK``. The old code discarded the return
+    value and went straight on to ``SEARCH``/``FETCH``, which then died
+    with the opaque
+
+        imaplib.IMAP4.error: command SEARCH illegal in state AUTH,
+        only allowed in states SELECTED
+
+    The user saw an empty folder instead of an error: the exception was
+    swallowed by the controller and the list rendered with zero rows.
+    That made a refused SELECT look like "all my mail is gone".
+
+    Raising ``UserError`` here turns the same condition into a message
+    the user can act on, and names the folder that failed.
+    """
+    typ, data = conn.select(_quote_mailbox(folder))
+    if typ != 'OK':
+        detail = ''
+        if data and data[0]:
+            raw = data[0]
+            if isinstance(raw, bytes):
+                raw = raw.decode('utf-8', 'ignore')
+            detail = str(raw).strip()
+        _logger.warning(
+            'IMAP SELECT refused for %r: %s %s', folder, typ, detail)
+        raise UserError(_(
+            "Kunde inte öppna mappen '%(folder)s' på IMAP-servern "
+            "(%(typ)s%(detail)s). Mappen kan vara otillgänglig, sakna "
+            "lästrätt eller ha bytt namn.",
+        ) % {
+            'folder': folder,
+            'typ': typ,
+            'detail': (': ' + detail) if detail else '',
+        })
+    return data
+
+
 def _safe_logout(conn):
     """Log out without throwing away the result of the operation.
 
@@ -208,6 +275,19 @@ class ImapServer(models.AbstractModel):
                         delim = parts[0].strip('"') if parts[0] != 'NIL' else '/'
                         name = parts[1].strip('" ') if len(parts) > 1 else ''
                 _logger.info('IMAP FOLDER PARSED: name=%r delim=%r (%d chars) hex=%s', name, delim, len(delim), delim.encode().hex())
+                # Hoppa över mappar som inte går att välja. Dovecot
+                # exponerar sina interna noder i LIST men SELECT svarar NO,
+                # och klienten försökte hämta dem — vilket gav aterkommande
+                # "Kunde inte öppna mappen"-fel i UI:t.
+                #
+                # Två fall behövs: `dovecot` bär flaggan \Noselect, medan
+                # `dovecot.sieve` INTE gör det (den rapporteras som en helt
+                # vanlig \HasNoChildren-mapp och svarar SERVERBUG på SELECT).
+                # Namnprefixet `dovecot` fångar därför den senare.
+                if '\\Noselect' in flags:
+                    continue
+                if name == 'dovecot' or name.startswith('dovecot.'):
+                    continue
                 result.append({
                     'name': name,
                     'delimiter': delim,
@@ -241,8 +321,27 @@ class ImapServer(models.AbstractModel):
 
         conn = self._connect_imap()
         try:
-            conn.select(folder)
-            _, data = conn.search(None, 'ALL')
+            _select_folder(conn, folder)
+            # `conn.search()` skickar `SEARCH ALL`, som returnerar
+            # SEKVENSNUMMER (1, 2, 3 …) — inte UID:n. Koden skickade dem
+            # sedan som `UID FETCH`, vilket bara fungerar i mappar där UID
+            # råkar sammanfalla med sekvensnumret (dvs. mappar som aldrig
+            # komprimerats). I INBOX var första sekvensnumret 1 men första
+            # UID 236543: `UID FETCH 1..10875` träffade ingenting och
+            # Dovecot svarade `OK Fetch completed` med NOLL rader. Resultatet
+            # blev en tom mapp utan ett enda felmeddelande.
+            # `conn.uid('SEARCH', None, 'ALL')` ger de riktiga UID:na.
+            typ, data = conn.uid('SEARCH', None, 'ALL')
+            if typ != 'OK':
+                # Tidigare kastades returvärdet: ett NEKAT SEARCH gav
+                # `data = [b'']` -> noll UID:n -> en tom mapp som såg ut
+                # som en tom brevlåda. Säg det i stället.
+                _logger.warning(
+                    'IMAP SEARCH refused for %r: %s %r', folder, typ, data)
+                raise UserError(_(
+                    "Kunde inte lista meddelanden i mappen '%(folder)s' "
+                    "(%(typ)s).",
+                ) % {'folder': folder, 'typ': typ})
             uids = data[0].split() if data and data[0] else []
             total = len(uids)
             page = uids[max(0, total - offset - limit):total - offset] if uids else []
@@ -257,7 +356,23 @@ class ImapServer(models.AbstractModel):
                 typ, msg_data = conn.uid(
                     'FETCH', uid_set, '(FLAGS BODY.PEEK[HEADER])')
                 if typ != 'OK':
+                    # Samma tysta väg som SEARCH ovan: ett nekat FETCH
+                    # hoppades över utan ett ord, och sidan renderades tom.
+                    _logger.warning(
+                        'IMAP FETCH refused for %r uids=%s: %s %r',
+                        folder, uid_set[:120], typ, msg_data)
                     continue
+                if msg_data and all(i is None for i in msg_data):
+                    # imaplib lägger serverns NO/BAD i untagged_responses och
+                    # returnerar [None] som data. Det är den verkliga orsaken
+                    # när en mapp med tusentals mail ger noll träffar.
+                    _logger.warning(
+                        'IMAP FETCH returned [None] for %r uids=%s; '
+                        'untagged=%r',
+                        folder, uid_set[:120],
+                        {k: v for k, v in conn.untagged_responses.items()
+                         if k not in ('EXISTS', 'FLAGS', 'UIDVALIDITY',
+                                      'PERMANENTFLAGS', 'RECENT')})
                 for item in msg_data or []:
                     if not isinstance(item, tuple):
                         continue
@@ -425,8 +540,8 @@ class ImapServer(models.AbstractModel):
 
         conn = self._connect_imap()
         try:
-            conn.select(folder)
-            typ, data = conn.search(None, criteria)
+            _select_folder(conn, folder)
+            typ, data = conn.uid('SEARCH', None, criteria)
             if typ != 'OK':
                 return {'messages': [], 'total': 0}
             uids = data[0].split() if data and data[0] else []
@@ -436,7 +551,14 @@ class ImapServer(models.AbstractModel):
             page = uids[offset:offset + limit]
             messages = []
             for uid in page:
-                _, msg_data = conn.fetch(uid, '(FLAGS BODY.PEEK[HEADER])')
+                # `conn.fetch()` tolkar argumentet som SEKVENSNUMMER.
+                # Här är `uid` ett riktigt UID — fel kommando gav `[None]`
+                # och tysta hopp. `conn.uid('FETCH', ...)` är rätt.
+                typ_f, msg_data = conn.uid(
+                    'FETCH', uid.decode() if isinstance(uid, bytes)
+                    else str(uid), '(FLAGS BODY.PEEK[HEADER])')
+                if typ_f != 'OK' or not msg_data or msg_data[0] is None:
+                    continue
                 raw = msg_data[0]
                 if not isinstance(raw, tuple):
                     continue
@@ -467,8 +589,14 @@ class ImapServer(models.AbstractModel):
 
         conn = self._connect_imap()
         try:
-            conn.select(folder)
-            _, data = conn.fetch(str(uid).encode(), '(RFC822 FLAGS)')
+            _select_folder(conn, folder)
+            # UID, inte sekvensnummer: `conn.fetch()` tolkar argumentet
+            # som sekvensnummer och gav `[None]` -> `data[0]` kastade
+            # IndexError. `conn.uid('FETCH', ...)` är rätt kommando.
+            typ_f, data = conn.uid(
+                'FETCH', str(uid), '(RFC822 FLAGS)')
+            if typ_f != 'OK' or not data or data[0] is None:
+                return None
             raw = data[0]
             if not isinstance(raw, tuple):
                 return None
@@ -546,7 +674,7 @@ class ImapServer(models.AbstractModel):
     def action_set_flag(self, folder, uids, flag, value):
         conn = self._connect_imap()
         try:
-            conn.select(folder)
+            _select_folder(conn, folder)
             cmd = '+FLAGS' if value else '-FLAGS'
             imap_flag = '\\Seen' if flag == 'seen' else '\\Flagged'
             for batch in _uid_batches(uids):
@@ -823,7 +951,7 @@ class ImapServer(models.AbstractModel):
         # i EXISTS-svaret, hittade aldrig något och returnerade alltid None --
         # så resync-detekteringen kunde aldrig slå till och ett UIDVALIDITY-
         # byte hade tyst hoppat över mail.
-        typ, _data = conn.select(folder)
+        typ, _data = conn.select(_quote_mailbox(folder))
         if typ != 'OK':
             return None
         res = conn.response('UIDVALIDITY')
@@ -1174,7 +1302,7 @@ class ImapServer(models.AbstractModel):
             if uid is None:
                 # Fallback: sök på Message-ID
                 try:
-                    conn.select(folder)
+                    _select_folder(conn, folder)
                     typ2, sdata = conn.search(None, '(HEADER Message-ID "%s")' % mid)
                     if typ2 == 'OK' and sdata and sdata[0]:
                         uid = int(sdata[0].split()[-1])
@@ -1188,13 +1316,13 @@ class ImapServer(models.AbstractModel):
         """Flytta mail mellan mappar (UID MOVE, fallback COPY+DEL+EXPUNGE)."""
         conn = self._connect_imap()
         try:
-            conn.select(folder)
+            _select_folder(conn, folder)
             for batch in _uid_batches(uids):
                 uid_list = ','.join(str(u) for u in batch)
-                typ, _data = conn.uid('MOVE', uid_list, to_folder)
+                typ, _data = conn.uid('MOVE', uid_list, _quote_mailbox(to_folder))
                 if typ != 'OK':
                     # Fallback: COPY + \Deleted + EXPUNGE
-                    conn.uid('COPY', uid_list, to_folder)
+                    conn.uid('COPY', uid_list, _quote_mailbox(to_folder))
                     conn.uid('STORE', uid_list, '+FLAGS', '\\Deleted')
                     conn.expunge()
             return True
@@ -1209,7 +1337,7 @@ class ImapServer(models.AbstractModel):
         conn = self._connect_imap()
         try:
             try:
-                conn.create(folder)
+                conn.create(_quote_mailbox(folder))
                 return True
             except Exception:
                 return False
@@ -1220,8 +1348,9 @@ class ImapServer(models.AbstractModel):
         """Hämta råa innehållet i ett utkast (för HITL-skick)."""
         conn = self._connect_imap()
         try:
-            conn.select(folder)
-            typ, data = conn.fetch(str(uid).encode(), '(BODY.PEEK[])')
+            _select_folder(conn, folder)
+            # UID, inte sekvensnummer (se action_fetch_mail).
+            typ, data = conn.uid('FETCH', str(uid), '(BODY.PEEK[])')
             if typ == 'OK' and data and isinstance(data[0], tuple):
                 return data[0][1]
             return None

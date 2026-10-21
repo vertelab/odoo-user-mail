@@ -35,6 +35,7 @@
                             loading="state.loading"
                             selectedMessage="state.selectedMessage"
                             currentFolder="state.currentFolder"
+                            folderError="state.folderError"
                             searchActive="state.searchActive"
                             searchQuery="state.searchQuery"
                             searchTotal="state.searchTotal"

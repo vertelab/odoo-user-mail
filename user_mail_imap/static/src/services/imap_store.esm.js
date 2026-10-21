@@ -34,6 +34,11 @@ const store = {
             offset: 0,
             loading: false,
             loadingDetail: false,
+            // Satt när ett IMAP-anrop misslyckas. Utan den här visas en tom
+            // mapp som om den vore tom — ett avvisat SELECT (t.ex. ett
+            // mappnamn med mellanslag som skickats ociterat) svaldes tidigare
+            // helt av `catch (e) { state.loading = false; }`.
+            folderError: null,
             searchQuery: '',
             searchActive: false,
             searchTotal: 0,
@@ -106,6 +111,7 @@ const store = {
                     state.loading = true;
                     state.currentFolder = folder;
                     state.selectedMessage = null;
+                    state.folderError = null;
                 }
 
                 const cacheKey = folder;
@@ -146,6 +152,16 @@ const store = {
                     this._preloadFolders(folder);
                 } catch (e) {
                     state.loading = false;
+                    // Visa felet i stället för en tyst tom mapp. Odoo:s RPC
+                    // kastar ett fel vars `data.message` bär UserError-texten
+                    // från `_select_folder()`.
+                    state.folderError = (
+                        (e && e.data && e.data.message) ||
+                        (e && e.message) ||
+                        'Kunde inte hämta mappen.'
+                    );
+                    state.messages = [];
+                    state.totalMessages = 0;
                 }
             },
 

@@ -62,4 +62,3 @@ class ImapController(http.Controller):
         imap = request.env['user.mail.imap'].sudo()
         imap.action_clear_cache()
         return {'ok': True}
-

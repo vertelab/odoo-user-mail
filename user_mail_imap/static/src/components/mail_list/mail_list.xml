@@ -26,6 +26,18 @@
                         <i class="fa fa-spinner fa-spin fa-2x"/>
                     </div>
                 </t>
+                <!--
+                    Ett misslyckat IMAP-anrop ska säga det. Tidigare svaldes
+                    felet och listan visade "Inga meddelanden", vilket gjorde
+                    en avvisad SELECT (t.ex. mappnamn med mellanslag) identisk
+                    med en tom mapp.
+                -->
+                <t t-elif="props.folderError">
+                    <div class="alert alert-danger m-2" role="alert">
+                        <div class="fw-bold mb-1">Kunde inte öppna mappen</div>
+                        <div class="small" t-out="props.folderError"/>
+                    </div>
+                </t>
                 <t t-elif="!props.messages || !props.messages.length">
                     <div class="text-center p-4 text-muted">
                         <t t-if="props.searchActive">No messages match your search</t>
