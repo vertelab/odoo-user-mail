@@ -38,6 +38,7 @@ Två saker som inte är uppenbara:
 
 import logging
 
+import odoo
 from odoo import _, models
 from odoo.exceptions import UserError
 
@@ -64,10 +65,20 @@ class SieveClient(models.AbstractModel):
         Faller tillbaka på `imap_host` — ManageSieve körs normalt på samma
         maskin som IMAP. Att kräva en separat parameter vore att be
         användaren konfigurera samma sak två gånger.
+
+        Läser `imap_host` från BÅDA källorna: `ir.config_parameter` och
+        `odoo.tools.config` (odoo.conf). IMAP-klienten hämtar sin värd ur
+        odoo.conf (imap_server._get_config → odoo.tools.config), medan
+        den här modulen historiskt bara tittade i ir.config_parameter.
+        På en installation där imap_host bara står i odoo.conf blev
+        resultatet att IMAP fungerade men Sieve försökte mot localhost —
+        med 'Connection refused' som enda ledtråd. Samma nyckel ska
+        betyda samma sak i båda modulerna.
         """
         icp = self.env['ir.config_parameter'].sudo()
         return (self._sieve_config('sieve_host')
                 or icp.get_param('imap_host')
+                or odoo.tools.config.get('imap_host')
                 or 'localhost')
 
     def _sieve_port(self):
