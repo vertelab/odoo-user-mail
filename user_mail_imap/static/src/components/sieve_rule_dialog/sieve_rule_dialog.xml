@@ -102,6 +102,34 @@
                         <option value="ignore">Ignorera</option>
                         <option value="block">Blockera</option>
                     </select>
+                    <!--
+                        Förklaring per åtgärd. "Ignorera" och "Blockera"
+                        låter lika men gör olika saker, och skillnaden syns
+                        inte i namnet — den som väljer fel får antingen
+                        tysta mail eller avvisade mail.
+                    -->
+                    <div class="form-text">
+                        <t t-if="state.action === 'move_to_folder'">
+                            Mailet flyttas till mappen vid leverans och syns
+                            aldrig i inkorgen.
+                        </t>
+                        <t t-elif="state.action === 'flag'">
+                            Mailet ligger kvar men märks, så du kan filtrera
+                            fram det.
+                        </t>
+                        <t t-elif="state.action === 'ignore'">
+                            <strong>Ignorera</strong> — mailet tas bort vid
+                            leverans utan att du ser det. Avsändaren får
+                            inget besked och mailet går inte att få tillbaka.
+                        </t>
+                        <t t-elif="state.action === 'block'">
+                            <strong>Blockera</strong> — mailet avvisas med
+                            ett fel till avsändaren, som får veta att det
+                            inte levererats. Använd när du vill att
+                            avsändaren ska sluta skicka, inte bara att du
+                            ska slippa se det.
+                        </t>
+                    </div>
                 </div>
 
                 <!--

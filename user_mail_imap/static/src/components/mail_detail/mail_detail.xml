@@ -24,9 +24,9 @@
                     huvud — samma placering gör det lättare att hitta utan
                     att lära om.
 
-                    Regel ligger kvar som egen knapp (inte inbakad i "Fler"):
+                    Regel-knappen sitter bredvid stjärnan i verktygsraden —
                     det är den funktion den här klienten lägger till utöver
-                    Thunderbird, och den ska synas.
+                    Thunderbird, och den ska synas utan att man letar.
                 -->
                 <div class="p-3 border-bottom bg-light">
                     <div class="d-flex align-items-start gap-2">
@@ -78,6 +78,15 @@
                                 t-on-click="() => props.onToggleFlag(props.message, !props.message.flagged)"
                                 t-att-title="props.message.flagged ? 'Ta bort stjärnmärkning' : 'Stjärnmärk'">
                                 <i class="fa" t-att-class="props.message.flagged ? 'fa-star' : 'fa-star-o'"/>
+                            </button>
+                            <!--
+                                Skapa regel från meddelandet. Ligger bredvid
+                                stjärnan: båda är "märk det här mailet"-åtgärder.
+                            -->
+                            <button class="btn btn-sm btn-outline-secondary"
+                                t-on-click="() => props.openRuleDialog(props.message)"
+                                title="Skapa en regel från det här meddelandet">
+                                <i class="fa fa-filter"/>
                             </button>
                         </div>
                     </div>

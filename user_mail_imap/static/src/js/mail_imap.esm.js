@@ -187,7 +187,7 @@ class MailImap extends Component {
             byRoot.get(root).push(m);
         }
         const out = [];
-        for (const [, group] of byRoot) {
+        for (const [root, group] of byRoot) {
             // Nyaste först inom tråden.
             group.sort((a, b) => (b.uid || 0) - (a.uid || 0));
             const newest = group[0];
