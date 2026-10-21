@@ -91,6 +91,17 @@ class UserMailAiRule(models.Model):
         ('seed', 'Default'),
         ('trust_ladder', 'Trust-ladder'),
     ], string='Källa', default='user', readonly=True)
+    enforcement = fields.Selection([
+        ('client', 'I Odoo (efter hämtning)'),
+        ('server', 'På servern (Sieve)'),
+    ], string='Verkställs', default='client', required=True,
+        help='Var regeln körs.\n'
+             'I Odoo: pollern hämtar mailet, AI:n klassificerar, sedan '
+             'flyttas det. Regeln kan inte hindra mailet från att hamna i '
+             'inkorgen, och den gör ingenting om pollern ligger nere.\n'
+             'På servern: Dovecot kör regeln vid leverans. Bara villkor som '
+             'Sieve förstår (avsändare, ämne) och åtgärder som Sieve klarar '
+             '(flytta, flagga, kasta) — övriga avvisas när regeln sparas.')
 
     _sql_constraints = [
         ('unique_user_name', 'unique(user_id, name)',

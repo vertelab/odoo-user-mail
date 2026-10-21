@@ -82,17 +82,36 @@ class ResUsers(models.Model):
             return None, []
         return self.env['sieve.compiler'].vacation_block(self)
 
+    def _sieve_rules_part(self):
+        """(kod, extensions) för användarens server-regler.
+
+        Reglerna ägs av `user_mail_ai.rule`. Modulen beror på
+        user_mail_common, inte tvärtom — så vi letar efter modellen i
+        stället för att importera den. Saknas user_mail_ai (ren
+        klient-installation) finns inga regler och vacation fungerar ändå.
+        """
+        self.ensure_one()
+        if 'user_mail_ai.rule' not in self.env:
+            return None, []
+        rules = self.env['user_mail_ai.rule'].search([
+            ('user_id', '=', self.id),
+            ('enforcement', '=', 'server'),
+            ('active', '=', True),
+        ])
+        return self.env['sieve.compiler'].rules_part(rules)
+
     def _sieve_rebuild(self, today=None):
-        """Bygg om scriptet från vacation (och i fas 3: regler) och synka.
+        """Bygg om scriptet från vacation + regler och synka.
 
         Detta är den ENDA vägen till `sieve.script.body` — aldrig patchning.
         Idempotent: samma indata ger samma utdata, så en omsynk utan
-        ändringar rör inte servern i onödan (se _sync_one: den laddar upp
-        ändå, men kroppen är identisk).
+        ändringar rör inte servern i onödan.
         """
         compiler = self.env['sieve.compiler']
-        parts = [self._sieve_vacation_part(today)]
-        # Fas 3 lägger till: parts.append(self._sieve_rules_part())
+        parts = [
+            self._sieve_vacation_part(today),
+            self._sieve_rules_part(),
+        ]
         body = compiler.assemble(parts)
         return self._sieve_write_body(body)
 

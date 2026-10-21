@@ -151,3 +151,103 @@ class SieveCompiler(models.AbstractModel):
             require = 'require [%s];\n\n' % ', '.join(
                 self.quote(e) for e in sorted(extensions))
         return require + '\n'.join(codes) + '\n'
+
+    # ── Regler ───────────────────────────────────────────────────────────
+
+    # Villkor som går att uttrycka i Sieve. `category` och `llm` gör det
+    # INTE — category är en Odoo-klassificering som bara finns efter att
+    # AI:n kört, och llm är per definition en språkmodell. De stannar
+    # klientsidan; se user_mail_ai.rule.enforcement.
+    CONDITION_MAP = {
+        'sender': 'from',
+        'subject': 'subject',
+    }
+
+    def rules_part(self, rules):
+        """(kod, extensions) för en uppsättning server-regler.
+
+        Reglerna kompileras med sievelib.factory.FiltersSet — att bygga
+        Sieve-strängar för hand är hur man får felciterade mappnamn.
+
+        FYRA FÄLLOR, alla verifierade mot imap.vertel.se:4190:
+
+        1. Villkor skickas som (header-namn, operator, värde), INTE
+           ('header', ':contains', ...). `header` är test-kommandot som
+           sievelib bygger internt; att skicka det som namn ger
+           BadArgument.
+
+        2. Mappnamn skickas OCITERAT ('INBOX.Linkedin mm'). sievelib
+           citerar själv — skickar man '"INBOX.X"' blir resultatet
+           "\\"INBOX.X\\"", dvs dubbelt escapat och en mapp som inte finns.
+
+        3. :days tar en INT, inte en sträng (BadValue).
+
+        4. FiltersSet.tosieve() skriver sin EGEN require-sats. Vi plockar
+           ut extensions ur fs.requires och strippar require-raden, så att
+           assemble() kan slå ihop dem med vacation. Två require-satser i
+           samma script är ogiltigt.
+        """
+        rules = rules.filtered(lambda r: r.enforcement == 'server')
+        if not rules:
+            return None, []
+
+        try:
+            from sievelib.factory import FiltersSet
+        except ImportError:
+            raise UserError(_('Python-paketet sievelib saknas.'))
+
+        fs = FiltersSet('odoo_ai')
+        used = 0
+        for rule in rules.sorted(lambda r: (r.priority, r.id)):
+            conditions = self._rule_conditions(rule)
+            actions = self._rule_actions(rule)
+            if not conditions or not actions:
+                continue
+            fs.addfilter(rule.name, conditions, actions)
+            used += 1
+
+        if not used:
+            return None, []
+
+        import io
+        buf = io.StringIO()
+        fs.tosieve(buf)
+        body = buf.getvalue()
+
+        # Strippa require-raden som FiltersSet lade till — assemble()
+        # bygger en gemensam. Regexen matchar bara den inledande satsen.
+        import re
+        body = re.sub(r'^require\s*\[[^\]]*\]\s*;\s*\n\s*\n?', '', body)
+
+        return body.rstrip() + '\n', list(fs.requires)
+
+    def _rule_conditions(self, rule):
+        """Sieve-villkor för en regel, eller [] om den inte kan uttryckas."""
+        header = self.CONDITION_MAP.get(rule.condition_kind)
+        if not header:
+            # category/llm — klientsida, hoppa över tyst. Detta är inte en
+            # bugg: _apply_rules() hanterar dem.
+            return []
+        text = (rule.condition_text or '').strip()
+        if not text:
+            return []
+        return [(header, ':contains', text)]
+
+    def _rule_actions(self, rule):
+        """Sieve-åtgärder för en regel, eller [] om de inte kan uttryckas."""
+        cfg = rule._parse_config()
+        if rule.action == 'move_to_folder':
+            folder = cfg.get('folder')
+            if not folder:
+                return []
+            # :create skapar mappen om den inte finns — annars avvisar
+            # Dovecot fileinto med "Mailbox does not exist" och mailet
+            # blir kvar i INBOX utan spår.
+            return [('fileinto', ':create', folder)]
+        if rule.action == 'flag':
+            return [('addflag', '\\Flagged')]
+        if rule.action in ('ignore', 'block'):
+            return [('discard',)]
+        # nudge, draft_reply, create_object, create_activity, create_event,
+        # send_to_specialist — kräver Odoo, kan inte köras i Sieve.
+        return []

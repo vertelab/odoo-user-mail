@@ -44,14 +44,14 @@ Deployment is **not** a task here. It is a separate decision after review.
 
 ## Phase 3 — Rule compiler (`user_mail_common`)
 
-- [ ] 3.1 `sieve.script._compile_rules(rules)` — `FiltersSet` →
+- [x] 3.1 `sieve.script._compile_rules(rules)` — `FiltersSet` →
       `tosieve()`; condition map `sender`→`from`, `subject`→`subject`,
       `category`/`llm` skipped
-- [ ] 3.2 Action map: `move_to_folder`→`fileinto :create`, `flag`→
+- [x] 3.2 Action map: `move_to_folder`→`fileinto :create`, `flag`→
       `addflag \Flagged`, `ignore`/`block`→`discard`
-- [ ] 3.3 Mailbox names passed **unquoted** to `addfilter` (sievelib quotes)
-- [ ] 3.4 `:days` passed as **int**, not string
-- [ ] 3.5 Tests: round-trip a rule set through `FiltersSet` → `Parser`;
+- [x] 3.3 Mailbox names passed **unquoted** to `addfilter` (sievelib quotes)
+- [x] 3.4 `:days` passed as **int**, not string
+- [x] 3.5 Tests: round-trip a rule set through `FiltersSet` → `Parser`;
       assert mailbox with a space is quoted exactly once; assert
       `:days 7` is an int
 
