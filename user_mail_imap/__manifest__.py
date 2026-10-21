@@ -6,7 +6,7 @@
     # olästfiltret som egen axel (fix-flag-search-and-message-labels).
     # 10.4 = ACL för lösenordswizarden (e945a89) samt
     # ``_okf_mail_row`` kraschade på okänd flaggstatus (flags=None).
-    'version': '18.0.1.10.4',
+    'version': '18.0.1.10.5',
     'summary': 'IMAP email client integrated in Odoo — with per-user poller.',
     'description': '''
 IMAP Client

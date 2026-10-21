@@ -443,6 +443,134 @@ class TestImap(TransactionCase):
 
         self.assertEqual(res, {'messages': [], 'total': 0})
 
+    # ── OKF-fallback: arkivet kan inte svara → IMAP svarar ──
+
+    def _okf_search_user(self):
+        """Testanvändare med IMAP-lösenord och ett ingesterat mail.
+
+        Hoppar över testet när arkivmodellen inte är laddad: `user_mail_ai`
+        beror på `user_mail_imap`, så vid `-u user_mail_imap` laddas den
+        efter och finns inte i registret. Fallback-logiken i sig kräver
+        ingen arkivrad — den läses via `'user_mail_ai.mail' in self.env`.
+        """
+        from odoo.addons.user_mail_imap.models.imap_server import _mail_cache
+        if 'user_mail_ai.mail' not in self.env:
+            self.skipTest('user_mail_ai.mail är inte laddad i denna körning')
+        _mail_cache.clear()
+        self.user.imap_password = self.user._encrypt_imap_pw('x')
+        self.user.postfix_mail = 'okf-search@vertel.se'
+        self.env['user_mail_ai.mail'].create({
+            'user_id': self.user.id,
+            'message_id': '<ingested-1@example.com>',
+            'subject': 'Ingesterad',
+            'source_folder': 'INBOX',
+            'source_uid': 1,
+        })
+        return self.user
+
+    def _fake_okf_conn(self):
+        """IMAP-dubbel som svarar på SEARCH + FETCH (fallback-vägen)."""
+        from unittest.mock import MagicMock
+        from email.message import EmailMessage
+        msg = EmailMessage()
+        msg['Message-ID'] = '<imap-1@example.com>'
+        msg['Subject'] = 'Från IMAP'
+        msg['From'] = 'Anna <anna@example.com>'
+        msg['Date'] = 'Mon, 05 Aug 2026 10:00:00 +0200'
+        msg.set_content('Hej!')
+        raw = msg.as_bytes()
+
+        fake = MagicMock()
+        fake.select.return_value = ('OK', [b'1'])
+        fake.login.return_value = ('OK', [b'logged in'])
+
+        def _uid(cmd, *args):
+            if cmd == 'SEARCH':
+                return ('OK', [b'1'])
+            if cmd == 'FETCH':
+                return ('OK', [(b'1 (UID 1 FLAGS () BODY[HEADER] {123}', raw)])
+            return ('OK', [b''])
+        fake.uid.side_effect = _uid
+        return fake
+
+    def test_search_falls_back_when_okf_hits_resolve_to_no_row(self):
+        """OKF-träffar utan matchande mail-rad ska ge IMAP-svar, inte tomt.
+
+        Detta är det rapporterade felet: arkivet är icke-tomt men
+        oanvändbart, och sökfältet svarade noll på varje fråga.
+        """
+        from unittest.mock import patch, MagicMock
+        user = self._okf_search_user()
+        # Koncept vars source_ref inte finns i user_mail_ai.mail.
+        hit = MagicMock()
+        hit.source_ref = '<aldrig-ingesterad@example.com>'
+        fake = self._fake_okf_conn()
+
+        with patch.object(type(self.env['ai.okf.concept']), '_okf_search',
+                          return_value=[hit]):
+            with patch('imaplib.IMAP4_SSL', return_value=fake):
+                res = self.env['user.mail.imap'].with_user(user)\
+                    .action_search_mails('INBOX', 'faktura', 0, 80)
+
+        self.assertEqual(res['total'], 1,
+                         'fallback ska ge IMAP-träffen, inte noll')
+        self.assertEqual(res['messages'][0]['subject'], 'Från IMAP')
+        self.assertTrue(
+            [c for c in fake.uid.call_args_list if c[0][0] == 'SEARCH'],
+            'IMAP SEARCH ska ha anropats')
+
+    def test_search_falls_back_when_okf_returns_only_attachment_concepts(self):
+        """Bilage-koncept (ir.attachment,…) kan aldrig bli mail-rader."""
+        from unittest.mock import patch, MagicMock
+        user = self._okf_search_user()
+        hit = MagicMock()
+        hit.source_ref = 'ir.attachment,4711'
+        fake = self._fake_okf_conn()
+
+        with patch.object(type(self.env['ai.okf.concept']), '_okf_search',
+                          return_value=[hit]):
+            with patch('imaplib.IMAP4_SSL', return_value=fake):
+                res = self.env['user.mail.imap'].with_user(user)\
+                    .action_search_mails('INBOX', 'faktura', 0, 80)
+
+        self.assertEqual(res['total'], 1)
+        self.assertEqual(res['messages'][0]['subject'], 'Från IMAP')
+
+    def test_search_falls_back_when_okf_returns_no_hits(self):
+        """Noll OKF-träffar ska inte ge tomt svar när IMAP kan svara."""
+        from unittest.mock import patch
+        user = self._okf_search_user()
+        fake = self._fake_okf_conn()
+
+        with patch.object(type(self.env['ai.okf.concept']), '_okf_search',
+                          return_value=[]):
+            with patch('imaplib.IMAP4_SSL', return_value=fake):
+                res = self.env['user.mail.imap'].with_user(user)\
+                    .action_search_mails('INBOX', 'faktura', 0, 80)
+
+        self.assertEqual(res['total'], 1)
+        self.assertEqual(res['messages'][0]['subject'], 'Från IMAP')
+
+    def test_search_does_not_fall_back_when_okf_resolves(self):
+        """Arkivet som kan svara ska svara — ingen IMAP-anslutning."""
+        from unittest.mock import patch, MagicMock
+        user = self._okf_search_user()
+        hit = MagicMock()
+        hit.source_ref = '<ingested-1@example.com>'
+
+        with patch.object(type(self.env['ai.okf.concept']), '_okf_search',
+                          return_value=[hit]):
+            with patch('imaplib.IMAP4_SSL') as m:
+                res = self.env['user.mail.imap'].with_user(user)\
+                    .action_search_mails('INBOX', 'ingesterad', 0, 80)
+
+        self.assertEqual(res['total'], 1)
+        self.assertEqual(res['messages'][0]['subject'], 'Ingesterad')
+        self.assertFalse(
+            m.called,
+            'arkivet svarade — då ska ingen IMAP-anslutning öppnas')
+
+
     # ── Filter: action_filter_mails + sökning × filter × oläst ──
 
     def _fake_filter_conn(self, uids, flags_by_uid=None):

@@ -1134,21 +1134,34 @@ class ImapServer(models.AbstractModel):
         Concept = self.env['ai.okf.concept']
         if 'user_mail_ai.mail' not in self.env:
             # OKF present but the mail model is not: nothing to resolve.
-            return {'messages': [], 'total': 0}
-        Mail = self.env['user_mail_ai.mail']
-        # OKF-sökningen slår bara mot mail som INGESTERATS till
-        # user_mail_ai.mail. Är den tabellen tom (ingen indexering har
-        # körts) ger OKF noll träffar på varje fråga — sökfältet ser
-        # trasigt ut trots att IMAP kan svara. Faller då tillbaka på
-        # IMAP:s SEARCH, som alltid fungerar.
-        if not Mail.search_count([('user_id', '=', self.env.user.id)], limit=1):
             return self._search_mails_imap(
                 folder, term, offset, limit, flag=flag, unread=unread)
+        Mail = self.env['user_mail_ai.mail']
+
+        def _imap_fallback(reason):
+            """Svara från IMAP när arkivet inte kan leverera en rad.
+
+            Fallbacken är avsiktlig och ska synas: utan loggraden är en
+            framtida indexeringsregression tyst (design.md D5).
+            """
+            _logger.info(
+                'Mail search fell back to IMAP (%s) for user %s, folder %s',
+                reason, self.env.user.id, folder)
+            return self._search_mails_imap(
+                folder, term, offset, limit, flag=flag, unread=unread)
+
+        # Fallbacken mäts på RESOLVERADE rader, inte på om tabellen är tom.
+        # Ett arkiv som är icke-tomt men oanvändbart (mail ingesterade men
+        # aldrig indexerade) gav tidigare noll träffar på varje fråga —
+        # sökfältet såg trasigt ut trots att IMAP kan svara. Mätt i drift
+        # 2026-10-21: 992 av 1 051 mail oindexerade, 1 resolverbart koncept.
+        if not Mail.search_count([('user_id', '=', self.env.user.id)], limit=1):
+            return _imap_fallback('no ingested mail for user')
         hits = Concept._okf_search(
             query=term, scope='personal', owner_id=self.env.user.id,
             limit=limit + max(0, offset), semantic=False)
         if not hits:
-            return {'messages': [], 'total': 0}
+            return _imap_fallback('no OKF hits')
         # Message-IDs in relevance order; source_ref is the concept's stored
         # Message-ID. Keep the order to emit rows ranked, not by UID.
         message_ids = []
@@ -1157,7 +1170,7 @@ class ImapServer(models.AbstractModel):
             if message_id and message_id not in message_ids:
                 message_ids.append(message_id)
         if not message_ids:
-            return {'messages': [], 'total': 0}
+            return _imap_fallback('OKF hits carry no Message-ID')
         mail_rows = Mail.search_read(
             [('user_id', '=', self.env.user.id),
              ('message_id', 'in', message_ids),
@@ -1174,6 +1187,13 @@ class ImapServer(models.AbstractModel):
                 continue
             resolved.append(row)
 
+        if not resolved:
+            # Koncept hittades men inget resolvar till ett mail i den här
+            # mappen. Vanligaste orsaken i drift: OKF returnerar
+            # bilage-koncept (source_ref = 'ir.attachment,…') som aldrig
+            # kan bli mail-rader. Utan den här grenen blev svaret tomt.
+            return _imap_fallback('OKF hits resolved to no mail row')
+
         # Flaggor och lässtatus finns inte i user_mail_ai.mail — de ägs av
         # IMAP. Hämtas därför för de träffar som ska **renderas** (sidan),
         # inte för alla träffar: ett FETCH per sökning, inte per träff.
@@ -1186,6 +1206,10 @@ class ImapServer(models.AbstractModel):
         if flag or unread:
             # Filtret appliceras på de resolverade raderna innan `total`
             # räknas, så totalen beskriver den filtrerade mängden.
+            #
+            # Ett tomt resultat HÄR är legitimt (arkivet svarade, men ingen
+            # träff hade flaggan) och får därför INTE falla tillbaka på
+            # IMAP — det skulle kringgå filtret och visa ofiltrerade mail.
             filtered = []
             for row in resolved:
                 st = status.get(row.get('source_uid')) or {}
