@@ -66,7 +66,8 @@ User Mail Client
         'security/ir.model.access.csv',
         'views/res_users_view.xml',
         'views/res_users_data.xml',
-        'views/res_users_report.xml'
+        'views/res_users_report.xml',
+        'views/menus_views.xml'
     ],
     'installable': True,
     'application': True,

@@ -93,10 +93,14 @@
         <field name="context">{'active_test': False}</field>
     </record>
 
+    <!-- Regler ligger under Inställningar i Discuss (tillsammans med
+         E-postkonfiguration), inte under Mail-hjälpredan. Roten ägs av
+         user_mail_common eftersom user_mail_ai inte beror på
+         user_mail_client — ingen av dem kan äga den gemensamma roten. -->
     <menuitem id="menu_user_mail_ai_rules"
         name="Regler"
-        parent="menu_user_mail_ai"
+        parent="user_mail_common.menu_user_mail_settings"
         action="user_mail_ai_rule_action"
-        sequence="10"/>
+        sequence="20"/>
 
 </odoo>

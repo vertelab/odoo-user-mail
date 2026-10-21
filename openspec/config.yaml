@@ -1,0 +1,49 @@
+schema: spec-driven
+
+context: |
+  Tech stack: Odoo 18 (Python 3.12, PostgreSQL), OWL 2 frontend (ESM modules,
+  XML templates), SaltStack deployment to LXD containers.
+
+  Repo: vertelab/odoo-user-mail, branch 18.0. Modules:
+    - user_mail_common  — shared base
+    - user_mail_imap    — IMAP client (imaplib), OWL mail UI
+    - user_mail_ai      — AI mail assistant (ai.coworker "Mail Assistant")
+
+  Conventions:
+    - Commit messages: [FIX]/[ADD]/[IMP] module: summary (English source code)
+    - UI strings English in code, Swedish in sv.po
+    - Odoo 18 view rules: view_mode "list" (never "tree")
+    - Secrets in Salt pillar (infrastructure) or keykeep (app/API keys)
+    - Never write `state` directly — call action_*/button_* methods
+
+  Domain: personal mail client inside Odoo. Mail is fetched over IMAP from
+  Dovecot (imap.vertel.se). The AI assistant classifies mail and applies
+  user rules (user_mail_ai.rule) AFTER the poller has fetched a message.
+
+  Relevant existing models:
+    - user.mail.imap        — IMAP account + folder/move/flag operations
+    - user_mail_ai.mail     — normalised message, triage + rule application
+    - user_mail_ai.rule     — user rules: condition_kind + action +
+                              action_config (JSON), priority, active
+    - user_mail_ai.routing  — category → specialist coworker handoff
+
+  Server facts (verified 2026-10-21):
+    - Dovecot Pigeonhole ManageSieve on imap.vertel.se:4190 (STARTTLS)
+    - Capabilities: fileinto reject envelope vacation imap4flags copy
+      include variables body regex mime foreverypart extracttext
+    - sieve_dir = ~/sieve, active script = ~/.dovecot.sieve
+    - sieve_before/sieve_default = /var/lib/dovecot/sieve/default.sieve
+      (currently just "keep;")
+    - Users already have hand-written scripts (e.g. "arkiv")
+
+  Library: sievelib 1.6.0 (parser, factory, managesieve client).
+  NOTE pitfall: pass mailbox names UNQUOTED to FiltersSet.addfilter —
+  sievelib quotes them itself. Passing '"INBOX.X"' yields "\"INBOX.X\"".
+
+rules:
+  proposal:
+    - State clearly that this is server-side Sieve, not Odoo-side rules
+    - Include a Non-goals section
+  tasks:
+    - "Group by phase: foundation, vacation, compiler, rules, UI, verification"
+    - "Deployment is NOT a task — it is a separate decision after review"

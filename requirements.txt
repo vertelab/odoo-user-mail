@@ -1,0 +1,32 @@
+# user_mail_ai / user_mail_imap — Python dependencies
+#
+# Installeras av repo_apply (salt odoo.repo_apply) som samlar alla
+# /usr/share/odoo-*/requirements.txt, deduplicerar och installerar.
+# Verifieras efterat av scripts/verify_requirements.py — som gor staten ROD
+# om ett paket nedan saknas.
+#
+# VIKTIGT: skriv paketnamn, inte importnamn. Verifieraren fragar
+# importlib.metadata pa paketnamnet (sievelib -> sievelib, men
+# python-docx -> docx ar motsatsen). Skriv aldrig ett paket utan att det
+# gar att importera — driftlardomen 2026-09-15 (tenacity) ar kostnaden for
+# att hoppas i stallet for att verifiera.
+
+# ── user_mail_ai — kalenderinbjudningar (Teams/Outlook .ics) ─────────────
+# Anvands i user_mail_ai_mail.py:_extract_calendar() for att tolka
+# text/calendar-bilagor till calendar.event.
+icalendar
+
+# ── Sieve (server-side mailregler) ───────────────────────────────────────
+# sievelib: tre delar i ett paket —
+#   sievelib.factory      bygger Sieve-kod programmatiskt ur regler
+#   sievelib.parser       validerar genererad kod innan den skickas
+#   sievelib.managesieve  klient mot Dovecot ManageSieve (RFC 5804, port 4190)
+#
+# KRITISK: en trasig aktiv Sieve-regel far Dovecot att avvisa eller
+# felsortera post. Darfor importeras sievelib.parser ALLTID fore
+# putscript — se sieve.script._validate().
+#
+# Versionstak: 1.x har ett stabilt API (FiltersSet.addfilter,
+# Parser.parse, Client.connect). 2.x kan byta signatur — ta inte upp
+# utan att testa round-trip mot en riktig server forst.
+sievelib>=1.6,<2

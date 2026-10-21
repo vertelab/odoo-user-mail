@@ -50,10 +50,19 @@ User Mail Common
     # Any module necessary for this one to work correctly
 
     'depends': ['base', 'base_setup'],
+    'external_dependencies': {
+        # sievelib: ManageSieve-klient (RFC 5804) + Sieve-parser/factory.
+        # KRITISK — utan den kan inga server-side regler eller vacation
+        # skickas. Finns i requirements.txt (repo_apply verifierar).
+        'python': ['sievelib'],
+    },
     'data': [
         'security/user_mail_security.xml',
         'security/ir.model.access.csv',
-        'views/res_users_view.xml'
+        'security/sieve_rules.xml',
+        'data/cron_sieve_vacation.xml',
+        'views/res_users_view.xml',
+        'views/menus_views.xml'
     ],
     'installable': True,
     'application': False,

@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <data>
+
+        <!--
+            Inställningar → E-postkonfiguration
+
+            Öppnar användarens EGET formulär på fliken "E-mail settings" —
+            samma formulär som administratören ser under Inställningar →
+            Användare, men scopat till sig själv.
+
+            VARFÖR EN SERVER ACTION OCH INTE EN act_window MED res_id:
+            `ir.actions.act_window.res_id` är ett STATISKT heltal. Vi kan
+            inte skriva "den inloggade användaren" där. En server action
+            som returnerar act_window-dicten kan sätta res_id = env.uid
+            vid körning. Alternativet — en act_window utan res_id — öppnar
+            en lista, och en vanlig användare får då "ingen behörighet"
+            eftersom den inte får läsa andra användare.
+        -->
+        <record id="action_user_mail_own_settings" model="ir.actions.server">
+            <field name="name">E-postkonfiguration</field>
+            <field name="model_id" ref="base.model_res_users"/>
+            <field name="state">code</field>
+            <field name="groups_id" eval="[(4, ref('user_mail_common.group_own_email_settings'))]"/>
+            <field name="code">
+# Öppna den inloggade användarens eget formulär.
+# form_view_initial_mode=edit gör att fliken är redigerbar direkt —
+# användaren kommer hit för att ÄNDRA sin e-postkonfiguration.
+action = {
+    'type': 'ir.actions.act_window',
+    'name': 'E-postkonfiguration',
+    'res_model': 'res.users',
+    'res_id': env.uid,
+    'view_mode': 'form',
+    'views': [(False, 'form')],
+    'target': 'current',
+    'context': {'form_view_initial_mode': 'edit'},
+}
+            </field>
+        </record>
+
+        <menuitem id="menu_user_mail_own_settings"
+            name="E-postkonfiguration"
+            parent="user_mail_common.menu_user_mail_settings"
+            action="action_user_mail_own_settings"
+            sequence="10"
+            groups="user_mail_common.group_own_email_settings"/>
+
+    </data>
+</odoo>
