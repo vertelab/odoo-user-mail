@@ -65,6 +65,25 @@ class ImapController(http.Controller):
         imap.action_clear_cache()
         return {'ok': True}
 
+    @http.route('/imap/folder/create', type='json', auth='user')
+    def folder_create(self, name):
+        """Skapa en mapp på mejlservern.
+
+        Sieve:s `fileinto :create` skapar mappen vid leverans, men först
+        när ett mail matchar. Att skapa den här ger användaren omedelbar
+        bekräftelse på att namnet är giltigt — och mappen syns i trädet
+        direkt i stället för först vid nästa matchande mail.
+        """
+        name = (name or '').strip()
+        if not name:
+            raise UserError('Ange ett mappnamn.')
+        imap = request.env['user.mail.imap'].sudo()
+        try:
+            imap.action_create_folder(name)
+        except Exception as e:
+            raise UserError('Kunde inte skapa mappen "%s": %s' % (name, e))
+        return {'ok': True, 'name': name}
+
     @http.route('/imap/special_folders', type='json', auth='user')
     def special_folders(self):
         """Mapparna för Arkivera / Skräppost / Ta bort (RFC 6154)."""
@@ -85,7 +104,8 @@ class ImapController(http.Controller):
 
     @http.route('/imap/rule/create', type='json', auth='user')
     def rule_create(self, name, condition_kind, condition_text, action,
-                    folder='', enforcement='server'):
+                    folder='', enforcement='server', condition_header='',
+                    flag_kind='flagged'):
         """Skapa en mailregel från ett meddelande.
 
         Ligger här och inte i user_mail_ai därför att dialogen ägs av
@@ -110,7 +130,9 @@ class ImapController(http.Controller):
                 'name': name,
                 'condition_kind': condition_kind,
                 'condition_text': condition_text,
+                'condition_header': condition_header,
                 'action': action,
+                'flag_kind': flag_kind,
                 'action_config': json.dumps(action_config),
                 'enforcement': enforcement,
             })

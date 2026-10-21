@@ -161,6 +161,28 @@ class SieveCompiler(models.AbstractModel):
     CONDITION_MAP = {
         'sender': 'from',
         'subject': 'subject',
+        # 'header' använder rule.condition_header som headernamn — se
+        # _rule_conditions.
+    }
+
+    # Flaggtyp → Sieve-åtgärd.
+    #
+    # \Flagged och \Answered är standardflaggor (RFC 3501) och syns i
+    # alla klienter. todo/personal/work är IMAP-nyckelord (RFC 3501
+    # keywords) — samma märkning Thunderbird använder. De kräver
+    # `imap4flags` och syns i Thunderbird, men inte i klienter som bara
+    # renderar standardflaggorna.
+    #
+    # Skräppost sätts som nyckelordet "Junk" i stället för att flyttas:
+    # att flytta kräver att servern har en skräppostmapp, och den
+    # åtgärden heter move_to_folder.
+    FLAG_MAP = {
+        'flagged': ('addflag', '\\Flagged'),
+        'important': ('addflag', '\\Answered'),
+        'spam': ('addflag', 'Junk'),
+        'todo': ('addflag', 'TODO'),
+        'personal': ('addflag', 'Personal'),
+        'work': ('addflag', 'Work'),
     }
 
     def rules_part(self, rules):
@@ -223,7 +245,16 @@ class SieveCompiler(models.AbstractModel):
 
     def _rule_conditions(self, rule):
         """Sieve-villkor för en regel, eller [] om den inte kan uttryckas."""
-        header = self.CONDITION_MAP.get(rule.condition_kind)
+        if rule.condition_kind == 'header':
+            # Användaren anger headernamnet själv (X-Spam-Flag, List-Id …).
+            # Utan namn finns inget att matcha — modellens constrains
+            # stoppar det, men kompilatorn ska inte krascha om en gammal
+            # post slinker igenom.
+            header = (rule.condition_header or '').strip()
+            if not header:
+                return []
+        else:
+            header = self.CONDITION_MAP.get(rule.condition_kind)
         if not header:
             # category/llm — klientsida, hoppa över tyst. Detta är inte en
             # bugg: _apply_rules() hanterar dem.
@@ -245,7 +276,10 @@ class SieveCompiler(models.AbstractModel):
             # blir kvar i INBOX utan spår.
             return [('fileinto', ':create', folder)]
         if rule.action == 'flag':
-            return [('addflag', '\\Flagged')]
+            # Flaggtypen styr vilken flagga som sätts. Okänd typ faller
+            # tillbaka på \\Flagged — det är den ofarligaste.
+            return [self.FLAG_MAP.get(rule.flag_kind,
+                                      ('addflag', '\\Flagged'))]
         if rule.action in ('ignore', 'block'):
             return [('discard',)]
         # nudge, draft_reply, create_object, create_activity, create_event,

@@ -61,13 +61,35 @@ class UserMailAiRule(models.Model):
     condition_kind = fields.Selection([
         ('sender', 'Avsändare'),
         ('subject', 'Ämne'),
+        ('header', 'Valfri header'),
         ('category', 'Kategori'),
         ('llm', 'LLM (fri text)'),
     ], string='Villkorstyp', required=True, default='sender')
+    condition_header = fields.Char(
+        'Header',
+        help='Vilken header som matchas när villkorstypen är "Valfri '
+             'header". Exempel: X-Spam-Flag, List-Id, Precedence, '
+             'Reply-To, User-Agent. Sieve matchar headernamn skiftläges-'
+             'okänsligt, men skriv det som avsändaren gör för läsbarhet.')
     condition_text = fields.Text('Villkor', required=True)
+    flag_kind = fields.Selection([
+        ('flagged', 'Stjärnmärk'),
+        ('spam', 'Skräppost'),
+        ('important', 'Viktig'),
+        ('todo', 'Att göra'),
+        ('personal', 'Privat'),
+        ('work', 'Arbete'),
+    ], string='Flaggtyp', default='flagged',
+        help='Vilken flagga som sätts när åtgärden är "Flagga".\n'
+             'flagged/important sätter \\Flagged respektive \\Answered.\n'
+             'todo/personal/work sätter IMAP-nyckelord (keywords) — samma '
+             'märkning som Thunderbird använder, och den syns i Thunderbird '
+             'men inte i alla andra klienter.\n'
+             'spam sätter \\Junk-nyckelordet; flytta hellre till '
+             'skräppostmappen om servern har en.')
     action = fields.Selection([
         ('move_to_folder', 'Flytta till mapp'),
-        ('flag', 'Flagga som viktig'),
+        ('flag', 'Flagga'),
         ('nudge', 'Nudgea mig'),
         ('ignore', 'Ignorera'),
         ('create_event', 'Skapa kalenderhändelse'),
@@ -129,9 +151,10 @@ class UserMailAiRule(models.Model):
 
     # Villkor som Sieve kan uttrycka. `category` är Odos klassificering
     # som bara finns EFTER att AI:n kört, och `llm` är en språkmodell.
-    SIEVE_CONDITIONS = ('sender', 'subject')
+    # 'header' kräver att condition_header är satt — se _check_sieve_expressible.
+    SIEVE_CONDITIONS = ('sender', 'subject', 'header')
 
-    @api.constrains('enforcement', 'action', 'condition_kind')
+    @api.constrains('enforcement', 'action', 'condition_kind', 'condition_header')
     def _check_sieve_expressible(self):
         """Stoppa server-regler som Sieve inte kan utföra.
 
@@ -159,10 +182,16 @@ class UserMailAiRule(models.Model):
                 raise ValidationError(
                     'Regeln "%s" kan inte köras på servern: villkorstypen '
                     '"%s" går inte att uttrycka i Sieve.\n\nAnvänd '
-                    'avsändare eller ämne, eller välj "I Odoo".'
+                    'avsändare, ämne eller valfri header, eller välj "I Odoo".'
                     % (rule.name, dict(
                         self._fields['condition_kind'].selection).get(
                             rule.condition_kind, rule.condition_kind)))
+            if (rule.condition_kind == 'header'
+                    and not (rule.condition_header or '').strip()):
+                raise ValidationError(
+                    'Regeln "%s" matchar på "Valfri header" men ingen '
+                    'header är angiven.\n\nAnge vilken header som ska '
+                    'matchas, t.ex. X-Spam-Flag eller List-Id.' % rule.name)
 
     # ── Synk till servern ────────────────────────────────────────────────
 
@@ -222,6 +251,12 @@ class UserMailAiRule(models.Model):
             return ct.lower() in (mail.from_email or '').lower()
         if self.condition_kind == 'subject':
             return ct.lower() in (mail.subject or '').lower()
+        if self.condition_kind == 'header':
+            # Header-matchning kräver att mailet bär headern. user_mail_ai.mail
+            # lagrar inte godtyckliga headers, så vi kan bara matcha på de
+            # fält som finns. Returnera False hellre än att gissa — en regel
+            # som ser ut att köra men aldrig matchar är värre än ingen regel.
+            return False
         if self.condition_kind == 'category':
             return ct == mail.category
         # llm matchas via klassificeringsutdata (matched_rules)

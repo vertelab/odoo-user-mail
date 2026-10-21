@@ -3,7 +3,7 @@
     <t t-name="user_mail_imap.SieveRuleDialog" owl="1">
         <Dialog title="'Skapa regel'" size="'md'">
             <div class="p-3">
-                <p class="text-muted small mb-3">
+                <p class="text-muted small mb-3" t-if="props.message">
                     Regeln skapas från meddelandet
                     <strong t-out="props.message.subject"/>.
                 </p>
@@ -11,25 +11,67 @@
                 <div class="alert alert-danger" role="alert"
                     t-if="state.error" t-out="state.error"/>
 
+                <!-- Namn: förifyllt förslag, redigerbart. -->
                 <div class="mb-3">
                     <label class="form-label" for="rule-name">Namn</label>
                     <input id="rule-name" type="text" class="form-control"
-                        t-model="state.name" placeholder="Namn på regeln"/>
+                        t-model="state.name"
+                        t-att-placeholder="suggestedName()"/>
+                    <div class="form-text">
+                        Föreslås från villkoret. Ändra fritt.
+                    </div>
                 </div>
 
                 <div class="row mb-3">
                     <div class="col-6">
                         <label class="form-label" for="rule-kind">Matcha på</label>
                         <select id="rule-kind" class="form-select"
-                            t-model="state.conditionKind">
+                            t-on-change="(ev) => this.onConditionKindChange(ev.target.value)"
+                            t-att-value="state.conditionKind">
                             <option value="sender">Avsändare</option>
                             <option value="subject">Ämne</option>
+                            <option value="header">Valfri header</option>
                         </select>
                     </div>
                     <div class="col-6">
-                        <label class="form-label" for="rule-text">Text</label>
+                        <label class="form-label" for="rule-text">
+                            <t t-if="state.conditionKind === 'sender'">Avsändare</t>
+                            <t t-elif="state.conditionKind === 'subject'">Ämne</t>
+                            <t t-else="">Värde</t>
+                        </label>
                         <input id="rule-text" type="text" class="form-control"
-                            t-model="state.conditionText"/>
+                            t-att-value="state.conditionText"
+                            t-on-input="(ev) => this.onConditionTextChange(ev.target.value)"
+                            t-att-placeholder="state.conditionKind === 'sender' ? 'namn@domän.se' : (state.conditionKind === 'subject' ? 'Text i ämnesraden' : 'Värdet att matcha')"/>
+                    </div>
+                </div>
+
+                <!--
+                    Header-väljaren visas bara för "Valfri header".
+                    Datum- och listningsheaders är de vanligaste skälen att
+                    matcha på annat än avsändare: X-Spam-Flag fångar
+                    skräppost, List-Id fångar utskick.
+                -->
+                <div class="mb-3" t-if="needsHeader">
+                    <label class="form-label" for="rule-header">Header</label>
+                    <input id="rule-header" type="text" class="form-control"
+                        t-att-value="state.conditionHeader"
+                        t-on-input="(ev) => this.onHeaderChange(ev.target.value)"
+                        placeholder="X-Spam-Flag" list="rule-header-suggestions"/>
+                    <datalist id="rule-header-suggestions">
+                        <option value="X-Spam-Flag"/>
+                        <option value="X-Spam-Status"/>
+                        <option value="List-Id"/>
+                        <option value="Precedence"/>
+                        <option value="Reply-To"/>
+                        <option value="Return-Path"/>
+                        <option value="User-Agent"/>
+                        <option value="To"/>
+                        <option value="Cc"/>
+                    </datalist>
+                    <div class="form-text">
+                        Matchar om headern <em>innehåller</em> värdet.
+                        Skiftlägesokänsligt.
                     </div>
                 </div>
 
@@ -44,6 +86,28 @@
                     </select>
                 </div>
 
+                <!--
+                    Flaggtyp. Standardflaggor syns i alla klienter;
+                    todo/personal/work är IMAP-nyckelord som Thunderbird
+                    visar men andra klienter kan hoppa över.
+                -->
+                <div class="mb-3" t-if="needsFlag">
+                    <label class="form-label" for="rule-flag">Flaggtyp</label>
+                    <select id="rule-flag" class="form-select"
+                        t-model="state.flagKind">
+                        <option value="flagged">Stjärnmärk</option>
+                        <option value="spam">Skräppost</option>
+                        <option value="important">Viktig</option>
+                        <option value="todo">Att göra</option>
+                        <option value="personal">Privat</option>
+                        <option value="work">Arbete</option>
+                    </select>
+                    <div class="form-text">
+                        Att göra / Privat / Arbete sätter IMAP-nyckelord —
+                        syns i Thunderbird, men inte i alla klienter.
+                    </div>
+                </div>
+
                 <div class="mb-3" t-if="needsFolder">
                     <label class="form-label" for="rule-folder">Mapp</label>
                     <select id="rule-folder" class="form-select"
@@ -55,6 +119,30 @@
                     </select>
                     <input t-else="" type="text" class="form-control"
                         t-model="state.folder" placeholder="Mappnamn"/>
+
+                    <!--
+                        Ny mapp. Sieve:s fileinto :create skapar mappen vid
+                        leverans, men först när ett mail matchar — att skapa
+                        den här ger omedelbar bekräftelse på att namnet är
+                        giltigt, och mappen syns i trädet direkt.
+                    -->
+                    <div class="input-group input-group-sm mt-2">
+                        <input type="text" class="form-control"
+                            t-model="state.newFolder"
+                            placeholder="Ny mapp, t.ex. INBOX.Kvitton"
+                            t-on-keydown="(ev) => ev.key === 'Enter' &amp;&amp; this.onCreateFolder()"/>
+                        <button class="btn btn-outline-secondary" type="button"
+                            t-on-click="() => this.onCreateFolder()"
+                            t-att-disabled="state.creatingFolder || !state.newFolder.trim()">
+                            <i class="fa fa-spinner fa-spin me-1" t-if="state.creatingFolder"/>
+                            <i class="fa fa-plus me-1" t-else=""/>
+                            Skapa mapp
+                        </button>
+                    </div>
+                    <div class="form-text">
+                        Mappen skapas på mejlservern. Använd punkt som
+                        avgränsare: <code>INBOX.Kvitton</code>.
+                    </div>
                 </div>
 
                 <div class="mb-2">
@@ -68,7 +156,7 @@
                     <div class="form-text">
                         <t t-if="state.enforcement === 'server'">
                             Körs av mejlservern innan Odoo ser mailet.
-                            Bara avsändare och ämne som villkor.
+                            Villkor: avsändare, ämne eller valfri header.
                         </t>
                         <t t-else="">
                             Körs när mailet hämtats. Kan använda AI och skapa

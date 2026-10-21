@@ -297,6 +297,32 @@ class ImapServer(models.AbstractModel):
         finally:
             _safe_logout(conn)
 
+    def action_create_folder(self, name):
+        """Skapa en mapp på IMAP-servern.
+
+        Namnet skickas till servern som det är — IMAP:s CREATE tar mappens
+        fullständiga namn inklusive avgränsare ("INBOX.Kvitton"), och
+        Dovecot skapar mellanliggande noder själv.
+
+        Citering: namnet citeras bara om det innehåller tecken som bryter
+        IMAP-syntaxen (mellanslag, parenteser, citattecken). Ett onödigt
+        citerat namn skapar en mapp vars namn *innehåller* citattecknen —
+        samma fälla som fileinto har.
+        """
+        name = (name or '').strip()
+        if not name:
+            raise UserError(_('Ange ett mappnamn.'))
+        conn = self._connect_imap()
+        try:
+            typ, data = conn.create(_quote_mailbox(name))
+            if typ != 'OK':
+                raise UserError(_(
+                    'Servern nekade att skapa mappen "%(name)s" (%(typ)s).',
+                ) % {'name': name, 'typ': typ})
+        finally:
+            _safe_logout(conn)
+        return True
+
     # RFC 6154 special-use → den mapp verktygsraden ska flytta till.
     # Arkivera har ingen standardflagga; \Archive förekommer men Dovecot
     # sätter den inte här, så den faller tillbaka på namnet "Archives".
