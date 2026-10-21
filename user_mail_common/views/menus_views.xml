@@ -14,16 +14,13 @@
               * user_mail_common laddas FÖRE user_mail_client och user_mail_ai
                 (båda beror på den). En <delete> här skulle köra innan
                 barnen hunnit flyttas och lämna dem föräldralösa.
-              * Odoo 18 kraschar på <delete> mot en xmlid som inte finns.
+              * Odoo 18 kraschar på en delete mot en xmlid som inte finns.
               * Posten kan behövas igen; active=False är reversibelt.
 
             Vi rör INTE mail.menu_configuration — vi hänger bara våra poster
             under den. Vad Odoos meny heter på svenska är en
             översättningsfråga, inte en strukturfråga.
         -->
-        <record id="menu_user_mail_settings" model="ir.ui.menu">
-            <field name="active" eval="False"/>
-        </record>
 
     </data>
 </odoo>
