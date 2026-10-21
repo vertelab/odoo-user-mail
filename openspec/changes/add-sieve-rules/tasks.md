@@ -4,22 +4,22 @@ Deployment is **not** a task here. It is a separate decision after review.
 
 ## Phase 1 — Foundation (`user_mail_common`)
 
-- [ ] 1.1 Add `sievelib>=1.6,<2` to `user_mail_common/__manifest__.py`
+- [x] 1.1 Add `sievelib>=1.6,<2` to `user_mail_common/__manifest__.py`
       `external_dependencies`
-- [ ] 1.2 Create `models/sieve_script.py` — `sieve.script` model:
+- [x] 1.2 Create `models/sieve_script.py` — `sieve.script` model:
       `user_id`, `name`, `body`, `state`, `last_sync`, `last_error`,
       `active`; `unique(user_id)` constraint
-- [ ] 1.3 Create `models/sieve_client.py` — ManageSieve wrapper:
+- [x] 1.3 Create `models/sieve_client.py` — ManageSieve wrapper:
       `_connect()` (host/port from `ir.config_parameter`, password from
       `res.users.dovecot_password`, STARTTLS), `checkscript()`,
       `putscript()`, `setactive()`, `listscripts()`
-- [ ] 1.4 Add `security/ir.model.access.csv` rows — user reads/writes own
+- [x] 1.4 Add `security/ir.model.access.csv` rows — user reads/writes own
       script; `base.group_erp_manager` full
-- [ ] 1.5 Add record rule — a user sees only their own `sieve.script`
-- [ ] 1.6 `res.users._sieve_script()` — get-or-create the user's script
-- [ ] 1.7 `sieve.script._validate(body)` — `sievelib.parser.Parser().parse()`
+- [x] 1.5 Add record rule — a user sees only their own `sieve.script`
+- [x] 1.6 `res.users._sieve_script()` — get-or-create the user's script
+- [x] 1.7 `sieve.script._validate(body)` — `sievelib.parser.Parser().parse()`
       then `checkscript()`; raise `UserError` with the server's `errmsg`
-- [ ] 1.8 `sieve.script.action_sync()` — validate → `putscript` →
+- [x] 1.8 `sieve.script.action_sync()` — validate → `putscript` →
       `setactive`; on failure set `state='error'` + `last_error`, never
       raise past the cron
 
@@ -85,13 +85,13 @@ Deployment is **not** a task here. It is a separate decision after review.
 
 ## Phase 6 — Verification
 
-- [ ] 6.1 `python3 -m py_compile` on every touched file
-- [ ] 6.2 `checkscript` the generated vacation and rule scripts against
+- [x] 6.1 `python3 -m py_compile` on every touched file
+- [x] 6.2 `checkscript` the generated vacation and rule scripts against
       `imap.vertel.se:4190` (verified working in exploration)
-- [ ] 6.3 Confirm `currentdate :value "ge"` needs `require ["relational"]`
+- [x] 6.3 Confirm `currentdate :value "ge"` needs `require ["relational"]`
       — documented, and **not used** (cron is the chosen mechanism)
-- [ ] 6.4 Confirm `dovecot`/`dovecot.sieve` still filtered from folder list
-- [ ] 6.5 Manual test plan written into the change (see below)
+- [x] 6.4 Confirm `dovecot`/`dovecot.sieve` still filtered from folder list
+- [x] 6.5 Manual test plan written into the change (see below)
 
 ## Manual test plan
 
