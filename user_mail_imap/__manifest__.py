@@ -1,6 +1,10 @@
 {
     'name': 'User Mail: IMAP Client',
-    'version': '18.0.1.10.1',
+    # Versionsbokföring: 18.0 = Odoo-version, 1 = major (ej
+    # regressionsbar), 10 = minor, 2 = buggfixar. 10.3 = stjärnfiltret
+    # söker nu i hela mappen, etikettmenyn på meddelandet och
+    # olästfiltret som egen axel (fix-flag-search-and-message-labels).
+    'version': '18.0.1.10.3',
     'summary': 'IMAP email client integrated in Odoo — with per-user poller.',
     'description': '''
 IMAP Client
@@ -40,6 +44,7 @@ IMAP Client
     'assets': {
         'web.assets_backend': [
             'user_mail_imap/static/src/services/imap_store.esm.js',
+            'user_mail_imap/static/src/js/mail_flags.esm.js',
             'user_mail_imap/static/src/js/mail_imap.esm.js',
             'user_mail_imap/static/src/xml/mail_imap.xml',
             'user_mail_imap/static/src/components/folder_tree/folder_tree.esm.js',

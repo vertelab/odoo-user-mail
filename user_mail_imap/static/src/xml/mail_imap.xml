@@ -41,6 +41,8 @@
                             searchTotal="state.searchTotal"
                             flagFilter="state.flagFilter"
                             onSetFlagFilter="(v) => this.onSetFlagFilter(v)"
+                            unreadFilter="state.unreadFilter"
+                            onToggleUnreadFilter="() => this.onToggleUnreadFilter()"
                             threaded="state.threaded"
                             threadedCount="state.threadedCount"
                             threadScanned="state.threadScanned"
@@ -64,7 +66,7 @@
                         onArchive="(msg) => this.onArchive(msg)"
                         onJunk="(msg) => this.onJunk(msg)"
                         onDelete="(msg) => this.onDelete(msg)"
-                        onToggleFlag="(msg, v) => this.onToggleFlag(msg, v)"/>
+                        onToggleFlag="(msg, v, f) => this.onToggleFlag(msg, v, f)"/>
                 </div>
             </t>
             <t t-if="showComposer.visible">

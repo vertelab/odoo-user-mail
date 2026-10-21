@@ -34,8 +34,15 @@ def _uid_batches(uids, size=UID_BATCH_SIZE):
 
 # IMAP-flagga/nyckelord → vår flaggtyp. Samma mappning som
 # sieve_compiler.FLAG_MAP, men åt andra hållet.
+#
+# `important` har ett eget nyckelord. Det mappades tidigare till
+# `\Answered`, som betyder "besvarat" — så ett svar i klienten satte
+# viktig-flaggan, och ett viktigt mail såg besvarat ut. `\answered` läses
+# fortfarande som `important` under övergången (befintliga mail bär den
+# flaggan), men nyckelordet `Important` prioriteras när båda finns.
 _FLAG_READ = {
     '\\flagged': 'flagged',
+    'important': 'important',
     '\\answered': 'important',
     'junk': 'spam',
     '$junk': 'spam',
@@ -52,6 +59,11 @@ def _read_flags(flags):
     flaggor och listan ska kunna filtreras på vilken som helst. `flagged`
     behålls som egen boolean för bakåtkompatibilitet med listvyns
     fetstil och stjärnan.
+
+    `\\Answered` läses som `important` under övergången, eftersom
+    befintliga mail bär den flaggan sedan den gamla mappningen. Finns
+    både nyckelordet ``Important`` och ``\\Answered`` är resultatet
+    detsamma — `important` läggs bara i listan en gång.
     """
     out = []
     for f in flags or []:
@@ -949,7 +961,120 @@ class ImapServer(models.AbstractModel):
                     })
         return found
 
-    def action_search_mails(self, folder='INBOX', query='', offset=0, limit=80):
+    @api.model
+    def _flag_criteria(self, flag=None, unread=False):
+        """IMAP SEARCH-kriterier för flaggtyp och oläst.
+
+        Returnerar en sträng som läggs **efter** ett befintligt uttryck, dvs.
+        som AND-led — IMAP tolkar flera nycklar efter varandra som AND.
+        Anledningen att det inte läggs inuti sökningens ``OR``-träd: ``OR``
+        tar exakt två nycklar, så ett tredje led där hade brutit uttrycket.
+
+        ``unread`` översätts till ``UNSEEN`` — IMAP:s inbyggda, indexerade
+        kriterium — inte till en flaggtyp.
+        """
+        parts = []
+        if flag:
+            imap_flag = self._FLAG_WRITE.get(flag)
+            if not imap_flag:
+                raise UserError(_('Okänd flaggtyp: %s', flag))
+            if flag == 'seen':
+                # 'seen' är lässtatus, inte en etikett — den går via
+                # UNSEEN/SEEN nedan, inte som FLAGGED/KEYWORD.
+                unread = True
+            elif imap_flag.startswith('\\'):
+                parts.append(imap_flag.lstrip('\\').upper())
+            else:
+                # Nyckelord (TODO, Personal, Important, …) citeras.
+                parts.append('KEYWORD "%s"' % imap_flag)
+        if unread:
+            parts.append('UNSEEN')
+        return (' ' + ' '.join(parts)) if parts else ''
+
+    def action_filter_mails(self, folder='INBOX', flag=None, unread=False,
+                            offset=0, limit=80):
+        """Filtrera en mapp server-side på flagga och/eller oläst.
+
+        Går mot **hela mappen** via IMAP ``SEARCH``, inte mot den sida som
+        redan hämtats till listan. Det är hela poängen: ett stjärnmärkt mail
+        på plats 412 ska hittas utan att användaren scrollar dit, och
+        ``total`` ska vara mappvidd.
+
+        ``flag`` är en av våra flaggtyper (flagged/important/spam/todo/
+        personal/work); ``unread`` är en egen axel och kan kombineras med
+        vilken flagga som helst.
+
+        Returnerar samma dict-form som ``action_fetch_mails``.
+        """
+        criteria = self._flag_criteria(flag, unread).strip() or 'ALL'
+        conn = self._connect_imap()
+        try:
+            _select_folder(conn, folder)
+            typ, data = conn.uid('SEARCH', None, criteria)
+            if typ != 'OK':
+                return {'messages': [], 'total': 0}
+            uids = data[0].split() if data and data[0] else []
+            # Nyaste först, samma ordning som listvyn.
+            uids = sorted(uids, key=int, reverse=True)
+            total = len(uids)
+            page = uids[offset:offset + limit]
+            messages = self._fetch_headers_for_uids(conn, page)
+            return {'messages': messages, 'total': total}
+        finally:
+            _safe_logout(conn)
+
+    def _fetch_headers_for_uids(self, conn, uids):
+        """Hämta FLAGS + header för en UID-lista, batchat.
+
+        Delad av sökning och filter så att en rad ser likadan ut vilken väg
+        den än kommit in — det är förutsättningen för att filtret ska kunna
+        appliceras på sökträffar utan att raderna ändrar utseende.
+        """
+        by_uid = {}
+        for batch in _uid_batches(uids):
+            uid_set = ','.join(
+                u.decode() if isinstance(u, bytes) else str(u)
+                for u in batch)
+            typ_f, msg_data = conn.uid(
+                'FETCH', uid_set, '(FLAGS BODY.PEEK[HEADER])')
+            if typ_f != 'OK' or not msg_data:
+                continue
+            for item in msg_data:
+                if not isinstance(item, tuple):
+                    continue
+                flags, header_raw = item[0], item[1]
+                if isinstance(flags, bytes):
+                    flags = flags.decode('utf-8', 'ignore')
+                m = re.search(r'UID\s+(\d+)', flags or '')
+                if not m:
+                    continue
+                uid = int(m.group(1))
+                raw_flags = flags.encode() if isinstance(flags, str) else flags
+                try:
+                    msg = BytesParser(
+                        policy=policy.default).parsebytes(header_raw)
+                except Exception as e:
+                    _logger.warning(
+                        'Header parse failed uid=%s: %s: %s',
+                        uid, type(e).__name__, e)
+                    continue
+                by_uid[uid] = {
+                    'uid': uid,
+                    'seen': b'\\Seen' in raw_flags,
+                    'flagged': b'\\Flagged' in raw_flags,
+                    'flags': _read_flags(raw_flags),
+                    'from_': str(msg.get('From', '')),
+                    'subject': str(msg.get('Subject', '(No subject)')),
+                    'date': str(msg.get('Date', '')),
+                    'message_id': str(msg.get('Message-ID', '')),
+                }
+        # Emittera i den efterfrågade ordningen; ett UID servern inte
+        # svarade på hoppas över.
+        return [by_uid[int(u)] for u in uids
+                if int(u) in by_uid]
+
+    def action_search_mails(self, folder='INBOX', query='', offset=0, limit=80,
+                            flag=None, unread=False):
         """Search the current folder, OKF-backed when available.
 
         Returns the same dict shape as ``action_fetch_mails``
@@ -962,15 +1087,29 @@ class ImapServer(models.AbstractModel):
         which scanned every message body (``TEXT``) on each call. Without
         the OKF model the method falls back to the IMAP ``SEARCH``
         implementation, so ``user_mail_imap`` stays standalone.
+
+        ``flag`` and ``unread`` narrow the search; both may be given
+        together. They apply in both branches, so the result (and
+        ``total``) is the same whichever backend answers. With an empty
+        ``query`` they mean "filter the folder", not "empty search".
         """
         term = (query or '').strip()
         if not term:
+            # En tom sökning är ett filter, inte en sökning: då ska hela
+            # mappen filtreras i stället för att returnera tomt.
+            if flag or unread:
+                return self.action_filter_mails(
+                    folder, flag=flag, unread=unread,
+                    offset=offset, limit=limit)
             return {'messages': [], 'total': 0}
         if 'ai.okf.concept' in self.env:
-            return self._search_mails_okf(folder, term, offset, limit)
-        return self._search_mails_imap(folder, term, offset, limit)
+            return self._search_mails_okf(
+                folder, term, offset, limit, flag=flag, unread=unread)
+        return self._search_mails_imap(
+            folder, term, offset, limit, flag=flag, unread=unread)
 
-    def _search_mails_okf(self, folder, term, offset=0, limit=80):
+    def _search_mails_okf(self, folder, term, offset=0, limit=80,
+                          flag=None, unread=False):
         """Resolve the query through OKF hybrid search (personal scope).
 
         The OKF concept stores only ``source_ref`` (= the mail's
@@ -1003,7 +1142,8 @@ class ImapServer(models.AbstractModel):
         # trasigt ut trots att IMAP kan svara. Faller då tillbaka på
         # IMAP:s SEARCH, som alltid fungerar.
         if not Mail.search_count([('user_id', '=', self.env.user.id)], limit=1):
-            return self._search_mails_imap(folder, term, offset, limit)
+            return self._search_mails_imap(
+                folder, term, offset, limit, flag=flag, unread=unread)
         hits = Concept._okf_search(
             query=term, scope='personal', owner_id=self.env.user.id,
             limit=limit + max(0, offset), semantic=False)
@@ -1033,24 +1173,110 @@ class ImapServer(models.AbstractModel):
                 # row), and it does not count toward the total.
                 continue
             resolved.append(row)
+
+        # Flaggor och lässtatus finns inte i user_mail_ai.mail — de ägs av
+        # IMAP. Hämtas därför för de träffar som ska **renderas** (sidan),
+        # inte för alla träffar: ett FETCH per sökning, inte per träff.
+        # Misslyckas hämtningen degraderar raderna till "status okänd" i
+        # stället för att sökningen faller.
+        status = self._fetch_flag_status(
+            folder, [row.get('source_uid') for row in resolved
+                     if row.get('source_uid')])
+
+        if flag or unread:
+            # Filtret appliceras på de resolverade raderna innan `total`
+            # räknas, så totalen beskriver den filtrerade mängden.
+            filtered = []
+            for row in resolved:
+                st = status.get(row.get('source_uid')) or {}
+                if unread and st.get('seen') is not False:
+                    # Okänd status räknas inte som oläst — vi gissar aldrig.
+                    continue
+                if flag and flag not in (st.get('flags') or []):
+                    continue
+                filtered.append(row)
+            resolved = filtered
+
         total = len(resolved)
         page = resolved[offset:offset + limit]
-        messages = [self._okf_mail_row(row) for row in page]
+        messages = [
+            self._okf_mail_row(row, status.get(row.get('source_uid')))
+            for row in page]
         return {'messages': messages, 'total': total}
 
+    def _fetch_flag_status(self, folder, uids):
+        """``{uid: {'seen': bool, 'flags': [...]}}`` för en UID-lista.
+
+        Ett batchat ``UID FETCH (FLAGS)``. Fel degraderar till en tom
+        dict — anroparen behandlar saknad status som "okänd", aldrig som
+        oläst.
+        """
+        uids = [int(u) for u in uids if u]
+        if not uids:
+            return {}
+        out = {}
+        conn = None
+        try:
+            conn = self._connect_imap()
+            _select_folder(conn, folder)
+            for batch in _uid_batches(uids):
+                uid_set = ','.join(str(u) for u in batch)
+                typ, data = conn.uid('FETCH', uid_set, '(FLAGS)')
+                if typ != 'OK' or not data:
+                    continue
+                for item in data:
+                    if not isinstance(item, tuple):
+                        continue
+                    meta = item[0]
+                    if isinstance(meta, bytes):
+                        meta = meta.decode('utf-8', 'ignore')
+                    m = re.search(r'UID\s+(\d+)', meta or '')
+                    if not m:
+                        continue
+                    uid = int(m.group(1))
+                    raw_flags = meta.encode() if isinstance(meta, str) else meta
+                    out[uid] = {
+                        'seen': b'\\Seen' in raw_flags,
+                        'flags': _read_flags(raw_flags),
+                    }
+        except Exception as e:
+            _logger.warning(
+                'FETCH FLAGS failed for %r (%d uids): %s: %s',
+                folder, len(uids), type(e).__name__, e)
+            return {}
+        finally:
+            if conn is not None:
+                _safe_logout(conn)
+        return out
+
     @staticmethod
-    def _okf_mail_row(row):
-        """Map an ``user_mail_ai.mail`` row to a mail-list entry."""
+    def _okf_mail_row(row, status=None):
+        """Map an ``user_mail_ai.mail`` row to a mail-list entry.
+
+        ``status`` är verklig flagg-/lässtatus från IMAP. Saknas den
+        (FETCH misslyckades) blir raden "okänd": ``seen``/``flagged``
+        sätts till ``None`` i stället för att påstås vara ``False`` — en
+        gissning som oläst hade gjort ett läst mail fetstilt och fått det
+        att fastna i olästfiltret.
+        """
         from_ = row.get('from_email') or ''
         if row.get('from_name') and from_:
             from_ = '%s <%s>' % (row['from_name'], from_)
         elif row.get('from_name'):
             from_ = row['from_name']
         received = row.get('received_at')
+        status = status or {}
+        # ``None`` = okänd, inte False. Listvyn behandlar None som "visa som
+        # läst" — att gissa oläst vore värre, eftersom det både ger fetstil
+        # på lästa mail och får dem att fastna i olästfiltret.
+        seen = status.get('seen')
+        flags = status.get('flags')
         return {
             'uid': row.get('source_uid') or 0,
-            'seen': False,
-            'flagged': False,
+            'seen': seen,
+            'flagged': (True if 'flagged' in flags
+                        else (False if flags is not None else None)),
+            'flags': flags,
             'from_': from_,
             'subject': row.get('subject') or '(No subject)',
             'date': received.strftime('%a, %d %b %Y %H:%M:%S %z')
@@ -1058,7 +1284,8 @@ class ImapServer(models.AbstractModel):
             'message_id': row.get('message_id') or '',
         }
 
-    def _search_mails_imap(self, folder, term, offset=0, limit=80):
+    def _search_mails_imap(self, folder, term, offset=0, limit=80,
+                           flag=None, unread=False):
         """Sök i en mapp med IMAP:s egna SEARCH-kommando (fallback).
 
         Söker server-side i avsändare, rubrik och text (FROM/SUBJECT/TEXT),
@@ -1068,11 +1295,16 @@ class ImapServer(models.AbstractModel):
         IMAP:s ``OR`` tar exakt två söknycklar, så tre kriterier kräver
         nästling: ``OR OR FROM "q" SUBJECT "q" TEXT "q"`` läses som
         ``OR (OR (FROM q) (SUBJECT q)) (TEXT q)``.
+
+        ``flag`` och ``unread`` läggs som **AND**-led utanför ``OR``-trädet
+        — ``OR`` tar bara två nycklar, så att stoppa in dem där hade brutit
+        uttrycket.
         """
         # Escapa citattecken så att de inte bryter IMAP-strängen.
         escaped = term.replace('\\', '\\\\').replace('"', '\\"')
         criteria = 'OR OR FROM "%s" SUBJECT "%s" TEXT "%s"' % (
             escaped, escaped, escaped)
+        criteria += self._flag_criteria(flag, unread)
 
         conn = self._connect_imap()
         try:
@@ -1272,7 +1504,7 @@ class ImapServer(models.AbstractModel):
     # samma flagga i klienten.
     _FLAG_WRITE = {
         'flagged': '\\Flagged',
-        'important': '\\Answered',
+        'important': 'Important',
         'spam': 'Junk',
         'todo': 'TODO',
         'personal': 'Personal',

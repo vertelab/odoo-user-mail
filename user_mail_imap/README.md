@@ -48,6 +48,62 @@ odoo --config /etc/odoo/odoo.conf -d <testdb> \
      --workers=0 --http-port=4492 --without-demo=all
 ```
 
+## Flaggor, etiketter och oläst
+
+Tre saker som ser besläktade ut men är olika axlar:
+
+**1. Stjärnan (`flagged`)** är en IMAP-systemflagga (`\Flagged`).
+
+**2. Etiketterna** är IMAP-nyckelord och sätts från menyn bredvid stjärnan
+uppe i meddelandevyn: `important`, `spam`, `todo`, `personal`, `work`.
+Definitionerna bor i `static/src/js/mail_flags.esm.js` och importeras av
+**både** listans filter och meddelandets etikettmeny — annars kan en etikett
+bli sättbar men ofiltrerbar, eller tvärtom.
+
+`important` skrivs som nyckelordet `Important`. Äldre mail som markerades
+med `\Answered` (när `important` var kopplat till svarsflödet) läses
+fortfarande som `important`, men nya skrivs aldrig så — svarsflödet äger
+`\Answered`.
+
+**3. Oläst är ingen etikett.** Det är en egen axel som mappar till IMAP:s
+`UNSEEN`, och den har en egen knapp i listan (inte en sjunde post i
+flaggmenyn). Skälet är att `UNSEEN` är serverindexerat och snabbast, och att
+en "oläst"-etikett hade skapat två vägar till samma serverfält — plus
+erbjudit oläst som något man *sätter*.
+
+### Filtrering sker på servern
+
+Både flagg- och olästfiltret går mot **hela mappen** via IMAP `SEARCH`, inte
+mot de ~80 rader som råkar vara laddade. Det var buggen: ett stjärnmärkt
+mail på plats 412 svarade "Inga mail med den flaggan i mappen" eftersom
+klienten filtrerade en ofullständig sida.
+
+- `action_filter_mails(folder, flag, unread, offset, limit)` — ny metod.
+- `_flag_criteria(flag, unread)` bygger `FLAGGED` / `KEYWORD "<x>"` /
+  `UNSEEN`. Kriterierna läggs som **AND-led utanför** sökningens
+  `OR`-träd: IMAP:s `OR` tar exakt två nycklar, så ett tredje led inuti
+  hade brutit uttrycket.
+- `/imap/filter` är en egen rutt. Ett filter utan sökord är ett filter, inte
+  en sökning; att tvinga `query=''` genom sökvägen fick ett tomt sökfält att
+  se ut som att det rensade filtret.
+- Klienten anropar alltid `applyView({query, flag, unread, offset})` — en
+  gemensam lastväg. Delade anrop kunde inte veta om det andra filtret var
+  aktivt, så `total` blev fel och pagineringen hoppade.
+
+### Okänd status gissas aldrig
+
+Rader från OKF-sökningen får sin flagg-/lässtatus via ett batchat
+`UID FETCH (FLAGS)` (`_fetch_flag_status`). Misslyckas det blir `seen` och
+`flagged` **`None`** — inte `False`. Att gissa oläst hade gett fetstil på
+lästa mail och fått dem att fastna i olästfiltret. Okänd status utesluts ur
+olästfiltret i stället för att räknas dit.
+
+### Ett öppnat mail laddar inte om listan
+
+Att öppna ett mail markerar det läst på servern. Listan laddas därför inte
+om (R4): mitt i läsningen hade raden försvunnit ur ett aktivt olästfilter.
+Radens `seen` uppdateras på plats så att fetstilen släpper direkt.
+
 ## Kända testfall i `tests/test_imap.py`
 
 Nio tester i IMAP-sviten faller på en ren `18.0`-kodbas utan ändringar

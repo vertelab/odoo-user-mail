@@ -38,9 +38,24 @@ class ImapController(http.Controller):
         return imap.action_fetch_mails(folder, offset, limit)
 
     @http.route('/imap/search', type='json', auth='user')
-    def search(self, folder='INBOX', query='', offset=0, limit=50):
+    def search(self, folder='INBOX', query='', offset=0, limit=50,
+               flag=None, unread=False):
         imap = request.env['user.mail.imap'].sudo()
-        return imap.action_search_mails(folder, query, offset, limit)
+        return imap.action_search_mails(
+            folder, query, offset, limit, flag=flag, unread=unread)
+
+    @http.route('/imap/filter', type='json', auth='user')
+    def filter_mails(self, folder='INBOX', flag=None, unread=False,
+                     offset=0, limit=50):
+        """Filtrera mappen server-side.
+
+        Egen rutt vid sidan av /imap/search: ett filter utan sökord är inte
+        en sökning, och att tvinga klienten att skicka ``query=''`` för att
+        filtrera gjorde att ett tomt sökfält såg ut att rensa filtret.
+        """
+        imap = request.env['user.mail.imap'].sudo()
+        return imap.action_filter_mails(
+            folder, flag=flag, unread=unread, offset=offset, limit=limit)
 
     @http.route('/imap/mail', type='json', auth='user')
     def mail(self, folder, uid):

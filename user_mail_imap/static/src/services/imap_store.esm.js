@@ -42,9 +42,18 @@ const store = {
             searchQuery: '',
             searchActive: false,
             // Flaggfilter: '' = alla, annars en flaggtyp
-            // (flagged/important/spam/todo/personal/work). Filtrerar den
-            // hämtade sidan — se visibleMessages i mail_imap.esm.js.
+            // (flagged/important/spam/todo/personal/work).
+            //
+            // Filtret körs på SERVERN över hela mappen (se applyView), inte
+            // över den hämtade sidan. Klient-side filtrering hittade bara
+            // stjärnmärkta mail bland de ~80 som redan var laddade, så en
+            // träff på plats 412 svarade "inga mail med den flaggan".
             flagFilter: '',
+            // Oläst är en EGEN axel, inte en sjunde flagga: `seen` styr
+            // fetstil och läses av servern som UNSEEN. Att lägga den i
+            // flagglistan skulle göra "oläst" till en etikett man sätter på
+            // ett mail och ge två vägar till samma serverfält.
+            unreadFilter: false,
             // Trådad visning. Klient-side över den hämtade sidan — se
             // threadMessages i mail_imap.esm.js.
             threaded: false,
@@ -205,40 +214,71 @@ const store = {
             },
 
             /**
-             * Search the whole folder on the server (IMAP SEARCH), not just the
-             * messages already loaded in the list.
+             * En vyladdning: sökord + flagga + oläst i ETT anrop.
              *
-             * @param {string} query   free-text query; empty clears the search
-             * @param {string} folder  folder to search, defaults to the current one
-             * @param {number} offset  pagination offset
+             * Det finns en enda väg till servern för "vad listan visar"
+             * (`applyView`), i stället för separata `searchMails` /
+             * `filterMails` / `setUnread` som var och en satte sin egen del
+             * av state. Skälet är subtilt men avgörande: `total` och
+             * `offset` beskriver HELA resultatmängden, och delade anrop
+             * kunde inte veta om det andra filtret var aktivt — så `total`
+             * blev fel och pagineringen hoppade. Tre predikat i en fråga
+             * ger linjärt många testfall i stället för multiplicerade.
+             *
+             * Server-side betyder dessutom att filtret täcker hela mappen,
+             * inte de ~80 mail som råkade vara laddade.
+             *
+             * @param {object}  opts
+             * @param {string} [opts.query]   fritext; tom + filter = filtrera
+             * @param {string} [opts.flag]    flaggtyp eller '' för alla
+             * @param {boolean}[opts.unread]  bara olästa
+             * @param {number} [opts.offset]  paginering
+             * @param {string} [opts.folder]  mapp, default aktuell
              */
-            async searchMails(query, folder = null, offset = 0) {
+            async applyView({ query, flag, unread, offset = 0, folder } = {}) {
                 const targetFolder = folder || state.currentFolder;
-                const term = (query || '').trim();
-
-                if (!term) {
-                    // Clearing the search restores the normal folder listing.
-                    state.searchQuery = '';
-                    state.searchActive = false;
-                    state.searchTotal = 0;
-                    await this.loadMessages(targetFolder, 0);
-                    return;
-                }
+                const term = (query !== undefined
+                    ? (query || '')
+                    : (state.searchActive ? state.searchQuery : '')).trim();
+                const flagFilter = (flag !== undefined ? (flag || '') : state.flagFilter);
+                const unreadFilter = (unread !== undefined
+                    ? !!unread : !!state.unreadFilter);
+                const filtered = !!(flagFilter || unreadFilter);
 
                 if (offset === 0) {
                     state.loading = true;
                     state.currentFolder = targetFolder;
-                    state.searchQuery = term;
-                    state.searchActive = true;
                     state.selectedMessage = null;
+                    state.searchQuery = term;
+                    state.searchActive = !!term;
+                    state.flagFilter = flagFilter;
+                    state.unreadFilter = unreadFilter;
+                    if (!term && !filtered) {
+                        state.searchTotal = 0;
+                    }
+                }
+
+                // Ingen sökning, inget filter -> den vanliga mapplistningen.
+                // Går via loadMessages så mappcachen och bakgrundsuppdateringen
+                // används som förut.
+                if (!term && !filtered) {
+                    await this.loadMessages(targetFolder, offset);
+                    return;
                 }
 
                 try {
-                    const res = await rpc('/imap/search', {
+                    // Ett filter utan sökord är ett filter, inte en sökning —
+                    // men servern svarar på båda via samma metod, så klienten
+                    // behöver bara välja rätt rutt.
+                    const route = term ? '/imap/search' : '/imap/filter';
+                    const limit = 80;
+                    const res = await rpc(route, {
                         folder: targetFolder,
                         query: term,
+                        flag: flagFilter || null,
+                        unread: unreadFilter,
                         offset,
-                        limit: 80,
+                        limit,
                     });
                     const messages = offset === 0
                         ? res.messages
@@ -246,19 +286,56 @@ const store = {
                     state.messages = messages;
                     state.totalMessages = res.total;
                     state.searchTotal = res.total;
-                    state.offset = offset + 80;
+                    // Sidstorleken får inte hårdkodas här: rutternas default
+                    // är 50, och en avvikelse hade tystat tappat 30 mail per
+                    // "visa fler".
+                    state.offset = offset + limit;
                     state.loading = false;
                 } catch (e) {
                     state.loading = false;
+                    // Behåll inte gamla rader: de hör till föregående vy och
+                    // ser ut som träffar på det nya filtret.
                     state.messages = [];
                     state.totalMessages = 0;
                     state.searchTotal = 0;
+                    state.folderError = (
+                        (e && e.data && e.data.message) ||
+                        (e && e.message) ||
+                        'Kunde inte söka i mappen.'
+                    );
                 }
+            },
+
+            /** Sätt flaggfilter och ladda om vyn (server-side). */
+            async setFlagFilter(flag) {
+                await this.applyView({ flag: flag || '', offset: 0 });
+            },
+
+            /** Slå på/av olästfiltret och ladda om vyn (server-side). */
+            async setUnreadFilter(unread) {
+                await this.applyView({ unread: !!unread, offset: 0 });
+            },
+
+            /**
+             * Search the whole folder on the server (IMAP SEARCH), not just the
+             * messages already loaded in the list.
+             *
+             * Behåller flagg- och olästfiltret: en sökning ska begränsa det
+             * man redan filtrerat, inte nollställa det.
+             *
+             * @param {string} query   free-text query; empty clears the search
+             * @param {string} folder  folder to search, defaults to the current one
+             * @param {number} offset  pagination offset
+             */
+            async searchMails(query, folder = null, offset = 0) {
+                await this.applyView({ query, folder, offset });
             },
 
             /** Clear an active search and return to the folder listing. */
             async clearSearch() {
-                await this.searchMails('', state.currentFolder, 0);
+                // Rensar sökordet men behåller aktiva filter — att tömma
+                // sökfältet ska inte tysta släppa flagg-/olästfiltret.
+                await this.applyView({ query: '', offset: 0 });
             },
 
             async loadMail(folder, uid) {
@@ -267,12 +344,27 @@ const store = {
                 selectedUid = requestUid;
                 state.loadingDetail = true;
 
+                // R4: ett mail som öppnas markeras läst på servern (BODY
+                // utan PEEK), och faller då ur ett aktivt olästfilter. Här
+                // hämtas BARA detaljen — listan laddas inte om — så raden
+                // ligger kvar under läsningen och listan hoppar inte för
+                // användaren. Den lämnar filtret först vid nästa vyladdning
+                // (applyView), vilket är korrekt men ska inte ske mid-read.
+                // Ändra inte detta till en omladdning av listan här.
                 try {
                     const msg = await rpc('/imap/mail', { folder, uid });
                     // Only apply if this is still the latest request
                     if (selectedUid === requestUid) {
                         state.selectedMessage = msg;
                         state.loadingDetail = false;
+                        // Håll listans rad i takt med detaljen: servern
+                        // markerade mailet läst, och fetstilen ska släppa
+                        // direkt — men raden ska inte tas bort ur listan.
+                        const row = (state.messages || []).find(
+                            (m) => m.uid === uid);
+                        if (row && msg && msg.seen) {
+                            row.seen = true;
+                        }
                     }
                 } catch (e) {
                     if (selectedUid === requestUid) {

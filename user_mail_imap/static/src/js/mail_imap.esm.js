@@ -74,10 +74,13 @@ class MailImap extends Component {
     }
 
     async onFolderClick(folder) {
-        // Switching folder cancels any active search.
+        // Switching folder cancels any active search AND the filters: a
+        // flag filter is a view of one folder, not a global mode.
         this.state.searchQuery = '';
         this.state.searchActive = false;
         this.state.searchTotal = 0;
+        this.state.flagFilter = '';
+        this.state.unreadFilter = false;
         this.state.currentFolder = folder;
         this.state.selectedMessage = null;
         await this.store.loadMessages(folder, 0);
@@ -95,8 +98,12 @@ class MailImap extends Component {
         if (this.state.loading) {
             return;
         }
-        if (this.state.searchActive) {
-            this.store.searchMails(this.state.searchQuery, this.state.currentFolder, this.state.offset);
+        if (this.state.searchActive
+                || this.state.flagFilter
+                || this.state.unreadFilter) {
+            // Nästa sida av SAMMA vy: sökord, flagga och oläst följer med,
+            // annars skulle sidan 2 visa ofiltrerade rader.
+            this.store.applyView({ offset: this.state.offset });
         } else {
             this.store.loadMessages(this.state.currentFolder, this.state.offset);
         }
@@ -107,41 +114,76 @@ class MailImap extends Component {
     }
 
     /**
-     * Stjärnmärk eller avstjärna ett mail.
+     * Sätt eller ta bort en flagga på ett mail.
      *
-     * Flaggan sätts på servern först och därefter i den lokala listan.
-     * Ordningen är medveten: misslyckas IMAP-anropet ska stjärnan inte
-     * ändras i UI:t — annars visar listan ett läge som servern inte har,
-     * och nästa omladdning tar tillbaka den utan förklaring.
+     * ``flag`` är flaggtypen (flagged/important/spam/todo/personal/work),
+     * inte bara stjärnan. Flaggan sätts på servern först och därefter i den
+     * lokala listan. Ordningen är medveten: misslyckas IMAP-anropet ska
+     * stjärnan/etiketten inte ändras i UI:t — annars visar listan ett läge
+     * som servern inte har, och nästa omladdning tar tillbaka den utan
+     * förklaring.
      */
-    async onToggleFlag(msg, value) {
+    async onToggleFlag(msg, value, flag = 'flagged') {
         try {
-            await this.store.setFlag(this.state.currentFolder, [msg.uid], 'flagged', value);
-            msg.flagged = value;
+            await this.store.setFlag(this.state.currentFolder, [msg.uid], flag, value);
+            this._applyFlagLocally(msg, flag, value);
             // Det valda meddelandet kan vara samma post — håll dem i takt.
             if (this.state.selectedMessage && this.state.selectedMessage.uid === msg.uid) {
-                this.state.selectedMessage.flagged = value;
+                this._applyFlagLocally(this.state.selectedMessage, flag, value);
             }
         } catch (e) {
-            this.state.folderError = `Kunde inte stjärnmärka: ${e.message || e}`;
+            this.state.folderError = `Kunde inte flagga: ${e.message || e}`;
         }
     }
 
     /**
-     * Flaggfilter. Filtrerar den REDAN hämtade sidan i klienten.
+     * Spegla en server-satt flagga i en rad, utan att röra servern.
      *
-     * Ett server-side-filter (`SEARCH KEYWORD TODO`) hade varit riktigare
-     * för stora mappar, men kräver en egen sökväg genom cachen och
-     * pagineringen. Filtret här är avsett som en snabb vy av det man ser —
-     * flaggade mail längre bak i mappen kräver fortfarande att man
-     * scrollar eller söker.
+     * `flags` är den lista listans flerfärgade märkning och etikettmenyns
+     * bockar läser; `flagged` är stjärnan. Båda måste följas åt, annars
+     * visar stjärnan och etikettmenyn olika saker om samma mail.
      */
-    onSetFlagFilter(value) {
-        this.state.flagFilter = value || '';
+    _applyFlagLocally(msg, flag, value) {
+        if (!msg) {
+            return;
+        }
+        const flags = new Set(msg.flags || []);
+        if (value) {
+            flags.add(flag);
+        } else {
+            flags.delete(flag);
+        }
+        msg.flags = [...flags];
+        if (flag === 'flagged') {
+            msg.flagged = !!value;
+        }
     }
 
     /**
-     * Listan efter stjärnfiltret.
+     * Flaggfilter. Laddar om vyn server-side över HELA mappen.
+     *
+     * Filtret kördes tidigare i klienten över den redan hämtade sidan. Det
+     * svarade "inga mail med den flaggan" för ett stjärnmärkt mail som låg
+     * på plats 412 — det var aldrig laddat, så det kunde inte filtreras.
+     * Nu går filtret som ett IMAP-kriterium och `total` är mappvidd.
+     */
+    async onSetFlagFilter(value) {
+        await this.store.setFlagFilter(value || '');
+    }
+
+    /**
+     * Olästfiltret — egen axel vid sidan av flaggorna.
+     *
+     * Servern frågar på UNSEEN, inte på en flaggtyp. Att lägga oläst i
+     * flagglistan hade gjort "oläst" till en etikett man sätter på ett
+     * mail, vilket är en annan operation än att läsa det.
+     */
+    async onToggleUnreadFilter() {
+        await this.store.setUnreadFilter(!this.state.unreadFilter);
+    }
+
+    /**
+     * Listan som ska visas.
      *
      * METOD, inte getter. En getter anropas implicit av OWL:s
      * template-motor, som då försöker göra returvärdet reaktivt — och en
@@ -149,17 +191,14 @@ class MailImap extends Component {
      * "Cannot make the given value reactive" och hela klienten dog.
      *
      * Anropas explicit från mallen: messages="this.visibleMessages()".
+     *
+     * Flagg- och olästfiltret är numera server-side (applyView), så raderna
+     * här är redan filtrerade. Metoden finns kvar som bindpunkt för mallen
+     * och för trådningen — att filtrera en gång till här hade gett tomt
+     * resultat så fort servern och klienten var oense.
      */
     visibleMessages() {
-        const msgs = this.state.messages || [];
-        const want = this.state.flagFilter;
-        const filtered = want
-            ? msgs.filter((m) => (m.flags || []).includes(want))
-            : msgs;
-        // Trådningen görs på servern (loadThreads) — här behövs bara
-        // flaggfiltret. Att gruppera igen i klienten skulle bara se de
-        // meddelanden som redan hämtats, vilket var hela problemet.
-        return filtered;
+        return this.state.messages || [];
     }
 
     /**

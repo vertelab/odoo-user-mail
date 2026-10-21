@@ -2,6 +2,9 @@
 import { Component, onWillUpdateProps, useState } from "@odoo/owl";
 import { rpc } from "@web/core/network/rpc";
 import { useService } from "@web/core/utils/hooks";
+import {
+    FLAG_OPTIONS, flagLabel,
+} from "../../js/mail_flags.esm.js";
 
 export class MailDetail extends Component {
     static template = "user_mail_imap.MailDetail";
@@ -150,6 +153,23 @@ export class MailDetail extends Component {
         onDelete: Function,
         onToggleFlag: Function,
     };
+
+    /** Samma sex etiketter som listans filter (js/mail_flags.esm.js). */
+    get flagOptions() {
+        return FLAG_OPTIONS;
+    }
+
+    flagLabel(value) {
+        return flagLabel(value);
+    }
+
+    /** De etiketter som är satta på det här mailet. */
+    get activeFlags() {
+        const flags = (this.props.message && this.props.message.flags) || [];
+        return FLAG_OPTIONS
+            .filter((o) => flags.includes(o.value))
+            .map((o) => o.value);
+    }
 
     /**
      * Iframen ska bli så hög som innehållet kräver.

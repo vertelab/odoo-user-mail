@@ -426,6 +426,244 @@ class TestImap(TransactionCase):
 
         self.assertEqual(res, {'messages': [], 'total': 0})
 
+    # ── Filter: action_filter_mails + sökning × filter × oläst ──
+
+    def _fake_filter_conn(self, uids, flags_by_uid=None):
+        """Anslutning som svarar på SEARCH + ``UID FETCH (FLAGS BODY.PEEK)``.
+
+        Formen är den imaplib faktiskt ger: ett svar per meddelande är en
+        tupel ``(b'<seq> (UID n FLAGS (..) BODY[HEADER] {len}', raw_header)``.
+        ``flags_by_uid`` mappar uid -> rå flaggsträng (utan ledande
+        backslash-tecken, t.ex. ``b'Seen Flagged'``), så testerna kan skilja
+        läst från oläst.
+        """
+        from unittest.mock import MagicMock
+        from email.message import EmailMessage
+
+        flags_by_uid = flags_by_uid or {}
+        fake = MagicMock()
+        fake.login.return_value = ('OK', [b'logged in'])
+        fake.select.return_value = ('OK', [b'1'])
+
+        def _uid(command, *args):
+            if command == 'SEARCH':
+                return ('OK', [b' '.join(uids)])
+            if command == 'FETCH':
+                uid_set = args[0]
+                out = []
+                for uid in [int(u) for u in str(uid_set).split(',') if u]:
+                    msg = EmailMessage()
+                    msg['Message-ID'] = '<m-%s@example.com>' % uid
+                    msg['Subject'] = 'Mail %s' % uid
+                    msg['From'] = 'Anna <anna@example.com>'
+                    msg['Date'] = 'Mon, 05 Aug 2026 10:00:00 +0200'
+                    raw = msg.as_bytes()
+                    meta = b'%d (UID %d FLAGS (%s) BODY[HEADER] {%d}' % (
+                        uid, uid, flags_by_uid.get(uid, b''), len(raw))
+                    out.append((meta, raw))
+                return ('OK', out)
+            return ('OK', [b''])
+
+        fake.uid.side_effect = _uid
+        return fake
+
+    def test_filter_criteria_all_flags_alone(self):
+        """Varje flaggtyp ska ge rätt IMAP-kriterium, utan OR-nästling."""
+        imap = self.env['user.mail.imap']
+        cases = {
+            'flagged': 'FLAGGED',
+            'important': 'KEYWORD "Important"',
+            'spam': 'KEYWORD "Junk"',
+            'todo': 'KEYWORD "TODO"',
+            'personal': 'KEYWORD "Personal"',
+            'work': 'KEYWORD "Work"',
+        }
+        for flag, expected in cases.items():
+            criteria = imap._flag_criteria(flag, False).strip()
+            self.assertEqual(criteria, expected,
+                             '%s ska bli %r, blev %r'
+                             % (flag, expected, criteria))
+
+    def test_filter_criteria_unread_is_unseen_not_a_flag(self):
+        """Oläst ska bli UNSEEN — inte en sjunde flaggtyp."""
+        imap = self.env['user.mail.imap']
+        self.assertEqual(imap._flag_criteria(None, True).strip(), 'UNSEEN')
+        # Oläst får inte erbjudas som etikett.
+        self.assertNotIn('seen', imap._FLAG_READ)
+        self.assertEqual(
+            sorted(imap._FLAG_READ.keys()),
+            ['\\answered', 'flagged', 'important', 'personal', 'spam',
+             'todo', 'work'])
+
+    def test_filter_criteria_combines_flag_and_unread_as_and(self):
+        """Flagga + oläst ska bli två AND-led, inte ett OR."""
+        imap = self.env['user.mail.imap']
+        criteria = imap._flag_criteria('flagged', True).strip()
+        self.assertIn('FLAGGED', criteria)
+        self.assertIn('UNSEEN', criteria)
+        self.assertNotIn('OR', criteria)
+
+    def test_filter_rejects_unknown_flag(self):
+        """Okänd flaggtyp ska ge ett tydligt fel, inte tyst tomt."""
+        from odoo.exceptions import UserError
+        with self.assertRaises(UserError):
+            self.env['user.mail.imap']._flag_criteria('nonsense', False)
+
+    def test_filter_mails_searches_whole_folder_not_loaded_page(self):
+        """Filtret ska gå mot hela mappen, inte mot en hämtad sida.
+
+        Det här är kärnan i buggen: ett stjärnmärkt mail på plats 412
+        svarade "inga mail med den flaggan" eftersom klienten bara
+        filtrerade de ~80 rader som redan var laddade.
+        """
+        from unittest.mock import patch
+
+        self.user.imap_password = self.user._encrypt_imap_pw('x')
+        self.user.postfix_mail = 'filter-test@vertel.se'
+
+        # 500 mail i mappen; bara 3 är stjärnmärkta och de ligger djupt.
+        # Servern svarar redan filtrerat (SEARCH FLAGGED), så mocken får
+        # bara de tre träffarna — det är serverns jobb att hitta dem.
+        starred = ['7', '233', '412']
+        flags = {7: b'Flagged', 233: b'Flagged', 412: b'Flagged'}
+        fake = self._fake_filter_conn(starred, flags)
+
+        with patch('imaplib.IMAP4_SSL', return_value=fake):
+            res = self.env['user.mail.imap'].with_user(self.user)\
+                .action_filter_mails('INBOX', flag='flagged')
+
+        # `total` är mappvidd för den filtrerade mängden, inte sidlängden.
+        self.assertEqual(res['total'], 3)
+        criteria = [c for c in fake.uid.call_args_list
+                    if c[0][0] == 'SEARCH']
+        self.assertTrue(criteria, 'filtret ska fråga servern')
+        self.assertEqual(criteria[0][0][2].strip(), 'FLAGGED')
+
+    def test_filter_mails_without_filters_lists_folder(self):
+        """Inget filter alls ska betyda hela mappen (ALL), inte tomt."""
+        from unittest.mock import patch
+
+        self.user.imap_password = self.user._encrypt_imap_pw('x')
+        self.user.postfix_mail = 'filter-test@vertel.se'
+        fake = self._fake_filter_conn(['2', '1'])
+
+        with patch('imaplib.IMAP4_SSL', return_value=fake):
+            self.env['user.mail.imap'].with_user(self.user)\
+                .action_filter_mails('INBOX')
+
+        searches = [c for c in fake.uid.call_args_list if c[0][0] == 'SEARCH']
+        self.assertEqual(searches[0][0][2].strip(), 'ALL')
+
+    def test_search_criteria_keep_unseen_outside_or(self):
+        """UNSEEN måste ligga utanför OR-trädet, annars bryts uttrycket.
+
+        IMAP:s OR tar exakt två nycklar. ``OR OR FROM q SUBJECT q TEXT q
+        UNSEEN`` läses som AND mellan OR-trädet och UNSEEN — lägger man
+        UNSEEN inuti får OR tre argument och servern svarar BAD.
+
+        Här granskas den genererade kriteriesträngen direkt: ett mockat
+        SEARCH svarar OK på vad som helst och hade dolt felet.
+        """
+        imap = self.env['user.mail.imap']
+        import inspect
+        src = inspect.getsource(imap._search_mails_imap)
+        self.assertIn("_flag_criteria", src,
+                      'sökningen ska lägga filterkriterierna via '
+                      '_flag_criteria, dvs. utanför OR-trädet')
+        # Och kriteriebyggaren får aldrig producera ett OR.
+        self.assertNotIn('OR', imap._flag_criteria('flagged', True))
+        # Den ska gå att klistra efter ett befintligt uttryck: ledande
+        # mellanslag, inget avslutande.
+        self.assertTrue(imap._flag_criteria('flagged').startswith(' '))
+        self.assertEqual(imap._flag_criteria('flagged'),
+                         imap._flag_criteria('flagged').rstrip())
+
+    def test_search_accepts_flag_and_unread(self):
+        """Sökningen ska ta både flagga och oläst, och båda samtidigt."""
+        from unittest.mock import patch
+
+        self.user.imap_password = self.user._encrypt_imap_pw('x')
+        self.user.postfix_mail = 'search-test@vertel.se'
+        fake = self._fake_filter_conn(['1'])
+
+        with patch('imaplib.IMAP4_SSL', return_value=fake):
+            res = self.env['user.mail.imap'].with_user(self.user)\
+                .action_search_mails('INBOX', 'faktura', 0, 80,
+                                     flag='flagged', unread=True)
+
+        self.assertIn('total', res)
+        searches = [c for c in fake.uid.call_args_list if c[0][0] == 'SEARCH']
+        self.assertTrue(searches, 'sökningen ska fråga servern')
+        criteria = searches[0][0][2]
+        self.assertIn('OR OR', criteria, 'OR-trädet ska vara intakt')
+        self.assertIn('FLAGGED', criteria)
+        self.assertIn('UNSEEN', criteria)
+        # AND-ordningen: UNSEEN får inte hamna inuti OR-trädet.
+        self.assertGreater(criteria.index('UNSEEN'),
+                           criteria.index('TEXT \"faktura\"'),
+                           'UNSEEN ska ligga efter OR-trädet (AND-led)')
+
+    def test_search_empty_query_with_filter_filters_the_folder(self):
+        """Tomt sökord + filter ska filtrera mappen, inte ge tomt."""
+        from unittest.mock import patch
+
+        self.user.imap_password = self.user._encrypt_imap_pw('x')
+        self.user.postfix_mail = 'search-test@vertel.se'
+        fake = self._fake_filter_conn(['1'])
+
+        with patch('imaplib.IMAP4_SSL', return_value=fake):
+            res = self.env['user.mail.imap'].with_user(self.user)\
+                .action_search_mails('INBOX', '', 0, 80, unread=True)
+
+        self.assertTrue(fake.uid.called, 'filtret ska fråga servern')
+        self.assertIn('total', res)
+
+    def test_okf_row_carries_real_read_state(self):
+        """OKF-raden ska inte påstå oläst när servern säger läst.
+
+        ``_okf_mail_row`` hårdkodade ``'seen': False``, så varje sökträff
+        renderades fetstilt och fastnade i olästfiltret oavsett verkligt
+        läge.
+        """
+        imap = self.env['user.mail.imap']
+        row = {'source_uid': 42, 'from_email': 'a@b.se',
+               'subject': 'Hej', 'received_at': False,
+               'message_id': '<x@y>'}
+        read = imap._okf_mail_row(row, {'seen': True,
+                                       'flags': ['flagged']})
+        self.assertTrue(read['seen'])
+        self.assertTrue(read['flagged'])
+        self.assertIn('flagged', read['flags'])
+
+        unread = imap._okf_mail_row(row, {'seen': False, 'flags': []})
+        self.assertFalse(unread['seen'])
+        self.assertFalse(unread['flagged'])
+
+    def test_okf_row_unknown_status_is_not_a_guess(self):
+        """Saknad status ska bli "okänd" — aldrig påstått oläst."""
+        imap = self.env['user.mail.imap']
+        row = {'source_uid': 42, 'from_email': 'a@b.se',
+               'subject': 'Hej', 'received_at': False,
+               'message_id': '<x@y>'}
+        unknown = imap._okf_mail_row(row, None)
+        self.assertIsNone(unknown['seen'], 'okänd får inte bli False')
+        self.assertIsNone(unknown['flagged'])
+
+    def test_fetch_flag_status_degrades_on_error(self):
+        """Misslyckad FLAGS-hämtning ska ge tom dict, inte krascha."""
+        from unittest.mock import patch, MagicMock
+
+        self.user.imap_password = self.user._encrypt_imap_pw('x')
+        self.user.postfix_mail = 'search-test@vertel.se'
+        fake = MagicMock()
+        fake.login.side_effect = OSError('nere')
+
+        with patch('imaplib.IMAP4_SSL', return_value=fake):
+            status = self.env['user.mail.imap'].with_user(self.user)\
+                ._fetch_flag_status('INBOX', [1, 2, 3])
+
+        self.assertEqual(status, {})
+
     # ── Poll-budget: cursor, dedup-före-fetch, budget (fix-imap-poll-cron-backlog) ──
 
     def _poll_user(self):
@@ -1294,3 +1532,54 @@ class TestImap(TransactionCase):
         self.assertFalse(
             [k for k in _mail_cache if k.startswith('page:')],
             'pollerns ingest ska rensa sid-cachen')
+
+    # ── Flaggmappning (fix-flag-search-and-message-labels, grupp 1) ───────
+    #
+    # `important` mappades tidigare till `\Answered`. Det gjorde att ett
+    # svar i klienten satte viktig-flaggan, och ett viktigt mail såg
+    # besvarat ut. Testet låser att mappningen är egen NU, och att
+    # `\Answered` fortfarande *läses* som important under övergången.
+
+    def test_important_writes_own_keyword(self):
+        r"""`important` skrivs som nyckelordet Important, inte \Answered."""
+        from odoo.addons.user_mail_imap.models.imap_server import ImapServer
+        self.assertEqual(ImapServer._FLAG_WRITE['important'], 'Important')
+        self.assertNotEqual(ImapServer._FLAG_WRITE['important'], '\\Answered')
+
+    def test_answered_still_reads_as_important(self):
+        r"""Befintliga \Answered-mail läses som important (övergång)."""
+        from odoo.addons.user_mail_imap.models.imap_server import _read_flags
+        self.assertIn('important', _read_flags([b'\\Answered']))
+        self.assertIn('important', _read_flags([b'Important']))
+        # Båda samtidigt får inte ge dubbletter.
+        both = _read_flags([b'\\Answered', b'Important'])
+        self.assertEqual(both.count('important'), 1)
+
+    def test_flag_write_and_read_agree(self):
+        """Varje skrivbar flaggtyp ska läsas tillbaka som sig själv."""
+        from odoo.addons.user_mail_imap.models.imap_server import (
+            ImapServer, _read_flags)
+        for kind, imap_flag in ImapServer._FLAG_WRITE.items():
+            if kind == 'seen':
+                continue
+            read_back = _read_flags([imap_flag.encode()])
+            self.assertIn(
+                kind, read_back,
+                '%s skrivs som %r men läses tillbaka som %r'
+                % (kind, imap_flag, read_back))
+
+    def test_sieve_flag_map_matches_client(self):
+        """Sieve-nyckelordet och klientens nyckelord måste vara samma.
+
+        En regel kan sätta flaggan server-side och användaren i klienten —
+        säger de olika saker glider de isär tyst.
+        """
+        from odoo.addons.user_mail_imap.models.imap_server import ImapServer
+        # sieves kompilator är en AbstractModel — nås via registret, inte
+        # via modulimport, så testet inte binds till en filplacering.
+        sieve_flag_map = self.env['sieve.compiler'].FLAG_MAP
+        for kind, (_action, sieve_flag) in sieve_flag_map.items():
+            self.assertEqual(
+                ImapServer._FLAG_WRITE[kind], sieve_flag,
+                'flaggtyp %r: sieve sätter %r, klienten %r'
+                % (kind, sieve_flag, ImapServer._FLAG_WRITE[kind]))

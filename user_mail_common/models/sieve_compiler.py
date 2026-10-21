@@ -178,7 +178,7 @@ class SieveCompiler(models.AbstractModel):
     # åtgärden heter move_to_folder.
     FLAG_MAP = {
         'flagged': ('addflag', '\\Flagged'),
-        'important': ('addflag', '\\Answered'),
+        'important': ('addflag', 'Important'),
         'spam': ('addflag', 'Junk'),
         'todo': ('addflag', 'TODO'),
         'personal': ('addflag', 'Personal'),

@@ -38,6 +38,25 @@
                         t-out="props.threadedCount"/>
                 </button>
 
+                <!--
+                    Olästfiltret — EGEN knapp, inte ett val i flagglistan.
+                    Skälet är att oläst är en annan sorts fråga: det är IMAP:s
+                    UNSEEN (indexerat, sätts när man läser), inte en etikett
+                    man sätter på ett mail. Låg den i dropdownen skulle listan
+                    erbjuda "oläst" som en flagga man kan sätta — en helt
+                    annan operation än att läsa.
+
+                    Visuellt skild från flaggdropdownen (egen form och egen
+                    aktiv färg) så att den inte läses som en sjunde flagga.
+                -->
+                <button class="btn btn-sm"
+                    t-att-class="props.unreadFilter ? 'btn-info' : 'btn-outline-secondary'"
+                    t-att-title="props.unreadFilter ? 'Visa alla mail' : 'Visa bara olästa'"
+                    t-on-click="() => props.onToggleUnreadFilter()">
+                    <i class="fa fa-envelope-o"/>
+                    <span class="ms-1 small" t-if="props.unreadFilter">Olästa</span>
+                </button>
+
                 <div class="dropdown">
                     <button class="btn btn-sm dropdown-toggle"
                         t-att-class="props.flagFilter ? 'btn-warning' : 'btn-outline-secondary'"
@@ -106,9 +125,27 @@
                     </div>
                 </t>
                 <t t-elif="!props.messages || !props.messages.length">
+                    <!--
+                        Fyra olika tomma lägen, inte ett. "Inga meddelanden"
+                        för en tom mapp, en sökning utan träff och ett filter
+                        utan träff är tre helt skilda besked: det första säger
+                        att mappen är tom, de andra att mailet finns men inte
+                        matchar. Ett gemensamt "Inga meddelanden" fick det att
+                        se ut som att filtret var trasigt.
+                    -->
                     <div class="text-center p-4 text-muted">
-                        <t t-if="props.flagFilter">Inga mail med den flaggan i mappen</t>
-                        <t t-elif="props.searchActive">No messages match your search</t>
+                        <t t-if="props.searchActive and (props.flagFilter or props.unreadFilter)">
+                            Inget matchade sökningen med filtret
+                        </t>
+                        <t t-elif="props.searchActive">
+                            Inget matchade sökningen
+                        </t>
+                        <t t-elif="props.flagFilter">
+                            Inga mail med den flaggan i mappen
+                        </t>
+                        <t t-elif="props.unreadFilter">
+                            Inga olästa mail i mappen
+                        </t>
                         <t t-else="">Inga meddelanden</t>
                     </div>
                 </t>

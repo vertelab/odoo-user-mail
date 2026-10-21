@@ -1,6 +1,9 @@
 /** @odoo-module **/
 import { Component } from "@odoo/owl";
 import { MailSearch } from "../mail_search/mail_search.esm.js";
+import {
+    FLAG_OPTIONS, flagIcon, flagLabel,
+} from "../../js/mail_flags.esm.js";
 
 export class MailList extends Component {
     static template = "user_mail_imap.MailList";
@@ -31,6 +34,10 @@ export class MailList extends Component {
         onToggleFlag: Function,
         flagFilter: { type: String, optional: true },
         onSetFlagFilter: Function,
+        // Olästfiltret — egen axel, inte en sjunde flagga. `unreadFilter`
+        // är på/av; servern frågar på UNSEEN.
+        unreadFilter: { type: Boolean, optional: true },
+        onToggleUnreadFilter: Function,
         // Trådad visning. `threaded` slår på grupperingen; trådens
         // hopfällning ligger per tråd i `msg.threadCollapsed`.
         threaded: { type: Boolean, optional: true },
@@ -44,31 +51,19 @@ export class MailList extends Component {
     };
 
     /**
-     * Flaggtyperna, i samma ordning som i regeldialogen.
-     *
-     * `flagged`/`important` är standardflaggor (RFC 3501) som syns i alla
-     * klienter. `todo`/`personal`/`work` är IMAP-nyckelord — samma
-     * märkning Thunderbird använder. `spam` sätts som Junk-nyckelord.
+     * Flaggtyperna, delade med meddelandevyns etikettmeny (se
+     * js/mail_flags.esm.js). Kopierar man listan här glider de isär.
      */
     get flagOptions() {
-        return [
-            { value: 'flagged', label: 'Stjärnmärkta', icon: 'fa-star text-warning' },
-            { value: 'important', label: 'Viktiga', icon: 'fa-check-circle text-success' },
-            { value: 'spam', label: 'Skräppost', icon: 'fa-ban text-danger' },
-            { value: 'todo', label: 'Att göra', icon: 'fa-tasks text-primary' },
-            { value: 'personal', label: 'Privat', icon: 'fa-user text-info' },
-            { value: 'work', label: 'Arbete', icon: 'fa-briefcase text-secondary' },
-        ];
+        return FLAG_OPTIONS;
     }
 
     flagIcon(value) {
-        const opt = this.flagOptions.find((o) => o.value === value);
-        return opt ? opt.icon : 'fa-star-o';
+        return flagIcon(value);
     }
 
     flagLabel(value) {
-        const opt = this.flagOptions.find((o) => o.value === value);
-        return opt ? opt.label : 'Alla mail';
+        return flagLabel(value);
     }
 
     /**
