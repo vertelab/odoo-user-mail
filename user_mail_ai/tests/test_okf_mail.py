@@ -255,6 +255,24 @@ class TestOkfMail(TransactionCase):
         self.assertFalse(msg.okf_dirty,
                          'mail.message ska inte längre hamna i dirty-kön')
 
+    def test_mail_message_create_stays_clean(self):
+        """Ett nytt mail ska inte hamna i kön.
+
+        `okf_dirty` har `default=True` på mixinen och mixinens `create()`
+        sätter flaggan utan att konsultera `_okf_dirty_fields()` — bara
+        `write()` gör det. Utan överriden i `mail_message.create()` fylldes
+        kön på igen med varje nytt mail trots avregistreringen.
+        """
+        msg = self.env['mail.message'].create({
+            'message_type': 'email',
+            'subject': 'Nytt mail',
+            'body': '<p>Hej</p>',
+            'model': 'res.partner',
+            'res_id': self.env.user.partner_id.id,
+        })
+        self.assertFalse(msg.okf_dirty,
+                         'ett nytt mail ska inte flaggas för indexering')
+
     def test_write_outside_dirty_fields_keeps_clean(self):
         rec = self._ingest(message_id='<okf-dirty-2@example.com>')
         rec._clear_okf_dirty()
