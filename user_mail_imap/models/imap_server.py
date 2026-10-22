@@ -1334,10 +1334,26 @@ class ImapServer(models.AbstractModel):
         conn = self._connect_imap()
         try:
             _select_folder(conn, folder)
-            typ, data = conn.uid('SEARCH', None, criteria)
+            # Två steg, inte ett. TEXT söker i hela meddelandekroppen och
+            # kostar ~12 s i en mapp med 10 000 mail; FROM och SUBJECT
+            # svarar på ~0,1 s eftersom de bara läser headers. Att alltid
+            # köra TEXT gjorde sökfältet oanvändbart.
+            #
+            # Steg 1: avsändare + ämne — det man nästan alltid menar.
+            # Steg 2: bara om steg 1 gav NOLL, sök i brödtexten. Då har
+            # användaren redan väntat på ett tomt svar, och en långsam
+            # fullträff är bättre än inget.
+            typ, data = conn.uid(
+                'SEARCH', None,
+                'OR FROM "%s" SUBJECT "%s"' % (escaped, escaped))
             if typ != 'OK':
                 return {'messages': [], 'total': 0}
             uids = data[0].split() if data and data[0] else []
+            if not uids:
+                typ, data = conn.uid(
+                    'SEARCH', None, 'TEXT "%s"' % escaped)
+                if typ == 'OK' and data and data[0]:
+                    uids = data[0].split()
             # Nyaste först: IMAP returnerar UID i stigande ordning.
             uids = sorted(uids, key=int, reverse=True)
             total = len(uids)
