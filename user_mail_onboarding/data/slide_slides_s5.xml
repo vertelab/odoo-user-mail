@@ -1,0 +1,234 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <data noupdate="0">
+
+    <!-- ═══════════════════════════════════════════════════════════════════
+         SEKTION 5: Manuellt test — verifiera att det fungerar
+         Slides: 2 (1 article, 1 quiz)
+         ═══════════════════════════════════════════════════════════════════ -->
+
+    <!-- SECTION HEADER -->
+    <record id="slide_category_mail_s5" model="slide.slide">
+        <field name="name">5. Manuellt test</field>
+        <field name="is_category" eval="True"/>
+        <field name="channel_id" ref="user_mail_onboarding.slide_channel_user_mail"/>
+        <field name="sequence">400</field>
+    </record>
+
+    <!-- SLIDE 5.1: Manuellt test -->
+    <record id="slide_mail_s5_01" model="slide.slide">
+        <field name="name">Manuellt test — e-post in och ut</field>
+        <field name="sequence">410</field>
+        <field name="slide_category">article</field>
+        <field name="channel_id" ref="user_mail_onboarding.slide_channel_user_mail"/>
+        <field name="is_published" eval="True"/>
+        <field name="is_preview" eval="False"/>
+        <field name="completion_time">0.50</field>
+        <field name="html_content" type="html">
+<section class="s_cover o_cc o_cc3 pt160 pb160">
+    <div class="container">
+        <h1 class="display-3-fs" style="text-align: center;">Manuellt test</h1>
+        <p class="lead" style="text-align: center;">Ett brev in, ett brev ut. Mer behövs inte för att veta att e-posten fungerar.</p>
+    </div>
+</section>
+
+<section class="s_text_block pt64 pb40">
+    <div class="container s_allow_columns">
+        <h2>Innan du börjar</h2>
+        <p>Du behöver:</p>
+        <ul>
+            <li>ditt e-postkonto uppkopplat enligt sektion 2 i den här kursen</li>
+            <li>tillgång till en <strong>extern</strong> e-postadress — din privata, en kollegas på annat företag, eller en tillfällig adress</li>
+        </ul>
+        <p class="small text-muted">Den externa adressen är viktig: skickar du bara internt prövar du aldrig den väg som brev från omvärlden faktiskt tar.</p>
+    </div>
+</section>
+
+<section class="s_text_block pt32 pb40">
+    <div class="container s_allow_columns">
+        <h2>Test 1 — brev in</h2>
+        <ol>
+            <li>Från den externa adressen, skicka ett brev till din arbetsadress. Ämne: <strong>Test in</strong>.</li>
+            <li>Vänta en minut. Öppna e-posten i Odoo.</li>
+            <li>Brevet ska ligga i <strong>Inkorgen</strong> med rätt avsändare och ämne.</li>
+        </ol>
+        <p><strong>Förväntat resultat:</strong> brevet finns i inkorgen. Hamnar det i <em>Skälp</em> är det ett spamfilter som är för hårt ställt — det ska rapporteras, inte vänjas vid.</p>
+    </div>
+</section>
+
+<section class="s_text_block pt32 pb40">
+    <div class="container s_allow_columns">
+        <h2>Test 2 — brev ut</h2>
+        <ol>
+            <li>Öppna brevet <strong>Test in</strong> och välj <strong>Svara</strong>.</li>
+            <li>Skriv något kort och skicka.</li>
+            <li>Kontrollera den externa adressens inkorg.</li>
+        </ol>
+        <p><strong>Förväntat resultat:</strong> svaret kommer fram, och det syns som ett svar på samma brev (samma ämnesrad med <em>Re:</em>) — inte som ett nytt, löst brev.</p>
+    </div>
+</section>
+
+<section class="s_text_block pt32 pb40">
+    <div class="container s_allow_columns">
+        <h2>Test 3 — bilagan</h2>
+        <ol>
+            <li>Skicka ett nytt brev till den externa adressen med en liten fil bifogad.</li>
+            <li>Öppna brevet hos mottagaren och ladda ner bilagan.</li>
+        </ol>
+        <p><strong>Förväntat resultat:</strong> filen går att öppna och innehållet är intakt. Bilagor som blir skadade på vägen beror nästan alltid på storleksgränser — hör av dig till IT om en fil under 10 MB inte kommer fram.</p>
+    </div>
+</section>
+
+<section class="s_text_block pt32 pb64">
+    <div class="container s_allow_columns">
+        <h2>Om det inte fungerar</h2>
+        <p>Börja alltid med att avgöra <em>vilken</em> väg som är trasig:</p>
+        <ol>
+            <li><strong>Brev in fungerar inte, brev ut fungerar.</strong> Problem med mottagningen — kontrollera att kontot är rätt uppkopplat (IMAP) och att brevet inte fastnat i skälp.</li>
+            <li><strong>Brev ut fungerar inte, brev in fungerar.</strong> Problem med sändningen (SMTP) — kontrollera serveruppgifterna i kontoinställningarna.</li>
+            <li><strong>Inget fungerar.</strong> Kontot är inte uppkopplat alls.</li>
+        </ol>
+        <p class="small text-muted">Nämn vilken av de tre vägarna som fallerade när du kontaktar IT — det sparar en hel del tid.</p>
+    </div>
+</section>
+
+<section class="s_call_to_action o_cc o_cc5 pt48 pb48">
+    <div class="container">
+        <div class="row">
+            <div class="col-lg-9">
+                <h3>Ett brev, tre kontroller</h3>
+                <p class="lead">In, ut och bilaga. Klarar din e-post alla tre är den uppkopplad rätt — och då är det som återstår att lära sig arbeta i den.</p>
+            </div>
+        </div>
+    </div>
+</section>
+        </field>
+        <field name="description">Steg för steg: verifiera att e-posten tar emot, skickar och hanterar bilagor. Tre tester och hur du avgör vilken väg som är trasig.</field>
+    </record>
+
+    <!-- SLIDE 5.2: Quiz — Manuellt test -->
+    <record id="slide_mail_s5_02" model="slide.slide">
+        <field name="name">🧪 Testa dina kunskaper — Manuellt test</field>
+        <field name="sequence">420</field>
+        <field name="slide_category">quiz</field>
+        <field name="channel_id" ref="user_mail_onboarding.slide_channel_user_mail"/>
+        <field name="is_published" eval="True"/>
+        <field name="is_preview" eval="False"/>
+        <field name="completion_time">0.25</field>
+        <field name="quiz_first_attempt_reward">100</field>
+        <field name="quiz_second_attempt_reward">75</field>
+        <field name="quiz_third_attempt_reward">50</field>
+        <field name="quiz_fourth_attempt_reward">25</field>
+        <field name="description">Kontrollera att du vet hur du testar e-posten själv.</field>
+    </record>
+
+    <record id="slide_mail_s5_02_q1" model="slide.question">
+        <field name="question">Varför ska testbrevet skickas från en extern adress?</field>
+        <field name="sequence">1</field>
+        <field name="slide_id" ref="slide_mail_s5_02"/>
+    </record>
+    <record id="slide_mail_s5_02_q1_a1" model="slide.answer">
+        <field name="text_value">För att det ska gå snabbare</field>
+        <field name="sequence">1</field>
+        <field name="is_correct" eval="False"/>
+        <field name="comment">Nej — extern post går oftast långsammare. Skälet är ett annat.</field>
+        <field name="question_id" ref="slide_mail_s5_02_q1"/>
+    </record>
+    <record id="slide_mail_s5_02_q1_a2" model="slide.answer">
+        <field name="text_value">För att ett internt brev aldrig prövar vägen från omvärlden</field>
+        <field name="sequence">2</field>
+        <field name="is_correct" eval="True"/>
+        <field name="comment">Rätt. Intern post kan gå en helt annan väg och fungera trots att mottagningen utifrån är trasig.</field>
+        <field name="question_id" ref="slide_mail_s5_02_q1"/>
+    </record>
+    <record id="slide_mail_s5_02_q1_a3" model="slide.answer">
+        <field name="text_value">För att interna brev alltid hamnar i skälp</field>
+        <field name="sequence">3</field>
+        <field name="is_correct" eval="False"/>
+        <field name="comment">Inte alls — men påståendet pekar på rätt område: spamfiltret.</field>
+        <field name="question_id" ref="slide_mail_s5_02_q1"/>
+    </record>
+
+    <record id="slide_mail_s5_02_q2" model="slide.question">
+        <field name="question">Brev in fungerar, brev ut fungerar inte. Vilken del är trasig?</field>
+        <field name="sequence">2</field>
+        <field name="slide_id" ref="slide_mail_s5_02"/>
+    </record>
+    <record id="slide_mail_s5_02_q2_a1" model="slide.answer">
+        <field name="text_value">Mottagningen (IMAP)</field>
+        <field name="sequence">1</field>
+        <field name="is_correct" eval="False"/>
+        <field name="comment">Nej — mottagningen bevisade sig fungera när brevet kom in.</field>
+        <field name="question_id" ref="slide_mail_s5_02_q2"/>
+    </record>
+    <record id="slide_mail_s5_02_q2_a2" model="slide.answer">
+        <field name="text_value">Sändningen (SMTP)</field>
+        <field name="sequence">2</field>
+        <field name="is_correct" eval="True"/>
+        <field name="comment">Rätt. IMAP hämtar in, SMTP skickar ut — och det är två separata inställningar.</field>
+        <field name="question_id" ref="slide_mail_s5_02_q2"/>
+    </record>
+    <record id="slide_mail_s5_02_q2_a3" model="slide.answer">
+        <field name="text_value">Hela kontot</field>
+        <field name="sequence">3</field>
+        <field name="is_correct" eval="False"/>
+        <field name="comment">Nej — halva kontot fungerar ju. Det är just halvfel som är lätta att misstolka.</field>
+        <field name="question_id" ref="slide_mail_s5_02_q2"/>
+    </record>
+
+    <record id="slide_mail_s5_02_q3" model="slide.question">
+        <field name="question">Ett brev från en kund hamnar i skälp. Vad gör man?</field>
+        <field name="sequence">3</field>
+        <field name="slide_id" ref="slide_mail_s5_02"/>
+    </record>
+    <record id="slide_mail_s5_02_q3_a1" model="slide.answer">
+        <field name="text_value">Rapporterar det — spamfiltret är för hårt ställt</field>
+        <field name="sequence">1</field>
+        <field name="is_correct" eval="True"/>
+        <field name="comment">Rätt. Man vänjer sig inte vid att kundbrev försvinner — det ska åtgärdas.</field>
+        <field name="question_id" ref="slide_mail_s5_02_q3"/>
+    </record>
+    <record id="slide_mail_s5_02_q3_a2" model="slide.answer">
+        <field name="text_value">Kollar skälp varje morgon i fortsättningen</field>
+        <field name="sequence">2</field>
+        <field name="is_correct" eval="False"/>
+        <field name="comment">En arbetsrutin som döljer felet i stället för att lösa det.</field>
+        <field name="question_id" ref="slide_mail_s5_02_q3"/>
+    </record>
+    <record id="slide_mail_s5_02_q3_a3" model="slide.answer">
+        <field name="text_value">Ber kunden skicka igen</field>
+        <field name="sequence">3</field>
+        <field name="is_correct" eval="False"/>
+        <field name="comment">Då händer samma sak nästa gång. Felet sitter hos oss, inte hos kunden.</field>
+        <field name="question_id" ref="slide_mail_s5_02_q3"/>
+    </record>
+
+    <record id="slide_mail_s5_02_q4" model="slide.question">
+        <field name="question">Vad visar ett fungerande svar på ett brev att synkroniseringen är rätt?</field>
+        <field name="sequence">4</field>
+        <field name="slide_id" ref="slide_mail_s5_02"/>
+    </record>
+    <record id="slide_mail_s5_02_q4_a1" model="slide.answer">
+        <field name="text_value">Att svaret hamnar i samma tråd med Re: i ämnesraden</field>
+        <field name="sequence">1</field>
+        <field name="is_correct" eval="True"/>
+        <field name="comment">Rätt. Trådningen är det som gör att konversationen går att följa i efterhand.</field>
+        <field name="question_id" ref="slide_mail_s5_02_q4"/>
+    </record>
+    <record id="slide_mail_s5_02_q4_a2" model="slide.answer">
+        <field name="text_value">Att svaret går snabbt att skicka</field>
+        <field name="sequence">2</field>
+        <field name="is_correct" eval="False"/>
+        <field name="comment">Hastighet säger inget om trådningen.</field>
+        <field name="question_id" ref="slide_mail_s5_02_q4"/>
+    </record>
+    <record id="slide_mail_s5_02_q4_a3" model="slide.answer">
+        <field name="text_value">Att mottagaren svarar tillbaka</field>
+        <field name="sequence">3</field>
+        <field name="is_correct" eval="False"/>
+        <field name="comment">Trevligt, men det prövar inte trådningen.</field>
+        <field name="question_id" ref="slide_mail_s5_02_q4"/>
+    </record>
+
+    </data>
+</odoo>
