@@ -531,6 +531,29 @@ class UserMailAiMail(models.Model):
         return self.env['ai.coworker'].search(
             [('name', 'ilike', 'Mail-hjälpredan')], limit=1)
 
+    @staticmethod
+    def _strip_nul(text):
+        """Ta bort NUL-tecken (U+0000) ur en sträng.
+
+        PostgreSQL tillåter aldrig NUL i `text` — psycopg2 fäller
+        `ValueError: A string literal cannot contain NUL (0x00) characters`
+        redan innan frågan når servern. En mejlkropp kan innehålla NUL på
+        riktigt: MIME-parsern (`email.policy.default`) returnerar dem som
+        de är, och verktygsutskick (t.ex. inloggningslänkar med
+        `&token\x00<nummer>`) bär dem i klartext.
+
+        FYND 2026-10-27: `user_mail_ai.mail,9185` ("Sign in to Perplexity")
+        bar två NUL i body. OKF-cronen kraschade 84 gånger på rad —
+        `_write_okf_fields()` skickar body rakt in i rå SQL — och posten
+        blockerade kön varje varv eftersom `okf_dirty` aldrig rensades.
+
+        Saneringen hör här, vid källan: allt som läser body (OKF-indexering,
+        LLM-promptar, sammanfattningar) får samma garanterat NUL-fria text.
+        """
+        if not text:
+            return text
+        return text.replace('\x00', '')
+
     def _get_body_text(self, max_chars=3000):
         """Body-text ur råa .eml-bilagan (triage lagrar inte body)."""
         att = self.env['ir.attachment'].search([
@@ -557,7 +580,7 @@ class UserMailAiMail(models.Model):
                 texts.append(msg.get_content() or '')
             except Exception:
                 pass
-        return '\n'.join(texts)[:max_chars]
+        return self._strip_nul('\n'.join(texts))[:max_chars]
 
     def _detect_teams_invite(self):
         """Deterministisk Teams-detektering: .ics/text-calendar + nyckelord."""
