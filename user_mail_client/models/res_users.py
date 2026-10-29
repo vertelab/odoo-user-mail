@@ -147,23 +147,38 @@ class ResUsers(models.Model):
         passwd = values.get('password') or values.get('new_password')
         if passwd:
             values['dovecot_password'] = self.generate_dovecot_sha512(passwd)
-            syncserver = Sync2server()
-            remote_user_id = syncserver.remote_user(self)
-            if remote_user_id:
-                _logger.info(f"VALUES IN WRITE :::::::::: {values}")
-                syncserver.write(self._name, remote_user_id, values)
+            # Synken mot mailservern är en SIDOEFFEKT av lösenordsbytet, inte
+            # en förutsättning för det. Är servern otillgänglig ska det lokala
+            # lösenordet ändå sättas — annars kastar ett nätverksfel ut
+            # användaren ur en vanlig write(), och under modulinitiering
+            # (res.users.init skriver password) kraschar hela registret.
+            # Regression 2026-10-29: mail-azzar-se.azzar.at svarade 301 och
+            # blockerade uppgraderingen av samtliga moduler.
+            try:
+                syncserver = Sync2server()
+            except Exception as err:
+                syncserver = None
+                _logger.warning(
+                    "write(): Sync2server otillgänglig (%s: %s) — "
+                    "lösenordet sätts lokalt, mailservern synkas inte",
+                    type(err).__name__, err)
+            if syncserver is not None and syncserver.available:
+                remote_user_id = syncserver.remote_user(self)
+                if remote_user_id:
+                    _logger.info(f"VALUES IN WRITE :::::::::: {values}")
+                    syncserver.write(self._name, remote_user_id, values)
 
-            if remote_user_id == self.env.user and values.get('new_password'):
-                password_wizard = self.env['change.password.wizard'].create({
-                    'user_ids': [(0, 0, {
-                        'user_id': remote_user_id.id,
-                        'user_login': remote_user_id.login,
-                        'new_passwd': values.get('new_password')
-                    })]
-                })
-                password_wizard.change_password_button()
-                del values['new_password']
-                _logger.info(f"VALUES IN WRITE :::::::::: {values}")
+                if remote_user_id == self.env.user and values.get('new_password'):
+                    password_wizard = self.env['change.password.wizard'].create({
+                        'user_ids': [(0, 0, {
+                            'user_id': remote_user_id.id,
+                            'user_login': remote_user_id.login,
+                            'new_passwd': values.get('new_password')
+                        })]
+                    })
+                    password_wizard.change_password_button()
+                    del values['new_password']
+                    _logger.info(f"VALUES IN WRITE :::::::::: {values}")
         return super(ResUsers, self).write(values)
 
     def backfill_dovecot_password(self):
@@ -379,15 +394,35 @@ class Sync2server():
         self.passwd_dbname = get_config('passwd_dbname', 'Database name is missing')
         self.passwd_user = get_config('passwd_user', 'Username is missing')
         self.passwd_passwd = get_config('passwd_passwd', 'Password is missing')
+        # Anslutningsfel får ALDRIG kasta vidare ut ur write(). Se write()
+        # nedanför: ett oåtkomligt mailserver ska degradera synken, inte
+        # blockera en användarändring (och absolut inte en moduluppgradering
+        # — res.users.init() skriver password, vilket kraschade hela
+        # registret 2026-10-29).
+        self.available = False
         _logger.info(f"Sync2server server {self.passwd_server} database {self.passwd_dbname} user {self.passwd_user}")
         try:
-            self.sock_common = xmlrpc.client.ServerProxy('%s/xmlrpc/2/common' % self.passwd_server)
+            # Servern kan svara 301 Moved Permanently (http -> https).
+            # xmlrpc.client följer INTE redirects, så en http-URL ger
+            # ProtocolError. Normalisera till https och tåla båda.
+            server = (self.passwd_server or '').rstrip('/')
+            if server.startswith('http://'):
+                server = 'https://' + server[len('http://'):]
+            self.sock_common = xmlrpc.client.ServerProxy('%s/xmlrpc/2/common' % server)
             self.uid = self.sock_common.authenticate(self.passwd_dbname, self.passwd_user, self.passwd_passwd, {})
-            self.sock = xmlrpc.client.ServerProxy('%s/xmlrpc/2/object' % self.passwd_server)
+            self.sock = xmlrpc.client.ServerProxy('%s/xmlrpc/2/object' % server)
+            self.available = bool(self.uid)
             _logger.info(f"self.sock {self.sock}")
         except xmlrpclib.Fault as err:
             raise UserError(_("%s (server %s, db %s, user %s, pw %s)" % (err, self.passwd_server, self.passwd_dbname,
                                                                        self.passwd_user, self.passwd_passwd)))
+        except Exception as err:
+            # ProtocolError (301/302), ConnectionRefused, timeout, TLS-fel …
+            # Logga och markera som otillgänglig; anroparen hoppar över synken.
+            _logger.warning(
+                "Sync2server: kan inte ansluta till %s (%s: %s) — "
+                "synkronisering hoppas över",
+                self.passwd_server, type(err).__name__, err)
 
     def search(self, model, domain):
         _logger.info(f"search.sock {self.sock}")
