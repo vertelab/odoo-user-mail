@@ -3,7 +3,8 @@
 
 Livscykel: new → classified → processed | ignored.
 - Ingest: _ingest_message() (IMAP-poller nu, mailgateway i Skiva 2).
-- OKF-arkiv: varje mail arkiveras i personligt scope (create_from_mail).
+- OKF-arkiv: ingest sätter bara `okf_dirty`; `cron_okf_index_dirty`
+  arkiverar via `ai.okf.mixin` (se models/user_mail_ai_okf.py).
 - Graf: :MailMessage + SENT_BY registreras via data/graph_mail_node.xml.
 - Klassificering: zero-shot (ProviderFactory) + deterministisk Teams-detektering.
 - Teams-inbjudan → calendar.event (autonomt, låg risk) + notis.
