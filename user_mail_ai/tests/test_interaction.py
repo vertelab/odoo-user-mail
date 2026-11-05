@@ -39,6 +39,13 @@ class TestUserMailAiInteraction(TransactionCase):
                 'name': 'Mail-hjälpredan', 'status': 'active',
                 'orchestration_mode': 'single'})
         self.hitl = self.env['ai.coworker.hitl']
+        # HITL kräver en session (design D7 — ingen herrelös förfrågan).
+        # Testerna skapar en riktig sådan i stället för att gissa en id.
+        self.session = self.env['ai.coworker.session'].create({
+            'coworker_id': self.coworker.id,
+            'status': 'active',
+            'user_id': self.user.id,
+        })
 
     def _ingest(self, raw):
         norm = self.imap._normalize_message(raw, folder='INBOX', uid=42)
@@ -77,6 +84,10 @@ class TestUserMailAiInteraction(TransactionCase):
         rec = self._ingest(make_raw_email(
             message_id='<reply-2@example.com>',
             references='<ticket-43@example.com>'))
+        # HITL kräver session (D7) — _propose_promotion skapar en request.
+        rec = rec.with_context(
+            _ai_context_model='ai.coworker.session',
+            _ai_context_id=self.session.id)
         hitl = rec._propose_promotion()
         self.assertTrue(hitl)
         self.assertEqual(hitl.action_type, 'promote_mail')
@@ -96,9 +107,22 @@ class TestUserMailAiInteraction(TransactionCase):
         rec.write({'object_link_candidate': json.dumps({
             'model': 'project.task', 'res_id': 1,
             'confidence': 0.9, 'source': 'llm'})})
+        rec = rec.with_context(
+            _ai_context_model='ai.coworker.session',
+            _ai_context_id=self.session.id)
         hitl = rec._propose_promotion()
         hitl.with_user(self.user).action_reject()
-        self.assertEqual(rec.status, 'classified')
+        # `action_reject` rör bara HITL-posten — den sätter inte mailstatus.
+        # Statusen blir 'classified' av klassificeringen, som inte körts här.
+        # Det testet ska pröva är att mailet INTE kopplats in i objektet.
+        rec.invalidate_recordset()
+        self.assertFalse(
+            self.env['mail.message'].search_count([
+                ('model', '=', 'project.task'),
+                ('res_id', '=', 1),
+                ('message_id', '=', rec.message_id),
+            ]),
+            'Ett avslaget förslag får inte skapa en chatt-post på objektet')
         self.assertFalse(rec.object_model, "Ingen objektkoppling vid avslag")
 
     # ── Catchall/mailgateway-ingestion ───────────────────────────────
@@ -136,7 +160,14 @@ class TestUserMailAiInteraction(TransactionCase):
         self.assertFalse(rec, "Internt mail ska inte ingesteras")
 
     def test_mail_message_create_hook(self):
-        # create-hooken triggar ingestion automatiskt
+        """`mail.message`-hooken ingesterar catchall-mail automatiskt.
+
+        Det som avvecklades 2026-10-21 (D2) var OKF-REGISTRERINGEN av
+        `mail.message` för dirty-indexering — modellen stod för 77,5 % av
+        kön utan att någon läste koncepten. Ingest-hooken är en annan sak
+        och lever kvar: ett mail som landar på ett objekt ska bli en
+        triage-post. Testet prövar den.
+        """
         task = self.env['project.task'].create({
             'name': 'Hook-ärende', 'user_ids': [(6, 0, [self.user.id])]})
         before = self.Mail.search_count([])
@@ -173,7 +204,7 @@ class TestUserMailAiInteraction(TransactionCase):
     def test_handoff_uses_active_specialist(self):
         # Skapa routing till en inaktiv specialist → fallback (ingen handoff)
         specialist = self.env['ai.coworker'].create({
-            'name': 'Osynlig specialist', 'status': 'inactive',
+            'name': 'Osynlig specialist', 'status': 'done',
             'orchestration_mode': 'single'})
         self.env['user_mail_ai.routing'].create({
             'category': 'support', 'coworker_id': specialist.id})
@@ -198,7 +229,10 @@ class TestUserMailAiInteraction(TransactionCase):
     # ── HITL-dispatch (user_mail_ai-överlagring) ─────────────────────
 
     def test_newsletter_move_rule_sets_user_flag(self):
-        hitl = self.coworker._request_hitl(
+        hitl = self.coworker.with_context(
+            _ai_context_model='ai.coworker.session',
+            _ai_context_id=self.session.id,
+        )._request_hitl(
             'newsletter_move_rule',
             'Flytta nyhetsbrev automatiskt?',
             context={'model': 'user_mail_ai.mail', 'res_id': 1},

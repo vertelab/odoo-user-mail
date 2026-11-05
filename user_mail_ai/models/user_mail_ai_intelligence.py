@@ -255,38 +255,46 @@ class UserMailAiIntelligence(models.Model):
         nudged = False
         for rule in self._matching_rules():
             cfg = rule._parse_config()
+            # `_matching_rules()` är sorterad på prioritet, och docstringen
+            # lovar att HÖGST prioriterad matchande regel vinner. Loopen bröt
+            # tidigare bara på `handled`, så en `nudge` (som bara sätter
+            # `nudged`) föll igenom till nästa regel — och en lägre
+            # prioriterad `ignore` kunde då sätta handled=True. Regeln som
+            # faktiskt vann blev alltså den lägst prioriterade.
+            applied = False
             if rule.action == 'ignore':
                 self.write({'status': 'ignored',
                             'notes': 'Regel: %s' % rule.name})
-                handled = True
+                handled = applied = True
             elif rule.action == 'block':
                 self.write({'status': 'ignored',
                             'notes': 'Blockerad av regel: %s' % rule.name})
-                handled = True
+                handled = applied = True
             elif rule.action == 'move_to_folder':
                 folder = cfg.get('folder') or 'AI/Arkiv'
                 if self._move_to_folder(folder):
-                    handled = True
+                    handled = applied = True
             elif rule.action == 'flag':
                 self._flag_action_mail()
+                applied = True
             elif rule.action == 'nudge':
-                nudged = True
+                nudged = applied = True
             elif rule.action == 'draft_reply':
                 if self._maybe_draft_reply():
-                    handled = True
+                    handled = applied = True
             elif rule.action == 'send_to_specialist':
                 specialist = self.env['ai.coworker'].browse(
                     cfg.get('coworker_id')) if cfg.get('coworker_id') \
                     else False
                 if self._try_handoff_to(specialist):
-                    handled = True
+                    handled = applied = True
             elif rule.action == 'create_object':
                 if self._create_object(rule):
-                    handled = True
+                    handled = applied = True
             elif rule.action == 'create_activity':
                 if self._create_activity_on_object(rule):
-                    handled = True
-            if handled:
+                    handled = applied = True
+            if applied:
                 break
         return handled, nudged
 

@@ -369,6 +369,12 @@ class UserMailAiMail(models.Model):
                 obj = self.env[message.model].browse(message.res_id)
                 if 'user_id' in obj._fields and obj.user_id:
                     return obj.user_id
+                # `project.task` bär `user_ids` (many2many), inte `user_id`.
+                # Utan den här grenen fick ett catchall-mail på en uppgift
+                # ingen ägare → ingen triage, trots att uppgiften har
+                # tilldelade. Första tilldelade äger mailet.
+                if 'user_ids' in obj._fields and obj.user_ids:
+                    return obj.user_ids[:1]
             except Exception:
                 pass
         # Mottagarens partner → användare

@@ -275,6 +275,11 @@ class TestRulesObjects(TransactionCase):
     # ── Extra: helpdesk-team fallback ───────────────────────────────
 
     def test_helpdesk_team_fallback(self):
+        # Samma guard som test_helpdesk_team_configured: utan ett team i
+        # databasen finns ingen fallback att pröva. helpdesk är inte ett
+        # beroende av user_mail_ai, så modulen kan saknas.
+        if not self.env['helpdesk.ticket.team'].search([], limit=1):
+            self.skipTest('Inget helpdesk-team finns')
         rec = self._ingest()
         rule = self._rule('helpdesk.ticket')
         rec._do_create_object(
