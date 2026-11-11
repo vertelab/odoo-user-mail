@@ -3,3 +3,4 @@ from . import test_interaction
 from . import test_intelligence
 from . import test_rules_objects
 from . import test_okf_mail
+from . import test_okf_mail_temporal

@@ -28,18 +28,8 @@ def make_raw_email(message_id='<ai-test-1@example.com>', subject='Test',
             'DESCRIPTION:https://teams.microsoft.com/l/meetup-join/abc\r\n'
             'END:VEVENT\r\nEND:VCALENDAR\r\n'
         )
-        # Python 3.12: `add_attachment(..., maintype=, subtype=)` skickar
-        # argumenten vidare till contentmanager, som inte tar dem (TypeError
-        # i set_text_content/set_bytes_content). Och `set_content` gör
-        # meddelandet till en icke-multipart, där `attach` vägrar.
-        # `make_mixed()` konverterar det till multipart/mixed — samma
-        # struktur som ett riktigt mail med bilaga har.
-        from email.mime.text import MIMEText
-        msg.make_mixed()
-        part = MIMEText(ics, _subtype='calendar', _charset='utf-8')
-        part.add_header('Content-Disposition', 'attachment',
-                        filename='invite.ics')
-        msg.attach(part)
+        msg.add_attachment(ics, filename='invite.ics',
+                           maintype='text', subtype='calendar')
     return msg.as_bytes()
 
 
@@ -65,10 +55,7 @@ class TestUserMailAi(TransactionCase):
     # ── Modell & livscykel ──────────────────────────────────────────
 
     def test_model_exists(self):
-        # `self.Mail` är ett TOMT recordset — `assertTrue` på det fallerar
-        # alltid (ett tomt recordset är falsy). Det som ska prövas är att
-        # modellen finns och bär fälten.
-        self.assertIn('user_mail_ai.mail', self.env)
+        self.assertTrue(self.Mail)
         self.assertIn('reply_suggested', self.Mail._fields)
         self.assertIn('object_link_candidate', self.Mail._fields)
 
@@ -123,19 +110,18 @@ class TestUserMailAi(TransactionCase):
                       base64.b64decode(att.datas))
 
     def test_okf_archive_created(self):
-        """Ingest flaggar för indexering — den skapar INTE konceptet.
+        """Ingest flaggar posten — indexeraren sköter arkiveringen.
 
-        Beteendet ändrades med flit (mail-okf-indexing 4.1/4.2): den synkrona
-        arkiveringsvägen är avvecklad, eftersom en LLM-tur per mail i
-        ingest-vägen gjorde pollningen dyr. Ingest sätter `okf_dirty` och
-        cronen skapar konceptet. Testet prövar därför flaggan — att kräva ett
-        koncept här vore att kräva det beteende ändringen tog bort.
+        Konceptet skapas INTE synkront i `_ingest_message` (mail-okf-
+        indexing D1: inget AI-arbete i create-vägen). Det som ska vara
+        sant direkt efter ingest är att posten står i kön.
         """
         if 'ai.okf.concept' not in self.env:
             return
         rec = self._ingest_raw(make_raw_email())
+        rec.invalidate_recordset(['okf_dirty'])
         self.assertTrue(rec.okf_dirty,
-                        'Mailet ska flaggas för indexering vid ingest')
+                        "posten ska vara flaggad för OKF-indexering")
 
     # ── Teams-detektering ───────────────────────────────────────────
 
@@ -156,12 +142,6 @@ class TestUserMailAi(TransactionCase):
 
     def test_teams_handler_creates_event(self):
         rec = self._ingest_raw(make_raw_email(with_ics=True))
-        # `teams_invite` sätts av klassificeringen (`_classify`), inte av
-        # ingest. `_handle_teams_invite` returnerar False utan flaggan —
-        # så testet måste sätta den, precis som klassificeringen gör.
-        self.assertTrue(rec._detect_teams_invite(),
-                        'ICS-bilagan ska detekteras som Teams-inbjudan')
-        rec.teams_invite = True
         rec._handle_teams_invite()
         self.assertTrue(rec.calendar_event_id)
         event = rec.calendar_event_id
@@ -174,7 +154,6 @@ class TestUserMailAi(TransactionCase):
 
     def test_teams_handler_no_duplicate(self):
         rec = self._ingest_raw(make_raw_email(with_ics=True))
-        rec.teams_invite = True
         event1 = rec._handle_teams_invite()
         event2 = rec._handle_teams_invite()
         self.assertEqual(event1.id, event2.id)

@@ -105,6 +105,25 @@ class UserMailAiMailOkf(models.Model):
     # Kontraktet — vad mixinen frågar om
     # ==================================================================
 
+    def _okf_source_date(self):
+        """Mailets KÄLDDATUM: när det togs emot (okf-temporal-recall 7.1).
+
+        Inte när det indexerades. Ett mail från i fjol som pollas i dag är
+        inte "nytt" — och med `create_date` som axel hade det sett ut som
+        det. `received_at` sätts av IMAP-pollern och ändras aldrig.
+
+        Fallback: `raw_message_id.create_date` (när Odoo först såg mailet)
+        och sist `create_date`. En post utan något datum alls lämnas tom —
+        den deltar då i sökningen utan tidsvikt, precis som förut.
+        """
+        self.ensure_one()
+        when = self.received_at
+        if not when and self.raw_message_id:
+            when = self.raw_message_id.create_date
+        if not when:
+            when = self.create_date
+        return when, 'received'
+
     def _okf_dirty_fields(self):
         """Fält vars ändring gör OKF-fälten inaktuella.
 
@@ -112,9 +131,14 @@ class UserMailAiMailOkf(models.Model):
         identitet), INTE `folder`/`source_uid` (pollerns bokföring), och
         INTE `memory_state`/`memory_synced_at` (skrivs av minnessynken →
         skulle självåtertända flaggan).
+
+        `received_at` INGÅR (okf-temporal-recall 3.4): källdatumet är en
+        del av konceptets mening, och en rättad ankomstitid ska slå igenom
+        vid nästa indexering. `partner_id` ingår av samma skäl — det är
+        den som bär länken till kunden.
         """
         return {'subject', 'from_email', 'from_name', 'category',
-                'status', 'notes'}
+                'status', 'notes', 'received_at', 'partner_id'}
 
     def _okf_concept_key(self, lang=None, owner_id=None):
         """`mail:<message_id>` — RFC Message-ID, stabilt över tid.
@@ -215,6 +239,64 @@ class UserMailAiMailOkf(models.Model):
             'res_id': concept.id,
         })
 
+    def _okf_links_extra(self):
+        """Länkar som relationsfälten inte bär (okf-temporal-recall 7.2).
+
+        `partner_id` och `calendar_event_id` plockas automatiskt av
+        mixinens generiska `_okf_links_source()` — de är many2one mot
+        modeller som bär mixinen. Det som INTE fångas är:
+
+          `object_model`/`object_res_id`
+              Triage kopplar mailet till ett affärsobjekt (crm.lead,
+              project.task, helpdesk.ticket …) som en sträng + ett id.
+              Utan den här raden blir kopplingen aldrig en länk, och
+              frågan "vilka mail hör till det här projektet?" kan inte
+              besvaras.
+
+          avsändaradressen
+              Ett mail från en kund vi känner igen ska länka till kunden
+              även när triage ännu inte satt `partner_id`. Vi SLÅR UPP
+              adressen — vi SKAPAR aldrig en kontakt här (indexeringen
+              speglar källan; en okänd avsändare blir ingen kontakt).
+
+        Formen är mixinens typade post: ref, kind, date, basis.
+        """
+        self.ensure_one()
+        entries = []
+
+        # 1. Affärsobjektet från triage.
+        model = (self.object_model or '').strip()
+        if model and self.object_res_id and model in self.env:
+            entries.append({
+                'ref': '%s,%s' % (model, self.object_res_id),
+                'kind': model.replace('.', '_'),
+                'date': None,
+                'basis': 'explicit',
+            })
+
+        # 2. Avsändaren → kund.
+        #
+        # `partner_id` sätts REDAN vid ingest av `_resolve_partner()`, som
+        # hittar eller SKAPAR kontakten. Mixinens generiska
+        # `_okf_links_source()` fångar därför den länken automatiskt — vi
+        # lägger ingen andra.
+        #
+        # Fallbacken nedan finns för poster som skapats före `partner_id`
+        # fanns (eller där ingest hoppats över): vi SLÅR UPP adressen, vi
+        # skapar aldrig en kontakt här. Indexeringen speglar källan.
+        if not self.partner_id and self.from_email:
+            partner = self.env['res.partner'].sudo().search([
+                ('email', '=ilike', self.from_email.strip()),
+            ], limit=1)
+            if partner:
+                entries.append({
+                    'ref': 'res.partner,%s' % partner.id,
+                    'kind': 'partner',
+                    'date': None,
+                    'basis': 'explicit',
+                })
+        return entries
+
     def _okf_index_record(self, max_chars=None, session=None):
         """Indexera posten och bevara `.eml` på konceptet.
 
@@ -247,4 +329,22 @@ class UserMailAiMailOkf(models.Model):
         # andel kan en djupare kö i en annan modell svälta den — och då
         # svarar sökfältet tomt trots att posterna finns.
         mixin._okf_register_priority_indexable('user_mail_ai.mail')
+        # Tidsdefault (okf-temporal-recall D4): mail är intressant BAKÅT.
+        # Sju dygn är användarens val — ett kortare fönster ger skarpare
+        # närtid, och avsmalningen är mjuk så det är billigt att bredda.
+        mixin._okf_register_temporal_default(
+            'mail', days=7, direction='backward')
+        # Berikningen (D11): mail deltar som tidskandidat med
+        # `received_at` och binds till en kund via `partner_id`.
+        mixin._okf_register_related(
+            'mail', 'user_mail_ai.mail', date_field='received_at',
+            label_field='subject', partner_field='partner_id')
+        # Vikt-signaler (tool-call-quality D5): `interest_score` mäter
+        # INTRESSE — nyhetsbreven fick 5 och fakturan 1 i drift, så
+        # "viktigaste mail" gav fel svar. Dessa tre signaler mäter VIKT.
+        mixin._okf_register_importance('user_mail_ai.mail', {
+            'action_required': 'action_needed',
+            'due': 'follow_up_at',
+            'customer': 'partner_id',
+        })
         return res

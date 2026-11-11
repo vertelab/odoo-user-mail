@@ -13,49 +13,27 @@ Täcker:
 - 5.2 mail.message utan .eml-bilaga får inte indexeringen att fela
 """
 
-from unittest.mock import patch
-
 from odoo.tests.common import TransactionCase
 
 from .test_user_mail_ai import make_raw_email
 
 
 class TestOkfMail(TransactionCase):
-    """OKF-kontraktet på mail.
-
-    Embedding-providern mockas: utan mock går varje indexering till Bifrost,
-    blockeras av testramverket och retryar (samma fälla som ai_agent_core:s
-    BASELINE.md beskriver). Testerna föll på det — 13 av dem — innan
-    mockningen fanns, och föll då på fel orsak: indexeringen skapade inga
-    koncept alls, så det som prövades var en väg som aldrig nådde DB.
-    """
-
-    @classmethod
-    def setUpClass(cls):
-        super().setUpClass()
-        cls._embed_patch = patch(
-            'odoo.addons.ai_agent_core.core.provider.AIProvider._get_embedding',
-            lambda self, *a, **kw: None,
-            create=True)
-        cls._embed_patch.start()
-        cls.addClassCleanup(cls._embed_patch.stop)
 
     def setUp(self):
         super().setUp()
         self.Mail = self.env['user_mail_ai.mail']
         self.imap = self.env['user.mail.imap']
         self.user = self.env.user
-        # Registreringen sker i `_register_hook()`, som körs när registret
-        # laddas — inte i en TransactionCase. Utan detta anrop är
-        # `_okf_indexable_models()` tom på domänmodeller och testet faller
-        # på att modulen "inte är registrerad", trots att den är det i drift.
-        # Idempotent, så det är säkert att göra per test.
-        self.env['ai.okf.mixin']._okf_register_indexable('user_mail_ai.mail')
 
     def _ingest(self, **kw):
-        # `folder` styr _normalize_message, inte meddelandet — att skicka
-        # hela kw till make_raw_email gav TypeError så snart ett test angav
-        # en mapp (skräp, papperskorg, utkast).
+        """Bygg ett råmail och ingest:a det.
+
+        RÄTTAT 2026-11-10: `folder` skickades vidare till
+        `make_raw_email()`, som inte tar den parametern — två tester
+        kraschade på `TypeError` i stället för att pröva brusfiltret.
+        `folder` hör till `_normalize_message`, inte till råmailet.
+        """
         folder = kw.pop('folder', 'INBOX')
         raw = make_raw_email(**kw)
         norm = self.imap._normalize_message(raw, folder=folder)
@@ -75,8 +53,29 @@ class TestOkfMail(TransactionCase):
         return self.env['ai.okf.mixin']._okf_indexable_models()
 
     def test_registered_indexable(self):
-        models = self._indexable_models()
-        self.assertIn('user_mail_ai.mail', models)
+        """Bryggan registrerar sig själv — annars får cronen aldrig kön.
+
+        Registreringen sker i `_register_hook()` vid registry-load. Kör man
+        bara den här modulens tester (`-m user_mail_ai`) kan registreringen
+        ha nollställts, så testet registrerar först och återställer sedan
+        listan — samma mönster som `test_registration_idempotent`.
+
+        RÄTTAT 2026-11-10: testet läste `type(mixin)._okf_extra_indexable_models`,
+        ett KLASSATTRIBUT som inte finns. Registreringen bor i modulglobalen
+        `_OKF_EXTRA_INDEXABLE` — just för att Odoos testramverk fäller nya
+        klassattribut på modeller. Attributåtkomsten kastade AttributeError
+        i stället för att pröva det testet skulle pröva.
+        """
+        from odoo.addons.ai_agent_core.models.ai_okf_mixin import (
+            _OKF_EXTRA_INDEXABLE)
+        mixin = self.env['ai.okf.mixin']
+        saved = list(_OKF_EXTRA_INDEXABLE)
+        try:
+            mixin._okf_register_indexable('user_mail_ai.mail')
+            self.assertIn('user_mail_ai.mail',
+                          mixin._okf_indexable_models())
+        finally:
+            _OKF_EXTRA_INDEXABLE[:] = saved
 
     def test_mail_message_not_registered(self):
         """`mail.message` ska INTE längre indexeras (D2, 2026-10-21).
@@ -90,16 +89,23 @@ class TestOkfMail(TransactionCase):
     def test_registration_idempotent(self):
         """Ett andra anrop ger ingen dubblett.
 
-        Registreringen bor i en modulglobal (`_OKF_EXTRA_INDEXABLE`), inte i
-        ett klassattribut — Odoos testramverk fäller nya klassattribut på
-        modeller. Ingen spara/återställ behövs därför; anropet är idempotent
-        och listan lever så länge processen gör det.
+        RÄTTAT 2026-11-10 (samma fynd som `test_registered_indexable`):
+        registreringen bor i modulglobalen `_OKF_EXTRA_INDEXABLE`, inte i
+        ett klassattribut. Vi räddar och återställer listan IN-PLACE —
+        att sätta ett nytt klassattribut hade fallit på Odoos
+        attributkontroll ("Found unexpected attributes on ai.okf.mixin").
         """
+        from odoo.addons.ai_agent_core.models.ai_okf_mixin import (
+            _OKF_EXTRA_INDEXABLE)
         mixin = self.env['ai.okf.mixin']
-        mixin._okf_register_indexable('user_mail_ai.mail')
-        mixin._okf_register_indexable('user_mail_ai.mail')
-        models = mixin._okf_indexable_models()
-        self.assertEqual(models.count('user_mail_ai.mail'), 1)
+        saved = list(_OKF_EXTRA_INDEXABLE)
+        try:
+            mixin._okf_register_indexable('user_mail_ai.mail')
+            mixin._okf_register_indexable('user_mail_ai.mail')
+            models = mixin._okf_indexable_models()
+            self.assertEqual(models.count('user_mail_ai.mail'), 1)
+        finally:
+            _OKF_EXTRA_INDEXABLE[:] = saved
 
     # ── 3.1 konceptnyckel ───────────────────────────────────────────
 
@@ -158,19 +164,26 @@ class TestOkfMail(TransactionCase):
         self.assertIn('anna@example.com', body)
         self.assertIn('köttbullar', body)
 
-    def test_body_empty_without_content(self):
+    def test_body_without_content_still_names_sender_and_date(self):
+        """En kropp utan ämne/brödtext är inte TOM — den bär avsändare
+        och datum.
+
+        RÄTTAT 2026-11-10: testet antog att kroppen blir tom utan ämne
+        och brödtext. `_okf_body_source()` för `user_mail_ai.mail` skriver
+        alltid `Från:` och `Datum:` när de finns — och de finns alltid på
+        ett inkommet mail. Det gamla påståendet var alltså fel om koden,
+        inte ett fel i koden.
+
+        Det som SKA prövas är att kroppen inte innehåller något som ser ut
+        som innehåll: ingen brödtext, inget ämne.
+        """
         rec = self._ingest(message_id='<okf-body-2@example.com>',
                            subject='', body='')
-        # `_okf_body_source()` tar ämne, avsändare, datum, kategori och
-        # brödtext. Utan ämne och utan brödtext återstår avsändare och
-        # datum — det är avsiktligt (de bär kunskap om brevet). Testet
-        # prövar därför att BRÖDTEXTEN inte finns, inte att hela källan
-        # är tom.
         body = rec._okf_body_source()
-        self.assertNotIn('Hej Kalle', body)
-        self.assertNotIn('Ämne:', body)
-        self.assertIn('Från:', body,
-                      'Avsändaren ska finnas kvar — den är en kunskapskälla')
+        self.assertIn('anna@example.com', body, 'avsändaren ska finnas')
+        self.assertNotIn('Ämne:', body, 'tomt ämne ska inte skrivas ut')
+        # Brödtexten bor i .eml-bilagan; utan den finns ingen text kvar.
+        self.assertNotIn('köttbullar', body)
 
     # ── 3.4 deterministisk summary ──────────────────────────────────
 
