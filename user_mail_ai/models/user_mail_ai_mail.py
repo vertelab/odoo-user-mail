@@ -138,7 +138,19 @@ class UserMailAiMail(models.Model):
         ('other', 'Övrigt'),
     ], string='Kategori')
     action_needed = fields.Boolean('Kräver åtgärd', default=False)
-    interest_score = fields.Float('Intressepoäng (0–10)', default=0.0)
+    # `interest_score` mäter INTRESSE — hur mycket innehållet berör
+    # användaren — INTE vikt (tool-call-quality D5). Mätt i drift: ett
+    # nyhetsbrev fick 5 och en faktura 1, så en fråga om "viktigaste mail"
+    # rangordnade nyhetsbreven först.
+    #
+    # Vikten räknas i stället ur signalerna som registreras i
+    # `_register_hook()` (`_okf_register_importance`): action_needed,
+    # follow_up_at, partner_id.
+    interest_score = fields.Float(
+        'Intressepoäng (0–10)', default=0.0,
+        help='Hur mycket innehållet berör användaren — INTE hur viktigt '
+             'det är. För vikt, se vikt-signalerna (kräver åtgärd, '
+             'förfallodatum, kund).')
     teams_invite = fields.Boolean('Teams-inbjudan', default=False)
     reply_suggested = fields.Boolean('Svarsförslag', default=False)
     object_link_candidate = fields.Text(
@@ -626,6 +638,43 @@ class UserMailAiMail(models.Model):
             self._get_body_text(),
         )
 
+    def _store_importance_components(self):
+        """Skriv vikten och dess orsaker till `interest_components`.
+
+        VARFÖR (mail-digest-quality 1.1): `interest_score` mäter INTRESSE —
+        hur mycket innehållet berör användaren — inte vikt. Fältets egen
+        help-text säger det, och mätt i drift fick ett nyhetsbrev 5 medan en
+        faktura fick 1. En fråga om "viktigaste mail" rangordnade därför
+        nyhetsbreven först.
+
+        Vikten räknas i stället ur signalerna som `ai.okf.mixin` registrerat
+        för modellen (`action_needed`, `follow_up_at`, `partner_id`).
+        `_okf_importance_of()` ger `(score, [orsak, ...])` — vi sparar BÅDA,
+        eftersom en rankning utan orsak inte går att försvara. Det var hela
+        problemet: `interest_components` var NULL för samtliga 3 515 rader,
+        så ingen kunde se varfor ett mail hamnade högt.
+
+        Best-effort: får aldrig fälla klassificeringen.
+        """
+        self.ensure_one()
+        try:
+            if 'ai.okf.mixin' not in self.env:
+                return False
+            score, reasons = self.env['ai.okf.mixin']._okf_importance_of(self)
+            payload = {
+                'importance': score,
+                'reasons': list(reasons),
+                # Intresset sparas bredvid, men BIDRAR INTE till vikten.
+                # Att blanda dem var ursprungsfelet.
+                'interest_score': float(self.interest_score or 0.0),
+            }
+            self.write({'interest_components': json.dumps(payload)})
+            return True
+        except Exception as e:  # noqa: BLE001 — får ej fälla klassificeringen
+            _logger.warning(
+                'Kunde inte spara vikt-komponenter för %s: %s', self.id, e)
+            return False
+
     @staticmethod
     def _parse_classification_json(text):
         if not text:
@@ -701,6 +750,10 @@ class UserMailAiMail(models.Model):
                     data.get('matched_rules') or []),
                 'status': 'classified',
             })
+            # Vikten skrivs separat (mail-digest-quality 1.1). Den räknas ur
+            # signalerna, inte ur LLM:ens intressepoäng — fältets help-text
+            # säger uttryckligen att intresse inte är vikt.
+            self._store_importance_components()
         except Exception as e:
             _logger.error('Classification store failed for %s: %s',
                           self.subject, e)
