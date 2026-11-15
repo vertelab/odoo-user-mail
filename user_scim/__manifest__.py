@@ -29,7 +29,7 @@ Fields synced:
         'user_mail_common',
     ],
     'data': [
-        'security/ir.model.access.csv',
+        'security/ir.access.csv',
         'views/res_users_view.xml',
         'views/res_config_settings_view.xml',
         'data/cron.xml',

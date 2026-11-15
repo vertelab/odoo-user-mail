@@ -52,7 +52,7 @@ User Mail Common
     'depends': ['base', 'base_setup'],
     'data': [
         'security/user_mail_security.xml',
-        'security/ir.model.access.csv',
+        'security/ir.access.csv',
         'views/res_users_view.xml'
     ],
     'installable': True,
