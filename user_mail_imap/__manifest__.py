@@ -1,6 +1,6 @@
 {
     'name': 'User Mail: IMAP Client',
-    'version': '18.0.1.3.0',
+    'version': '1.3.0',
     'summary': 'IMAP email client integrated in Odoo — with per-user poller.',
     'description': '''
 IMAP Client

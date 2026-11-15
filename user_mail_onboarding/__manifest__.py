@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 {
     'name': 'E-post i Vertel',
-    'version': '18.0.1.0.0',
+    'version': '1.0.0',
     'summary': 'Onboardingskurs: e-postklienten (IMAP/SMTP) och webmail',
     'description': """
 Lär dig koppla upp din e-post, läsa och skicka, och använda AI-assistenten i inkorgen.
