@@ -1,0 +1,4 @@
+id,name,model_id,group_id/id,operation,domain
+access_imap_server,access.imap.server,user.mail.imap,base.group_user,r,
+access_processed,access.user.mail.processed,user.mail.processed,base.group_user,crud,
+access_poll,access.user.mail.poll,user.mail.poll,base.group_user,r,
