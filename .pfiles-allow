@@ -33,7 +33,6 @@ user_mail_common/text.xml
 user_mail_common/models/res_users.py
 user_mail_common/security/ir.access.csv
 user_mail_common/security/ir.model.access.csv
-user_mail_common/security/user_mail_security.xml
 user_mail_common/static/description/index.html
 user_mail_common/views/res_users_view.xml
 user_mail_imap/controllers/imap_controller.py
@@ -43,6 +42,7 @@ user_mail_imap/models/imap_server.py
 user_mail_imap/models/mail_poll.py
 user_mail_imap/models/mail_processed.py
 user_mail_imap/models/res_users.py
+user_mail_imap/security/ir.access.csv
 user_mail_imap/security/ir.model.access.csv
 user_mail_imap/static/description/index.html
 user_mail_imap/static/src/components/composer/composer.esm.js
@@ -73,6 +73,7 @@ user_password_strength/static/src/js/signup_user.js
 user_password_strength/views/restrict_password.xml
 user_password_strength/views/signup_page_view.xml
 user_password_tmp/models/res_users.py
+user_password_tmp/security/ir.access.csv
 user_password_tmp/security/ir.model.access.csv
 user_password_tmp/static/description/index.html
 user_scim/data/cron.xml
