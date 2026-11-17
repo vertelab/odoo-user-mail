@@ -15,6 +15,7 @@ class ResUsers(models.Model):
     imap_poll_enabled = fields.Boolean(
         string='Aktivera mail-pollning',
         default=False,
+        user_writeable=True,
         help='Pollerar denna användares brevlåda via IMAP (cron).')
     last_imap_sync = fields.Datetime(
         string='Senaste IMAP-synk',
@@ -25,22 +26,13 @@ class ResUsers(models.Model):
     # listor — utan överridningen renderas gruppen tom och flaggan kan
     # inte sparas. imap_password är Fernet-krypterad (aldrig klartext);
     # den är läsbar för ägaren men sätts alltid via wizarden.
-    @property
-    def SELF_READABLE_FIELDS(self):
-        return super().SELF_READABLE_FIELDS + [
-            'imap_password', 'imap_poll_enabled', 'last_imap_sync']
-
-    @property
-    def SELF_WRITEABLE_FIELDS(self):
-        return super().SELF_WRITEABLE_FIELDS + [
-            'imap_poll_enabled']
 
     def _get_encryption_key(self):
         param = self.env['ir.config_parameter'].sudo()
-        key = param.get_param('user_mail_imap.encryption_key')
+        key = param.get_str('user_mail_imap.encryption_key')
         if not key:
             key = Fernet.generate_key().decode()
-            param.set_param('user_mail_imap.encryption_key', key)
+            param.set_str('user_mail_imap.encryption_key', key)
         return key
 
     def _encrypt_imap_pw(self, password):

@@ -25,7 +25,7 @@ IMAP Client
         'python': ['cryptography'],
     },
     'data': [
-        'security/ir.model.access.csv',
+        'security/ir.access.csv',
         'data/cron.xml',
         # Wizarden FÖRE vyn: res_users_view.xml refererar
         # %(action_imap_password_wizard)d och kräver att den finns.
