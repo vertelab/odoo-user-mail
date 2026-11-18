@@ -70,7 +70,10 @@ class SyncSettingsWizard(models.TransientModel):
                 user.write({'new_password': user.generate_password()})
             companies.add(user.company_id)
         for c in companies:
-            c.company_sync_settings()
+            # Se res.company.write(): en otillgänglig server ska degradera
+            # synken, inte fälla wizard-anropet.
+            if Sync2server().available:
+                c.company_sync_settings()
 
         if len(nopw) > 0:
             raise UserError(_('Some users missing password:\n\n%s\n\n please set new (sync is done)') % ',\n'.join(
@@ -263,6 +266,17 @@ class ResCompany(models.Model):
         super(ResCompany, self).write(values)
         domain = values.get('domain')
         if domain:
+            # Synken är en sidoeffekt, inte en förutsättning — samma regel som
+            # res.users.write() (se kommentaren där). Utan grinden kastar
+            # företagsskapandet UserError("No domain set for the user's
+            # company") så snart servern svarar 301/303, och då faller
+            # l10n_se_demo_company på data/company.xml.
+            syncserver = Sync2server()
+            if not syncserver.available:
+                _logger.warning(
+                    "res.company.write: Sync2server otillgänglig — "
+                    "företaget sparas lokalt, mailservern synkas inte")
+                return
             self.company_sync_settings()
             # Create mail servers when its a main company
             if self.id == self.env.ref('base.main_company').id:
@@ -287,6 +301,14 @@ class ResCompany(models.Model):
             vals['remote_id'] = self.generateUUID()
         companies = super(ResCompany, self).create(vals_list)
         for company in companies:
+            # Se write() ovan: ett oåtkomligt mailserver ska degradera synken,
+            # inte fälla företagsskapandet.
+            syncserver = Sync2server()
+            if not syncserver.available:
+                _logger.warning(
+                    "res.company.create: Sync2server otillgänglig — "
+                    "företaget skapas lokalt, mailservern synkas inte")
+                continue
             company.company_sync_settings()
             domain = company.domain
             if domain and self.id == self.env.ref('base.main_company').id:
@@ -303,9 +325,15 @@ class ResCompany(models.Model):
         for record in self:
             # Should always be one dictionary here.
             sync_record = record.read(fields)[0]
-            remote_company_id = False
-            if record.remote_id:
-                remote_company_id = syncserver.remote_company(record)
+            if not record.remote_id or not syncserver.available:
+                # Inget att synka: antingen saknas remote_id, eller så är
+                # servern otillgänglig (se write()). Aldrig ett kast härifrån.
+                return False
+            remote_company_id = syncserver.remote_company(record)
+            if not remote_company_id and not record.domain:
+                # Ingen domän => inget att matcha mot på mailservern; se
+                # remote_company(). Demodata skapar bolag utan domän.
+                return False
 
             if record.remote_id and remote_company_id:
                 syncserver.write(self._name, remote_company_id, sync_record)
@@ -484,6 +512,8 @@ class Sync2server():
     def remote_company(self, company):
         if not company.remote_id:
             raise UserError(_('no remote id'))
+        if not self.available:
+            raise UserError(_('mailservern är otillgänglig'))
         remote_company = self.search('res.company', [['remote_id', '=', company.remote_id]])
         if remote_company:
             return remote_company[0]
@@ -491,7 +521,15 @@ class Sync2server():
             remote_company = self.search('res.company', [['domain', '=', company.domain]])
             if len(remote_company) == 0:
                 if not company.domain:
-                    raise UserError(_("No domain set for the user's company"))
+                    # Ett företag utan domän (t.ex. demodata) har inget att
+                    # matcha mot på mailservern — och har ingen anledning att
+                    # synas där. Returnera None i stället för att kasta: synken
+                    # är en sidoeffekt, och ett kast här fäller hela
+                    # registret när l10n_se_demo_company skapar sina bolag.
+                    _logger.info(
+                        "remote_company: %s har ingen domän — hoppar över "
+                        "synk mot mailservern", company.display_name)
+                    return None
                 return self.create(
                     'res.company',
                     {'name': company.name, 'domain': company.domain, 'remote_id': company.remote_id})
