@@ -15,7 +15,7 @@ class TestImap(TransactionCase):
         self.assertEqual(decrypted, 'test123')
 
     def test_encryption_key_generated(self):
-        key = self.env['ir.config_parameter'].get_param('user_mail_imap.encryption_key')
+        key = self.env['ir.config_parameter'].get_str('user_mail_imap.encryption_key')
         self.assertTrue(key, "Encryption key should exist in config")
 
     def test_write_updates_imap_password(self):

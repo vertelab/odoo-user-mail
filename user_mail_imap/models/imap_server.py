@@ -375,7 +375,7 @@ class ImapServer(models.AbstractModel):
 
     def _drafts_folder(self):
         """Drafts-mapp: LIST-detektering (Drafts/Utkast) med konfig-fallback."""
-        param = self.env['ir.config_parameter'].sudo().get_param(
+        param = self.env['ir.config_parameter'].sudo().get_str(
             'user_mail_imap.drafts_folder', '')
         if param:
             return param

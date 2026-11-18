@@ -178,13 +178,13 @@ class res_company(models.Model):
     nbr_users = fields.Integer(compute="_nbr_users", string="Nbr of users")
     
     def _set_domain_depricated(self):
-        self.env['ir.config_parameter'].set_param('mail.catchall.domain', self.domain)
+        self.env['ir.config_parameter'].set_str('mail.catchall.domain', self.domain)
     
     @api.depends('name')
     def _get_domain_depricated(self):
         for rec in self:
             if rec.name:
-                rec.domain = rec.env['ir.config_parameter'].get_param('mail.catchall.domain')
+                rec.domain = rec.env['ir.config_parameter'].get_str('mail.catchall.domain')
             else:
                 rec.domain = False
     

@@ -135,12 +135,6 @@
                         domain="[('draft_uid', '!=', False)]"/>
                 <filter name="handoff" string="Delegerade"
                         domain="[('handoff_state', '!=', 'none')]"/>
-                <group expand="0" string="Gruppera">
-                    <filter name="g_status" string="Status"
-                            domain="[]" context="{'group_by': 'status'}"/>
-                    <filter name="g_category" string="Kategori"
-                            domain="[]" context="{'group_by': 'category'}"/>
-                </group>
             </search>
         </field>
     </record>

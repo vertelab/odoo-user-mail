@@ -101,7 +101,7 @@ class TestUserMailAi(TransactionCase):
         self.assertTrue(att)
         self.assertEqual(att.mimetype, 'message/rfc822')
         self.assertIn(b'<ai-test-1@example.com>',
-                      base64.b64decode(att.datas))
+                      base64.b64decode(att.raw))
 
     def test_okf_archive_created(self):
         if 'ai.okf.concept' not in self.env:
