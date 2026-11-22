@@ -21,7 +21,7 @@
 
 {
     'name': 'User Mail: User Mail Common',
-    'version': '1.1.0',
+    'version': '18.0.1.1.0',
     # Version ledger: 14.0 = Odoo version. 1 = Major. Non regressionable code. 2 = Minor. New features that are regressionable. 3 = Bug fixes
     'summary': 'Administration of mail for users on client side.',
     # Categories can be used to filter modules in modules listing
@@ -63,7 +63,7 @@ User Mail Common
     },
     'data': [
         'security/user_mail_security.xml',
-        'security/ir.access.csv',
+        'security/ir.model.access.csv',
         'security/sieve_rules.xml',
         'data/cron_sieve_vacation.xml',
         'views/res_users_view.xml',

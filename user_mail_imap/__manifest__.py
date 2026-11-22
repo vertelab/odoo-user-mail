@@ -8,7 +8,7 @@
     # ``_okf_mail_row`` kraschade på okänd flaggstatus (flags=None).
     # 11.0 = sökningen läser headers först och brödtext bara när inget
     # matchar (13 s → 0,1 s i en mapp med 10 000 mail).
-    'version': '1.11.0',
+    'version': '18.0.1.11.0',
     'summary': 'IMAP email client integrated in Odoo — with per-user poller.',
     'description': '''
 IMAP Client
@@ -33,7 +33,7 @@ IMAP Client
         'python': ['cryptography', 'icalendar'],
     },
     'data': [
-        'security/ir.access.csv',
+        'security/ir.model.access.csv',
         'data/cron.xml',
         'data/spam_headers.xml',
         # Wizarden FÖRE vyn: res_users_view.xml refererar

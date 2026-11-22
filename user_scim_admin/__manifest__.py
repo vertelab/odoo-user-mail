@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 {
     'name': 'User SCIM — Admin Directory',
-    'version': '1.0.0',
+    'version': '18.0.1.0.0',
     'category': 'Tools',
     'summary': 'Central admin view of all LDAP users across customers.',
     'description': '''
@@ -27,7 +27,7 @@ Features:
         'user_scim',
     ],
     'data': [
-        'security/ir.access.csv',
+        'security/ir.model.access.csv',
         'data/cron.xml',
         'views/scim_directory_views.xml',
         'views/scim_directory_kanban.xml',

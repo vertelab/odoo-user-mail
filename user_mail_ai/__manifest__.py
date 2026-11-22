@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 {
     'name': 'User Mail: AI Assistant',
-    'version': '1.11.1',
+    'version': '18.0.1.11.1',
     'summary': 'Personlig AI-mailhjälpreda — IMAP-triage, Odoo Mind (graf), Teams→kalender',
     'category': 'Productivity',
     'author': 'Vertel Sverige AB',
@@ -54,7 +54,7 @@ AI Assistant
         'python': ['icalendar'],
     },
     'data': [
-        'security/ir.access.csv',
+        'security/ir.model.access.csv',
         'security/rules.xml',
         'security/rules_ai.xml',
         'data/mail_coworker.xml',

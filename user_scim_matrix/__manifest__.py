@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 {
     'name': 'User SCIM — Matrix Extension',
-    'version': '1.0.0',
+    'version': '18.0.1.0.0',
     'category': 'Tools',
     'summary': 'Sync Matrix ID to LDAP via SCIM bridge.',
     'description': '''

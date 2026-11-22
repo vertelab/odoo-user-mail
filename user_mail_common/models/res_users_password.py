@@ -85,11 +85,11 @@ class ResUsers(models.Model):
         icp = self.env['ir.config_parameter'].sudo()
         for param in ('user_mail_imap.encryption_key',
                       'user_mail_common.encryption_key'):
-            key = icp.get_str(param)
+            key = icp.get_param(param)
             if key:
                 return key
         key = Fernet.generate_key().decode()
-        icp.set_str('user_mail_common.encryption_key', key)
+        icp.set_param('user_mail_common.encryption_key', key)
         return key
 
     # ── Kryptografi ──────────────────────────────────────────────────────

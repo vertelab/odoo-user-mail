@@ -23,7 +23,7 @@
 
 {
     'name': "User Password Strength",
-    'version': '1.0.0',
+    'version': '18.0.1.0.0',
     'summary': """User password strength - restrict weak password.""",
     'description': '''
 User Password Strength
