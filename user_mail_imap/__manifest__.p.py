@@ -33,7 +33,11 @@ IMAP Client
         'python': ['cryptography', 'icalendar'],
     },
     'data': [
+        # #if VERSION >= "20.0"
+        'security/ir.access.csv',
+        # #else
         'security/ir.model.access.csv',
+        # #endif
         'data/cron.xml',
         'data/spam_headers.xml',
         # Wizarden FÖRE vyn: res_users_view.xml refererar
