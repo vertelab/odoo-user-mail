@@ -557,13 +557,8 @@ class UserMailAiIntelligence(models.Model):
 
     @api.model
     def _profile_weight_llm(self):
-        # #if VERSION >= "20.0"
-        param = self.env['ir.config_parameter'].sudo().get_str(
-            'user_mail_ai.profile_weight_llm', str(_PROFILE_W_LLM_DEFAULT))
-        # #else
         param = self.env['ir.config_parameter'].sudo().get_param(
             'user_mail_ai.profile_weight_llm', str(_PROFILE_W_LLM_DEFAULT))
-        # #endif
         try:
             return float(param)
         except Exception:

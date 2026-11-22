@@ -94,15 +94,9 @@ class ScimDirectoryUser(models.Model):
     def sync_all(self):
         """Hämta alla användare från SCIM-bridgen och uppdatera lokala poster."""
         IParam = self.env['ir.config_parameter'].sudo()
-        # #if VERSION >= "20.0"
-        bridge_url = IParam.get_str('scim.bridge_url', '').rstrip('/')
-        api_key = IParam.get_str('scim.admin_api_key', '') or IParam.get_str('scim.api_key', '')
-        verify = IParam.get_str('scim.verify_ssl', 'True') == 'True'
-        # #else
         bridge_url = IParam.get_param('scim.bridge_url', '').rstrip('/')
         api_key = IParam.get_param('scim.admin_api_key', '') or IParam.get_param('scim.api_key', '')
         verify = IParam.get_param('scim.verify_ssl', 'True') == 'True'
-        # #endif
 
         if not bridge_url or not api_key:
             _logger.warning("SCIM bridge not configured for directory sync")

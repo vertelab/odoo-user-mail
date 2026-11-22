@@ -27,11 +27,7 @@ Features:
         'user_scim',
     ],
     'data': [
-        # #if VERSION >= "20.0"
-        'security/ir.access.csv',
-        # #else
         'security/ir.model.access.csv',
-        # #endif
         'data/cron.xml',
         'views/scim_directory_views.xml',
         'views/scim_directory_kanban.xml',

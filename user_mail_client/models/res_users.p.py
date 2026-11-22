@@ -86,15 +86,9 @@ class ResUsers(models.Model):
     _inherit = 'res.users'
 
     def _get_param(self, param, value):
-        # #if VERSION >= "20.0"
-        if not self.env['ir.config_parameter'].get_str(param):
-            self.env['ir.config_parameter'].set_str(param, value)
-        return self.env['ir.config_parameter'].get_str(param)
-        # #else
         if not self.env['ir.config_parameter'].get_param(param):
             self.env['ir.config_parameter'].set_param(param, value)
         return self.env['ir.config_parameter'].get_param(param)
-        # #endif
 
     def generate_password(self):
         length = int(self._get_param('pw_length', 13))
@@ -259,15 +253,9 @@ class ResCompany(models.Model):
     _inherit = 'res.company'
 
     def _get_param(self, param, value):
-        # #if VERSION >= "20.0"
-        if not self.env['ir.config_parameter'].get_str(param):
-            self.env['ir.config_parameter'].set_str(param, value)
-        return self.env['ir.config_parameter'].get_str(param)
-        # #else
         if not self.env['ir.config_parameter'].get_param(param):
             self.env['ir.config_parameter'].set_param(param, value)
         return self.env['ir.config_parameter'].get_param(param)
-        # #endif
 
     def generateUUID(self):
         return str(uuid.uuid4())
@@ -292,13 +280,8 @@ class ResCompany(models.Model):
             self.company_sync_settings()
             # Create mail servers when its a main company
             if self.id == self.env.ref('base.main_company').id:
-                # #if VERSION >= "20.0"
-                self.env['ir.config_parameter'].set_str(
-                    'mail.catchall.domain', domain)
-                # #else
                 self.env['ir.config_parameter'].set_param(
                     'mail.catchall.domain', domain)
-                # #endif
                 password = self._createcatchall()
                 if password:
                     self._smtpserver(password[0])
@@ -329,13 +312,8 @@ class ResCompany(models.Model):
             company.company_sync_settings()
             domain = company.domain
             if domain and self.id == self.env.ref('base.main_company').id:
-                # #if VERSION >= "20.0"
-                self.env['ir.config_parameter'].set_str(
-                    'mail.catchall.domain', domain)
-                # #else
                 self.env['ir.config_parameter'].set_param(
                     'mail.catchall.domain', domain)
-                # #endif
                 password = company._createcatchall()[0]
                 self._smtpserver(password)
                 self._imapserver(password)

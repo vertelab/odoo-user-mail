@@ -29,11 +29,7 @@ Fields synced:
         'user_mail_common',
     ],
     'data': [
-        # #if VERSION >= "20.0"
-        'security/ir.access.csv',
-        # #else
         'security/ir.model.access.csv',
-        # #endif
         'views/res_users_view.xml',
         'views/res_config_settings_view.xml',
         'data/cron.xml',
