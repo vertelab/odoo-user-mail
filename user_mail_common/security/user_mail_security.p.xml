@@ -2,6 +2,25 @@
 <odoo>
 <!-- 	<data> -->
         <data noupdate="1">
+<!-- #if VERSION >= "19.0" -->
+		<!-- Odoo 19 ersatte res.groups.category_id med privilege_id
+		     (res.groups.privilege). Privilegiet bär kategorin. -->
+		<record model="res.groups.privilege" id="privilege_own_email_settings">
+		    <field name="name">Email Settings</field>
+		    <field name="category_id" ref="base.module_category_administration"/>
+		</record>
+
+		<record model="res.groups" id="group_own_email_settings">
+		    <field name="name">Administrate own email settings</field>
+		    <field name="privilege_id" ref="privilege_own_email_settings"/>
+		</record>
+
+		<record model="res.groups" id="base.group_erp_manager">
+            <field name="name">Access Rights</field>
+            <field name="implied_ids" eval="[(4, ref('user_mail_common.group_own_email_settings'))]"/>
+            <field name="privilege_id" ref="privilege_own_email_settings"/>
+        </record>
+<!-- #else -->
 		<record model="res.groups" id="group_own_email_settings">
 		    <field name="name">Administrate own email settings</field>
 		    <field name="category_id" ref="base.module_category_administration"/>
@@ -12,6 +31,7 @@
             <field name="implied_ids" eval="[(4, ref('user_mail_common.group_own_email_settings'))]"/>
             <field name="category_id" ref="base.module_category_administration"/>
         </record>
+<!-- #endif -->
 
 <!--        <record model="ir.rule" id="res_users_email_rule">
             <field name="name">res_users: administrate own email</field>
