@@ -19,7 +19,7 @@ Features:
     - Filters on customer, active, has Matrix ID, etc.
     - Conflict detection (same uid in several customers).
     ''',
-    'author': 'Vertel AB',
+    'author': 'Vertel Sverige AB',
     'website': 'https://vertel.se/apps/odoo-user-mail/user_scim_admin',
     'license': 'AGPL-3',
     'depends': [
@@ -27,7 +27,7 @@ Features:
         'user_scim',
     ],
     'data': [
-        'security/ir.access.csv',
+        'security/ir.model.access.csv',
         'data/cron.xml',
         'views/scim_directory_views.xml',
         'views/scim_directory_kanban.xml',

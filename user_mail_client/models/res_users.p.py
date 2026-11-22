@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 ##############################################################################
 #
-#    Copyright (C) 2015 - 2019 Vertel AB (<http://www.vertel.se>).
+#    Copyright (C) 2015 - 2019 Vertel Sverige AB (<http://www.vertel.se>).
 #
 #    This program is free software: you can redistribute it and/or modify
 #    it under the terms of the GNU Affero General Public License as
@@ -70,7 +70,10 @@ class SyncSettingsWizard(models.TransientModel):
                 user.write({'new_password': user.generate_password()})
             companies.add(user.company_id)
         for c in companies:
-            c.company_sync_settings()
+            # Se res.company.write(): en otillgänglig server ska degradera
+            # synken, inte fälla wizard-anropet.
+            if Sync2server().available:
+                c.company_sync_settings()
 
         if len(nopw) > 0:
             raise UserError(_('Some users missing password:\n\n%s\n\n please set new (sync is done)') % ',\n'.join(
@@ -83,21 +86,9 @@ class ResUsers(models.Model):
     _inherit = 'res.users'
 
     def _get_param(self, param, value):
-        # #if VERSION >= "20.0"
-        if not self.env['ir.config_parameter'].get_str(param):
-        # #else
         if not self.env['ir.config_parameter'].get_param(param):
-        # #endif
-            # #if VERSION >= "20.0"
-            self.env['ir.config_parameter'].set_str(param, value)
-            # #else
             self.env['ir.config_parameter'].set_param(param, value)
-            # #endif
-        # #if VERSION >= "20.0"
-        return self.env['ir.config_parameter'].get_str(param)
-        # #else
         return self.env['ir.config_parameter'].get_param(param)
-        # #endif
 
     def generate_password(self):
         length = int(self._get_param('pw_length', 13))
@@ -159,24 +150,88 @@ class ResUsers(models.Model):
         passwd = values.get('password') or values.get('new_password')
         if passwd:
             values['dovecot_password'] = self.generate_dovecot_sha512(passwd)
-            syncserver = Sync2server()
-            remote_user_id = syncserver.remote_user(self)
-            if remote_user_id:
-                _logger.info(f"VALUES IN WRITE :::::::::: {values}")
-                syncserver.write(self._name, remote_user_id, values)
+            # Synken mot mailservern är en SIDOEFFEKT av lösenordsbytet, inte
+            # en förutsättning för det. Är servern otillgänglig ska det lokala
+            # lösenordet ändå sättas — annars kastar ett nätverksfel ut
+            # användaren ur en vanlig write(), och under modulinitiering
+            # (res.users.init skriver password) kraschar hela registret.
+            # Regression 2026-10-29: mail-azzar-se.azzar.at svarade 301 och
+            # blockerade uppgraderingen av samtliga moduler.
+            try:
+                syncserver = Sync2server()
+            except Exception as err:
+                syncserver = None
+                _logger.warning(
+                    "write(): Sync2server otillgänglig (%s: %s) — "
+                    "lösenordet sätts lokalt, mailservern synkas inte",
+                    type(err).__name__, err)
+            if syncserver is not None and syncserver.available:
+                remote_user_id = syncserver.remote_user(self)
+                if remote_user_id:
+                    _logger.info(f"VALUES IN WRITE :::::::::: {values}")
+                    syncserver.write(self._name, remote_user_id, values)
 
-            if remote_user_id == self.env.user and values.get('new_password'):
-                password_wizard = self.env['change.password.wizard'].create({
-                    'user_ids': [(0, 0, {
-                        'user_id': remote_user_id.id,
-                        'user_login': remote_user_id.login,
-                        'new_passwd': values.get('new_password')
-                    })]
-                })
-                password_wizard.change_password_button()
-                del values['new_password']
-                _logger.info(f"VALUES IN WRITE :::::::::: {values}")
+                if remote_user_id == self.env.user and values.get('new_password'):
+                    password_wizard = self.env['change.password.wizard'].create({
+                        'user_ids': [(0, 0, {
+                            'user_id': remote_user_id.id,
+                            'user_login': remote_user_id.login,
+                            'new_passwd': values.get('new_password')
+                        })]
+                    })
+                    password_wizard.change_password_button()
+                    del values['new_password']
+                    _logger.info(f"VALUES IN WRITE :::::::::: {values}")
         return super(ResUsers, self).write(values)
+
+    def backfill_dovecot_password(self):
+        """Copy dovecot_password from the server for users missing it locally.
+
+        user_mail_server owns dovecot_password on the server.  This client
+        only learns the value when a password is changed through it
+        (see write()), so every user created before user_mail_client was
+        installed -- or whose password never changed here -- has the field
+        empty locally.  That matters because action_set_imap_password()
+        verifies against it: with no local hash the verification is
+        skipped and a wrong IMAP password is stored without complaint.
+
+        Read-only against the server: nothing is written back.
+        Returns a report dict.
+        """
+        syncserver = Sync2server()
+        users = self.search([('login', '!=', False)])
+        filled, skipped, failed = [], [], []
+
+        for user in users:
+            if user.dovecot_password:
+                continue
+            try:
+                remote_user_id = syncserver.remote_user(user)
+                if not remote_user_id:
+                    skipped.append((user.login, 'no server row'))
+                    continue
+                remote = syncserver.sock.execute_kw(
+                    syncserver.passwd_dbname, syncserver.uid,
+                    syncserver.passwd_passwd, 'res.users', 'read',
+                    [[remote_user_id], ['dovecot_password']])
+                remote_dc = remote and remote[0].get('dovecot_password')
+                if not remote_dc:
+                    skipped.append((user.login, 'no dovecot_password on server'))
+                    continue
+                # Write the raw value: it is already a SHA512-CRYPT hash and
+                # must not be hashed a second time.  super(type(user), user)
+                # starts at the next class in the instance's own MRO --
+                # super(ResUsers, user) would skip past this class but land
+                # on the wrong one when several modules inherit res.users.
+                super(type(user), user).write({'dovecot_password': remote_dc})
+                filled.append(user.login)
+            except Exception as e:
+                failed.append((user.login, str(e)[:120]))
+
+        _logger.info(
+            'dovecot_password backfill: %d filled, %d skipped, %d failed',
+            len(filled), len(skipped), len(failed))
+        return {'filled': filled, 'skipped': skipped, 'failed': failed}
 
     def unlink(self):
         syncserver = Sync2server()
@@ -198,21 +253,9 @@ class ResCompany(models.Model):
     _inherit = 'res.company'
 
     def _get_param(self, param, value):
-        # #if VERSION >= "20.0"
-        if not self.env['ir.config_parameter'].get_str(param):
-        # #else
         if not self.env['ir.config_parameter'].get_param(param):
-        # #endif
-            # #if VERSION >= "20.0"
-            self.env['ir.config_parameter'].set_str(param, value)
-            # #else
             self.env['ir.config_parameter'].set_param(param, value)
-            # #endif
-        # #if VERSION >= "20.0"
-        return self.env['ir.config_parameter'].get_str(param)
-        # #else
         return self.env['ir.config_parameter'].get_param(param)
-        # #endif
 
     def generateUUID(self):
         return str(uuid.uuid4())
@@ -223,14 +266,21 @@ class ResCompany(models.Model):
         super(ResCompany, self).write(values)
         domain = values.get('domain')
         if domain:
+            # Synken är en sidoeffekt, inte en förutsättning — samma regel som
+            # res.users.write() (se kommentaren där). Utan grinden kastar
+            # företagsskapandet UserError("No domain set for the user's
+            # company") så snart servern svarar 301/303, och då faller
+            # l10n_se_demo_company på data/company.xml.
+            syncserver = Sync2server()
+            if not syncserver.available:
+                _logger.warning(
+                    "res.company.write: Sync2server otillgänglig — "
+                    "företaget sparas lokalt, mailservern synkas inte")
+                return
             self.company_sync_settings()
             # Create mail servers when its a main company
             if self.id == self.env.ref('base.main_company').id:
-                # #if VERSION >= "20.0"
-                self.env['ir.config_parameter'].set_str(
-                # #else
                 self.env['ir.config_parameter'].set_param(
-                # #endif
                     'mail.catchall.domain', domain)
                 password = self._createcatchall()
                 if password:
@@ -251,14 +301,18 @@ class ResCompany(models.Model):
             vals['remote_id'] = self.generateUUID()
         companies = super(ResCompany, self).create(vals_list)
         for company in companies:
+            # Se write() ovan: ett oåtkomligt mailserver ska degradera synken,
+            # inte fälla företagsskapandet.
+            syncserver = Sync2server()
+            if not syncserver.available:
+                _logger.warning(
+                    "res.company.create: Sync2server otillgänglig — "
+                    "företaget skapas lokalt, mailservern synkas inte")
+                continue
             company.company_sync_settings()
             domain = company.domain
             if domain and self.id == self.env.ref('base.main_company').id:
-                # #if VERSION >= "20.0"
-                self.env['ir.config_parameter'].set_str(
-                # #else
                 self.env['ir.config_parameter'].set_param(
-                # #endif
                     'mail.catchall.domain', domain)
                 password = company._createcatchall()[0]
                 self._smtpserver(password)
@@ -271,9 +325,15 @@ class ResCompany(models.Model):
         for record in self:
             # Should always be one dictionary here.
             sync_record = record.read(fields)[0]
-            remote_company_id = False
-            if record.remote_id:
-                remote_company_id = syncserver.remote_company(record)
+            if not record.remote_id or not syncserver.available:
+                # Inget att synka: antingen saknas remote_id, eller så är
+                # servern otillgänglig (se write()). Aldrig ett kast härifrån.
+                return False
+            remote_company_id = syncserver.remote_company(record)
+            if not remote_company_id and not record.domain:
+                # Ingen domän => inget att matcha mot på mailservern; se
+                # remote_company(). Demodata skapar bolag utan domän.
+                return False
 
             if record.remote_id and remote_company_id:
                 syncserver.write(self._name, remote_company_id, sync_record)
@@ -356,32 +416,94 @@ class ResCompany(models.Model):
 
 class Sync2server():
     def __init__(self):
+        self._fields_cache = {}
         self.passwd_server = get_config('passwd_server', 'Server uri is missing!')
         self.passwd_port = get_config('passwd_port', 'Server port is missing!')
         self.passwd_dbname = get_config('passwd_dbname', 'Database name is missing')
         self.passwd_user = get_config('passwd_user', 'Username is missing')
         self.passwd_passwd = get_config('passwd_passwd', 'Password is missing')
+        # Anslutningsfel får ALDRIG kasta vidare ut ur write(). Se write()
+        # nedanför: ett oåtkomligt mailserver ska degradera synken, inte
+        # blockera en användarändring (och absolut inte en moduluppgradering
+        # — res.users.init() skriver password, vilket kraschade hela
+        # registret 2026-10-29).
+        self.available = False
         _logger.info(f"Sync2server server {self.passwd_server} database {self.passwd_dbname} user {self.passwd_user}")
         try:
-            self.sock_common = xmlrpc.client.ServerProxy('%s/xmlrpc/2/common' % self.passwd_server)
+            # Servern kan svara 301 Moved Permanently (http -> https).
+            # xmlrpc.client följer INTE redirects, så en http-URL ger
+            # ProtocolError. Normalisera till https och tåla båda.
+            server = (self.passwd_server or '').rstrip('/')
+            if server.startswith('http://'):
+                server = 'https://' + server[len('http://'):]
+            self.sock_common = xmlrpc.client.ServerProxy('%s/xmlrpc/2/common' % server)
             self.uid = self.sock_common.authenticate(self.passwd_dbname, self.passwd_user, self.passwd_passwd, {})
-            self.sock = xmlrpc.client.ServerProxy('%s/xmlrpc/2/object' % self.passwd_server)
+            self.sock = xmlrpc.client.ServerProxy('%s/xmlrpc/2/object' % server)
+            self.available = bool(self.uid)
             _logger.info(f"self.sock {self.sock}")
         except xmlrpclib.Fault as err:
             raise UserError(_("%s (server %s, db %s, user %s, pw %s)" % (err, self.passwd_server, self.passwd_dbname,
                                                                        self.passwd_user, self.passwd_passwd)))
+        except Exception as err:
+            # ProtocolError (301/302), ConnectionRefused, timeout, TLS-fel …
+            # Logga och markera som otillgänglig; anroparen hoppar över synken.
+            _logger.warning(
+                "Sync2server: kan inte ansluta till %s (%s: %s) — "
+                "synkronisering hoppas över",
+                self.passwd_server, type(err).__name__, err)
 
     def search(self, model, domain):
         _logger.info(f"search.sock {self.sock}")
         return self.sock.execute_kw(self.passwd_dbname, self.uid, self.passwd_passwd, model, 'search', [domain])
 
+    def _remote_fields(self, model):
+        """Fields that actually exist on the remote model.
+
+        The remote instance may run a different set of modules than we do
+        (e.g. user_mail_imap is installed here but not there).  Sending a
+        field it does not know makes the whole write fail with
+        "Invalid field 'X' on model 'Y'", which then aborts the
+        password change locally.  Cache per model since fields_get is cheap
+        but not free.
+        """
+        if model not in self._fields_cache:
+            try:
+                fields = self.sock.execute_kw(
+                    self.passwd_dbname, self.uid, self.passwd_passwd,
+                    model, 'fields_get', [], {'attributes': ['type']})
+                self._fields_cache[model] = set(fields or [])
+            except Exception as e:
+                _logger.warning(f"Could not read remote fields for {model}: {e}")
+                return None
+        return self._fields_cache[model]
+
+    def _filter_values(self, model, values):
+        remote = self._remote_fields(model)
+        if remote is None:
+            return values
+        kept, dropped = {}, []
+        for key, val in values.items():
+            if key in remote:
+                kept[key] = val
+            else:
+                dropped.append(key)
+        if dropped:
+            _logger.warning(
+                f"Dropping fields not present on remote {model}: {dropped}")
+        return kept
+
     def write(self, model, rec_id, values):
         _logger.warning(f"model: {model} \n rec_id: {rec_id} \n values: {values}")
+        values = self._filter_values(model, values)
+        if not values:
+            _logger.warning(f"Nothing to sync for {model} {rec_id}, skipping")
+            return True
         return self.sock.execute_kw(self.passwd_dbname, self.uid, self.passwd_passwd, model, 'write',
                                     [[rec_id], values])
 
     def create(self, model, values):
         _logger.warning(f"model: {model} \n values: {values}")
+        values = self._filter_values(model, values)
         return self.sock.execute_kw(self.passwd_dbname, self.uid, self.passwd_passwd, model, 'create', [values])
 
     def unlink(self, model, ids):
@@ -390,6 +512,8 @@ class Sync2server():
     def remote_company(self, company):
         if not company.remote_id:
             raise UserError(_('no remote id'))
+        if not self.available:
+            raise UserError(_('mailservern är otillgänglig'))
         remote_company = self.search('res.company', [['remote_id', '=', company.remote_id]])
         if remote_company:
             return remote_company[0]
@@ -397,7 +521,15 @@ class Sync2server():
             remote_company = self.search('res.company', [['domain', '=', company.domain]])
             if len(remote_company) == 0:
                 if not company.domain:
-                    raise UserError(_("No domain set for the user's company"))
+                    # Ett företag utan domän (t.ex. demodata) har inget att
+                    # matcha mot på mailservern — och har ingen anledning att
+                    # synas där. Returnera None i stället för att kasta: synken
+                    # är en sidoeffekt, och ett kast här fäller hela
+                    # registret när l10n_se_demo_company skapar sina bolag.
+                    _logger.info(
+                        "remote_company: %s har ingen domän — hoppar över "
+                        "synk mot mailservern", company.display_name)
+                    return None
                 return self.create(
                     'res.company',
                     {'name': company.name, 'domain': company.domain, 'remote_id': company.remote_id})
@@ -406,15 +538,46 @@ class Sync2server():
                 return remote_company[0]
 
     def remote_user(self, user):
+        """Find the server-side res.users row for a local user.
+
+        The local row may be missing its remote_id even though the server
+        already has one -- e.g. users created before user_mail_client was
+        installed, or a local database restored from a backup.  The old
+        code generated a fresh UUID in that case and wrote it over the
+        server's value, silently re-linking the server row to a new
+        identity.  Adopt the server's existing remote_id instead: only
+        generate one when the server has no row at all.
+
+        Matching is by remote_id first, then postfix_mail, then login.
+        """
         remote_user = None
-        if not user.remote_id and user.postfix_mail:
-            remote_user = self.search('res.users',
-                                      ['|', ['postfix_mail', '=', user.postfix_mail], ['login', '=', user.login]])
-        elif not user.remote_id:
+
+        # 1. Already linked: trust remote_id.
+        if user.remote_id:
+            remote_user = self.search('res.users', [['remote_id', '=', user.remote_id]])
+            if remote_user:
+                return remote_user[0]
+
+        # 2. Not linked yet: look the row up by its natural key.
+        if user.postfix_mail:
+            remote_user = self.search(
+                'res.users',
+                ['|', ['postfix_mail', '=', user.postfix_mail], ['login', '=', user.login]])
+        else:
             remote_user = self.search('res.users', [['login', '=', user.login]])
+
+        if remote_user:
+            # Adopt the server's remote_id rather than replacing it.  If the
+            # server row has none, give it the local one so both sides agree.
+            remote_id = remote_user[0].get('remote_id') if isinstance(remote_user[0], dict) else None
+            if not remote_id:
+                remote_id = user.remote_id or str(uuid.uuid4())
+                self.write('res.users', remote_user[0], {'remote_id': remote_id})
+            if user.remote_id != remote_id:
+                user.remote_id = remote_id
+            return remote_user[0]
+
+        # 3. No server row: mint an id for the create that follows.
         if not user.remote_id:
             user.remote_id = str(uuid.uuid4())
-            if remote_user:
-                self.write('res.users', remote_user[0], {'remote_id': user.remote_id})
-        remote_user = self.search('res.users', [['remote_id', '=', user.remote_id]])
-        return remote_user and remote_user[0] or False
+        return False

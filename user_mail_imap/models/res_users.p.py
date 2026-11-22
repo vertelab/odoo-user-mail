@@ -15,45 +15,42 @@ class ResUsers(models.Model):
     imap_poll_enabled = fields.Boolean(
         string='Aktivera mail-pollning',
         default=False,
-        # #if VERSION >= "20.0"
-        user_writeable=True,
-        # #endif
         help='Pollerar denna användares brevlåda via IMAP (cron).')
     last_imap_sync = fields.Datetime(
         string='Senaste IMAP-synk',
         help='Tidpunkt för senaste lyckade pollning (inkrementell hämtning).')
+    last_imap_uid = fields.Integer(
+        string='IMAP-cursor (UID)', index=True,
+        help='Högsta UID som pollern har processat i INBOX. Nästa körning '
+             'hämtar endast UID:n efter denna. NULL = full omsynkronisering.')
+    last_imap_uidvalidity = fields.Char(
+        string='IMAP UIDVALIDITY',
+        help='Mappens UIDVALIDITY när cursorn sattes. Ändras den (mappen '
+             'återskapad, omindexering) nollställs cursorn — UID:n är då '
+             'inte längre jämförbara.')
 
     # ── Min profil: exponera mail-fälten i preferences-dialogen ───────
     # base.view_users_form_simple_modif filtrerar sin arch mot dessa två
     # listor — utan överridningen renderas gruppen tom och flaggan kan
     # inte sparas. imap_password är Fernet-krypterad (aldrig klartext);
     # den är läsbar för ägaren men sätts alltid via wizarden.
-    # #if VERSION < "20.0"
     @property
     def SELF_READABLE_FIELDS(self):
         return super().SELF_READABLE_FIELDS + [
-            'imap_password', 'imap_poll_enabled', 'last_imap_sync']
+            'imap_password', 'imap_poll_enabled', 'last_imap_sync',
+            'last_imap_uid', 'last_imap_uidvalidity']
 
     @property
     def SELF_WRITEABLE_FIELDS(self):
         return super().SELF_WRITEABLE_FIELDS + [
             'imap_poll_enabled']
-    # #endif
 
     def _get_encryption_key(self):
         param = self.env['ir.config_parameter'].sudo()
-        # #if VERSION >= "20.0"
-        key = param.get_str('user_mail_imap.encryption_key')
-        # #else
         key = param.get_param('user_mail_imap.encryption_key')
-        # #endif
         if not key:
             key = Fernet.generate_key().decode()
-            # #if VERSION >= "20.0"
-            param.set_str('user_mail_imap.encryption_key', key)
-            # #else
             param.set_param('user_mail_imap.encryption_key', key)
-            # #endif
         return key
 
     def _encrypt_imap_pw(self, password):

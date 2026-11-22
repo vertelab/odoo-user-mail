@@ -101,11 +101,11 @@
                         <!--                  <separator string="Alias" />-->
                         <!--                  <newline />-->
                         <!--                  <field name="postfix_alias_ids" nolabel="1" widget="one2many_list" colspan="4">-->
-                        <!--                    <tree editable="bottom" string="Mail alias">-->
+                        <!--                    <list editable="bottom" string="Mail alias">-->
                         <!--                      <field name="name" />-->
                         <!--                      <field name="mail" attrs="{'invisible': [('name', '=', ''),]}" class="oe_read_only"/>-->
                         <!--                      <field name="active" />-->
-                        <!--                    </tree>-->
+                        <!--                    </list>-->
                         <!--</field>-->
                         <!-- -->
                         <!--                   <separator string="Misc" colspan="4" />-->

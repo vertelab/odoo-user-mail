@@ -18,7 +18,7 @@ Requires:
 When user_matrix is installed, user_scim_matrix adds matrix_id to the SCIM
 JSON so that it is synced to the LDAP field labeledURI.
     ''',
-    'author': 'Vertel AB',
+    'author': 'Vertel Sverige AB',
     'website': 'https://vertel.se/apps/odoo-user-mail/user_scim_matrix',
     'license': 'AGPL-3',
     'depends': [

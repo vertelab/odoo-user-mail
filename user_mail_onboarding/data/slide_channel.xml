@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <data noupdate="0">
+
+    <!-- ═══════════════════════════════════════════════════════════════════
+         E-post i Vertel — onboardingskurs
+         4 sektioner, 13 slides (8 article, 1 infographic, 4 quiz)
+         ═══════════════════════════════════════════════════════════════════ -->
+
+    <record id="slide_channel_user_mail" model="slide.channel">
+        <field name="name">E-post i Vertel</field>
+        <field name="user_id" ref="base.user_admin"/>
+        <field name="enroll">public</field>
+        <field name="channel_type">training</field>
+        <field name="allow_comment" eval="True"/>
+        <field name="promote_strategy">latest</field>
+        <field name="is_published" eval="True"/>
+        <field name="description">
+E-posten är fortfarande navet i de flesta arbetsdagar. Den här kursen visar hur
+du kopplar upp din e-post i Vertel och hur du arbetar med den — i webbläsaren,
+i mobilen och i ditt vanliga skrivbordsprogram.
+
+Vi går igenom hur e-postklienten i Odoo fungerar, hur du lägger upp ditt konto
+med IMAP och SMTP, hur du hanterar mappar och sökning, och hur du kopplar upp
+mobilen. Till sist tittar vi på AI-assistenten som hjälper dig att triagera
+inkorgen.
+
+        </field>
+    </record>
+
+    </data>
+</odoo>

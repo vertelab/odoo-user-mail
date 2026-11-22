@@ -15,11 +15,7 @@ class TestImap(TransactionCase):
         self.assertEqual(decrypted, 'test123')
 
     def test_encryption_key_generated(self):
-        # #if VERSION >= "20.0"
-        key = self.env['ir.config_parameter'].get_str('user_mail_imap.encryption_key')
-        # #else
         key = self.env['ir.config_parameter'].get_param('user_mail_imap.encryption_key')
-        # #endif
         self.assertTrue(key, "Encryption key should exist in config")
 
     def test_write_updates_imap_password(self):
@@ -241,29 +237,1499 @@ class TestImap(TransactionCase):
 
         fake = MagicMock()
         fake.select.return_value = ('OK', [b'1'])
+        fake.response.return_value = ('UIDVALIDITY', [b'42'])
         fake.search.return_value = ('OK', [b'1'])
         fake.fetch.return_value = ('OK', [(b'1 (BODY[] {123}', raw)])
         fake.login.return_value = ('OK', [b'logged in'])
 
+        def _uid(cmd, *args):
+            if cmd == 'SEARCH':
+                return ('OK', [b'1'])
+            if cmd == 'FETCH':
+                spec = args[1]
+                if 'HEADER.FIELDS' in spec:
+                    return ('OK', [(b'1 (UID 1 BODY[HEADER] {1}',
+                                    b'Message-ID: <poll-test-1@example.com>\r\n'
+                                    b'Subject: Poll-test\r\n'
+                                    b'From: Anna <anna@example.com>\r\n'
+                                    b'Date: Mon, 05 Aug 2026 10:00:00 +0200\r\n\r\n')])
+                return ('OK', [(b'1 (UID 1 BODY[] {123}', raw)])
+            return ('OK', [b''])
+        fake.uid.side_effect = _uid
+
         with patch('imaplib.IMAP4_SSL', return_value=fake):
-            n = self.env['user.mail.imap'].with_user(self.user).action_poll_user()
+            n, failed = self.env['user.mail.imap'].with_user(
+                self.user).action_poll_user()
 
         self.assertEqual(n, 1, 'ett nytt mail ska pollas')
+        self.assertEqual(failed, 0, 'inget normaliseringsfel')
         self.assertTrue(self.user.last_imap_sync,
                         'last_imap_sync ska sättas efter lyckad poll')
         # Readonly-säkerhet: BODY.PEEK, aldrig STORE (flaggor).
-        self.assertTrue(fake.fetch.called)
+        fetch_calls = [c for c in fake.uid.call_args_list
+                       if c[0][0] == 'FETCH']
+        self.assertTrue(fetch_calls, 'pollern ska hämta meddelandet')
+        self.assertTrue(any('BODY.PEEK' in str(c[0][2]) for c in fetch_calls),
+                        'hämtning ska använda BODY.PEEK')
         self.assertFalse(fake.store.called, 'pollern får aldrig sätta flaggor')
 
     def test_poll_skips_when_no_password(self):
         """Pollern hoppar över användare utan lösenord (ingen UserError)."""
         from unittest.mock import patch
+        # action_poll_all() söker ALLA användare med imap_poll_enabled.
+        # I en TransactionCase ser den även riktiga användare, och en sådan
+        # med lösenord skulle ansluta skarpt mot produktionsbrevlådan. Lås
+        # sökningen till testanvändaren så testet blir isolerat.
         self.user.imap_password = False
         self.env.cr.execute(
             "UPDATE res_users SET imap_poll_enabled = true, "
             "imap_password = NULL WHERE id = %s", (self.user.id,))
         self.user.invalidate_recordset()
-        with patch('imaplib.IMAP4_SSL') as m:
+        with patch('imaplib.IMAP4_SSL') as m, \
+                patch.object(type(self.env['res.users']), 'search',
+                             return_value=self.user):
             self.env['user.mail.imap'].action_poll_all()
             self.assertFalse(m.called,
                              'ingen IMAP-anslutning ska göras utan lösenord')
+
+    # ── Mail-länkar: _prepare_body_html (fix-mail-link-target) ──
+
+    def test_prepare_body_html_adds_target(self):
+        """Länkar i mail-HTML ska öppnas i nytt fönster."""
+        from odoo.addons.user_mail_imap.models.imap_server import (
+            _prepare_body_html)
+        out = _prepare_body_html('<a href="https://example.com">x</a>')
+        self.assertIn('target="_blank"', out)
+        self.assertIn('rel="noopener noreferrer"', out)
+
+    def test_prepare_body_html_preserves_existing_target(self):
+        """En länk som redan har target ska lämnas orörd."""
+        from odoo.addons.user_mail_imap.models.imap_server import (
+            _prepare_body_html)
+        src = '<a href="x" target="_self">y</a>'
+        self.assertEqual(_prepare_body_html(src), src)
+
+    def test_prepare_body_html_skips_fragments_and_anchors(self):
+        """Ankare och href utan värde ska inte få target."""
+        from odoo.addons.user_mail_imap.models.imap_server import (
+            _prepare_body_html)
+        # Rena fragmentlänkar stannar i samma dokument.
+        self.assertEqual(_prepare_body_html('<a href="#a">x</a>'),
+                         '<a href="#a">x</a>')
+        self.assertEqual(_prepare_body_html("<a href='#a'>x</a>"),
+                         "<a href='#a'>x</a>")
+        # <a name="..."> är inget länkmål.
+        self.assertEqual(_prepare_body_html('<a name="a">x</a>'),
+                         '<a name="a">x</a>')
+
+    def test_prepare_body_html_handles_single_quotes_and_case(self):
+        """Mail-HTML använder ofta enkelcitat och versaler."""
+        from odoo.addons.user_mail_imap.models.imap_server import (
+            _prepare_body_html)
+        self.assertIn('target="_blank"', _prepare_body_html("<a href='x'>y</a>"))
+        self.assertIn('target="_blank"', _prepare_body_html('<A HREF="x">y</A>'))
+
+    def test_prepare_body_html_passthrough_empty(self):
+        """Tom/None-HTML ska passera oförändrad."""
+        from odoo.addons.user_mail_imap.models.imap_server import (
+            _prepare_body_html)
+        self.assertIsNone(_prepare_body_html(None))
+        self.assertEqual(_prepare_body_html(''), '')
+
+    # ── Sökning: action_search_mails (add-imap-mail-search) ──
+
+    def test_search_mails_builds_nested_or_criteria(self):
+        """Sökningen ska täcka FROM, SUBJECT och TEXT (nästlad OR)."""
+        from unittest.mock import patch, MagicMock
+        from email.message import EmailMessage
+
+        self.user.imap_password = self.user._encrypt_imap_pw('x')
+        self.user.postfix_mail = 'search-test@vertel.se'
+
+        msg = EmailMessage()
+        msg['Message-ID'] = '<search-1@example.com>'
+        msg['Subject'] = 'Faktura 123'
+        msg['From'] = 'Anna <anna@example.com>'
+        msg['Date'] = 'Mon, 05 Aug 2026 10:00:00 +0200'
+        msg.set_content('Hej!')
+        raw = msg.as_bytes()
+
+        fake = MagicMock()
+        fake.select.return_value = ('OK', [b'1'])
+        fake.login.return_value = ('OK', [b'logged in'])
+
+        def _uid(cmd, *args):
+            if cmd == 'SEARCH':
+                return ('OK', [b'1'])
+            if cmd == 'FETCH':
+                # Verklig form: (meta, header) där meta bär UID och FLAGS.
+                return ('OK', [(b'1 (UID 1 FLAGS () BODY[HEADER] {123}', raw)])
+            return ('OK', [b''])
+        fake.uid.side_effect = _uid
+
+        with patch('imaplib.IMAP4_SSL', return_value=fake):
+            res = self.env['user.mail.imap'].with_user(self.user)\
+                .action_search_mails('INBOX', 'faktura', 0, 80)
+
+        self.assertEqual(res['total'], 1)
+        self.assertEqual(res['messages'][0]['subject'], 'Faktura 123')
+        # Koden använder UID SEARCH — `fake.search` fångar den aldrig.
+        criteria = next(
+            c[0][2] for c in fake.uid.call_args_list
+            if c[0][0] == 'SEARCH')
+        # IMAP:s OR tar två argument — tre kriterier kräver nästling.
+        self.assertIn('FROM "faktura"', criteria)
+        self.assertIn('SUBJECT "faktura"', criteria)
+        self.assertIn('TEXT "faktura"', criteria)
+        self.assertTrue(criteria.startswith('OR OR'),
+                        'tre kriterier ska nästlas som OR OR a b c')
+
+    def test_search_mails_escapes_quotes(self):
+        """Citattecken i sökordet får inte bryta IMAP-strängen."""
+        from unittest.mock import patch, MagicMock
+
+        self.user.imap_password = self.user._encrypt_imap_pw('x')
+        self.user.postfix_mail = 'search-test@vertel.se'
+
+        fake = MagicMock()
+        fake.select.return_value = ('OK', [b'1'])
+        fake.login.return_value = ('OK', [b'logged in'])
+
+        def _uid(cmd, *args):
+            if cmd == 'SEARCH':
+                return ('OK', [b''])
+            return ('OK', [])
+        fake.uid.side_effect = _uid
+
+        with patch('imaplib.IMAP4_SSL', return_value=fake):
+            self.env['user.mail.imap'].with_user(self.user)\
+                .action_search_mails('INBOX', 'a"b', 0, 80)
+
+        criteria = next(
+            c[0][2] for c in fake.uid.call_args_list
+            if c[0][0] == 'SEARCH')
+        self.assertIn('\\"', criteria, 'citattecken ska escapas')
+        self.assertNotIn('"a"b"', criteria, 'osparad sträng får inte uppstå')
+
+    def test_search_mails_empty_query_returns_nothing(self):
+        """Tom sökning ska inte öppna en IMAP-anslutning."""
+        from unittest.mock import patch
+
+        self.user.imap_password = self.user._encrypt_imap_pw('x')
+        self.user.postfix_mail = 'search-test@vertel.se'
+
+        with patch('imaplib.IMAP4_SSL') as m:
+            res = self.env['user.mail.imap'].with_user(self.user)\
+                .action_search_mails('INBOX', '   ', 0, 80)
+
+        self.assertEqual(res, {'messages': [], 'total': 0})
+        self.assertFalse(m.called, 'ingen anslutning för tom sökning')
+
+    def test_search_mails_handles_failed_search(self):
+        """Misslyckad SEARCH ska ge tomt resultat, inte krascha."""
+        from unittest.mock import patch, MagicMock
+
+        self.user.imap_password = self.user._encrypt_imap_pw('x')
+        self.user.postfix_mail = 'search-test@vertel.se'
+
+        fake = MagicMock()
+        fake.select.return_value = ('OK', [b'1'])
+        fake.login.return_value = ('OK', [b'logged in'])
+        fake.uid.return_value = ('NO', [b'error'])
+
+        with patch('imaplib.IMAP4_SSL', return_value=fake):
+            res = self.env['user.mail.imap'].with_user(self.user)\
+                .action_search_mails('INBOX', 'x', 0, 80)
+
+        self.assertEqual(res, {'messages': [], 'total': 0})
+
+    # ── OKF-fallback: arkivet kan inte svara → IMAP svarar ──
+
+    def _okf_search_user(self):
+        """Testanvändare med IMAP-lösenord och ett ingesterat mail.
+
+        Hoppar över testet när arkivmodellen inte är laddad: `user_mail_ai`
+        beror på `user_mail_imap`, så vid `-u user_mail_imap` laddas den
+        efter och finns inte i registret. Fallback-logiken i sig kräver
+        ingen arkivrad — den läses via `'user_mail_ai.mail' in self.env`.
+        """
+        from odoo.addons.user_mail_imap.models.imap_server import _mail_cache
+        if 'user_mail_ai.mail' not in self.env:
+            self.skipTest('user_mail_ai.mail är inte laddad i denna körning')
+        _mail_cache.clear()
+        self.user.imap_password = self.user._encrypt_imap_pw('x')
+        self.user.postfix_mail = 'okf-search@vertel.se'
+        self.env['user_mail_ai.mail'].create({
+            'user_id': self.user.id,
+            'message_id': '<ingested-1@example.com>',
+            'subject': 'Ingesterad',
+            'source_folder': 'INBOX',
+            'source_uid': 1,
+        })
+        return self.user
+
+    def _fake_okf_conn(self):
+        """IMAP-dubbel som svarar på SEARCH + FETCH (fallback-vägen)."""
+        from unittest.mock import MagicMock
+        from email.message import EmailMessage
+        msg = EmailMessage()
+        msg['Message-ID'] = '<imap-1@example.com>'
+        msg['Subject'] = 'Från IMAP'
+        msg['From'] = 'Anna <anna@example.com>'
+        msg['Date'] = 'Mon, 05 Aug 2026 10:00:00 +0200'
+        msg.set_content('Hej!')
+        raw = msg.as_bytes()
+
+        fake = MagicMock()
+        fake.select.return_value = ('OK', [b'1'])
+        fake.login.return_value = ('OK', [b'logged in'])
+
+        def _uid(cmd, *args):
+            if cmd == 'SEARCH':
+                return ('OK', [b'1'])
+            if cmd == 'FETCH':
+                return ('OK', [(b'1 (UID 1 FLAGS () BODY[HEADER] {123}', raw)])
+            return ('OK', [b''])
+        fake.uid.side_effect = _uid
+        return fake
+
+    def test_search_falls_back_when_okf_hits_resolve_to_no_row(self):
+        """OKF-träffar utan matchande mail-rad ska ge IMAP-svar, inte tomt.
+
+        Detta är det rapporterade felet: arkivet är icke-tomt men
+        oanvändbart, och sökfältet svarade noll på varje fråga.
+        """
+        from unittest.mock import patch, MagicMock
+        user = self._okf_search_user()
+        # Koncept vars source_ref inte finns i user_mail_ai.mail.
+        hit = MagicMock()
+        hit.source_ref = '<aldrig-ingesterad@example.com>'
+        fake = self._fake_okf_conn()
+
+        with patch.object(type(self.env['ai.okf.concept']), '_okf_search',
+                          return_value=[hit]):
+            with patch('imaplib.IMAP4_SSL', return_value=fake):
+                res = self.env['user.mail.imap'].with_user(user)\
+                    .action_search_mails('INBOX', 'faktura', 0, 80)
+
+        self.assertEqual(res['total'], 1,
+                         'fallback ska ge IMAP-träffen, inte noll')
+        self.assertEqual(res['messages'][0]['subject'], 'Från IMAP')
+        self.assertTrue(
+            [c for c in fake.uid.call_args_list if c[0][0] == 'SEARCH'],
+            'IMAP SEARCH ska ha anropats')
+
+    def test_search_falls_back_when_okf_returns_only_attachment_concepts(self):
+        """Bilage-koncept (ir.attachment,…) kan aldrig bli mail-rader."""
+        from unittest.mock import patch, MagicMock
+        user = self._okf_search_user()
+        hit = MagicMock()
+        hit.source_ref = 'ir.attachment,4711'
+        fake = self._fake_okf_conn()
+
+        with patch.object(type(self.env['ai.okf.concept']), '_okf_search',
+                          return_value=[hit]):
+            with patch('imaplib.IMAP4_SSL', return_value=fake):
+                res = self.env['user.mail.imap'].with_user(user)\
+                    .action_search_mails('INBOX', 'faktura', 0, 80)
+
+        self.assertEqual(res['total'], 1)
+        self.assertEqual(res['messages'][0]['subject'], 'Från IMAP')
+
+    def test_search_falls_back_when_okf_returns_no_hits(self):
+        """Noll OKF-träffar ska inte ge tomt svar när IMAP kan svara."""
+        from unittest.mock import patch
+        user = self._okf_search_user()
+        fake = self._fake_okf_conn()
+
+        with patch.object(type(self.env['ai.okf.concept']), '_okf_search',
+                          return_value=[]):
+            with patch('imaplib.IMAP4_SSL', return_value=fake):
+                res = self.env['user.mail.imap'].with_user(user)\
+                    .action_search_mails('INBOX', 'faktura', 0, 80)
+
+        self.assertEqual(res['total'], 1)
+        self.assertEqual(res['messages'][0]['subject'], 'Från IMAP')
+
+    def test_search_does_not_fall_back_when_okf_resolves(self):
+        """Arkivet som kan svara ska svara — ingen IMAP-anslutning."""
+        from unittest.mock import patch, MagicMock
+        user = self._okf_search_user()
+        hit = MagicMock()
+        hit.source_ref = '<ingested-1@example.com>'
+
+        with patch.object(type(self.env['ai.okf.concept']), '_okf_search',
+                          return_value=[hit]):
+            with patch('imaplib.IMAP4_SSL') as m:
+                res = self.env['user.mail.imap'].with_user(user)\
+                    .action_search_mails('INBOX', 'ingesterad', 0, 80)
+
+        self.assertEqual(res['total'], 1)
+        self.assertEqual(res['messages'][0]['subject'], 'Ingesterad')
+        self.assertFalse(
+            m.called,
+            'arkivet svarade — då ska ingen IMAP-anslutning öppnas')
+
+
+    # ── Filter: action_filter_mails + sökning × filter × oläst ──
+
+    def _fake_filter_conn(self, uids, flags_by_uid=None):
+        """Anslutning som svarar på SEARCH + ``UID FETCH (FLAGS BODY.PEEK)``.
+
+        Formen är den imaplib faktiskt ger: ett svar per meddelande är en
+        tupel ``(b'<seq> (UID n FLAGS (..) BODY[HEADER] {len}', raw_header)``.
+        ``flags_by_uid`` mappar uid -> rå flaggsträng (utan ledande
+        backslash-tecken, t.ex. ``b'Seen Flagged'``), så testerna kan skilja
+        läst från oläst.
+        """
+        from unittest.mock import MagicMock
+        from email.message import EmailMessage
+
+        flags_by_uid = flags_by_uid or {}
+        fake = MagicMock()
+        fake.login.return_value = ('OK', [b'logged in'])
+        fake.select.return_value = ('OK', [b'1'])
+
+        def _uid(command, *args):
+            if command == 'SEARCH':
+                # imaplib ger bytes — kalla med str eller int ska funka.
+                return ('OK', [b' '.join(
+                    str(u).encode() for u in uids)])
+            if command == 'FETCH':
+                uid_set = args[0]
+                out = []
+                for uid in [int(u) for u in str(uid_set).split(',') if u]:
+                    msg = EmailMessage()
+                    msg['Message-ID'] = '<m-%s@example.com>' % uid
+                    msg['Subject'] = 'Mail %s' % uid
+                    msg['From'] = 'Anna <anna@example.com>'
+                    msg['Date'] = 'Mon, 05 Aug 2026 10:00:00 +0200'
+                    raw = msg.as_bytes()
+                    meta = b'%d (UID %d FLAGS (%s) BODY[HEADER] {%d}' % (
+                        uid, uid, flags_by_uid.get(uid, b''), len(raw))
+                    out.append((meta, raw))
+                return ('OK', out)
+            return ('OK', [b''])
+
+        fake.uid.side_effect = _uid
+        return fake
+
+    def test_filter_criteria_all_flags_alone(self):
+        """Varje flaggtyp ska ge rätt IMAP-kriterium, utan OR-nästling."""
+        imap = self.env['user.mail.imap']
+        cases = {
+            'flagged': 'FLAGGED',
+            'important': 'KEYWORD "Important"',
+            'spam': 'KEYWORD "Junk"',
+            'todo': 'KEYWORD "TODO"',
+            'personal': 'KEYWORD "Personal"',
+            'work': 'KEYWORD "Work"',
+        }
+        for flag, expected in cases.items():
+            criteria = imap._flag_criteria(flag, False).strip()
+            self.assertEqual(criteria, expected,
+                             '%s ska bli %r, blev %r'
+                             % (flag, expected, criteria))
+
+    def test_filter_criteria_unread_is_unseen_not_a_flag(self):
+        """Oläst ska bli UNSEEN — inte en sjunde flaggtyp."""
+        from odoo.addons.user_mail_imap.models.imap_server import _FLAG_READ
+        imap = self.env['user.mail.imap']
+        self.assertEqual(imap._flag_criteria(None, True).strip(), 'UNSEEN')
+        # Oläst är en egen axel, inte en etikett. `_FLAG_WRITE` får ha
+        # 'seen' -> '\Seen' (att sätta läst-status KRÄVER flaggan), men
+        # oläst får aldrig bli ett sökbart "flaggvärde": UNSEEN är svaret.
+        self.assertNotIn('seen', _FLAG_READ)
+        self.assertEqual(imap._flag_criteria('seen', False).strip(), 'UNSEEN')
+
+    def test_filter_criteria_combines_flag_and_unread_as_and(self):
+        """Flagga + oläst ska bli två AND-led, inte ett OR."""
+        imap = self.env['user.mail.imap']
+        criteria = imap._flag_criteria('flagged', True).strip()
+        self.assertIn('FLAGGED', criteria)
+        self.assertIn('UNSEEN', criteria)
+        self.assertNotIn('OR', criteria)
+
+    def test_filter_rejects_unknown_flag(self):
+        """Okänd flaggtyp ska ge ett tydligt fel, inte tyst tomt."""
+        from odoo.exceptions import UserError
+        with self.assertRaises(UserError):
+            self.env['user.mail.imap']._flag_criteria('nonsense', False)
+
+    def test_filter_mails_searches_whole_folder_not_loaded_page(self):
+        """Filtret ska gå mot hela mappen, inte mot en hämtad sida.
+
+        Det här är kärnan i buggen: ett stjärnmärkt mail på plats 412
+        svarade "inga mail med den flaggan" eftersom klienten bara
+        filtrerade de ~80 rader som redan var laddade.
+        """
+        from unittest.mock import patch
+
+        self.user.imap_password = self.user._encrypt_imap_pw('x')
+        self.user.postfix_mail = 'filter-test@vertel.se'
+
+        # 500 mail i mappen; bara 3 är stjärnmärkta och de ligger djupt.
+        # Servern svarar redan filtrerat (SEARCH FLAGGED), så mocken får
+        # bara de tre träffarna — det är serverns jobb att hitta dem.
+        starred = ['7', '233', '412']
+        flags = {7: b'Flagged', 233: b'Flagged', 412: b'Flagged'}
+        fake = self._fake_filter_conn(starred, flags)
+
+        with patch('imaplib.IMAP4_SSL', return_value=fake):
+            res = self.env['user.mail.imap'].with_user(self.user)\
+                .action_filter_mails('INBOX', flag='flagged')
+
+        # `total` är mappvidd för den filtrerade mängden, inte sidlängden.
+        self.assertEqual(res['total'], 3)
+        criteria = [c for c in fake.uid.call_args_list
+                    if c[0][0] == 'SEARCH']
+        self.assertTrue(criteria, 'filtret ska fråga servern')
+        self.assertEqual(criteria[0][0][2].strip(), 'FLAGGED')
+
+    def test_filter_mails_without_filters_lists_folder(self):
+        """Inget filter alls ska betyda hela mappen (ALL), inte tomt."""
+        from unittest.mock import patch
+
+        self.user.imap_password = self.user._encrypt_imap_pw('x')
+        self.user.postfix_mail = 'filter-test@vertel.se'
+        fake = self._fake_filter_conn(['2', '1'])
+
+        with patch('imaplib.IMAP4_SSL', return_value=fake):
+            self.env['user.mail.imap'].with_user(self.user)\
+                .action_filter_mails('INBOX')
+
+        searches = [c for c in fake.uid.call_args_list if c[0][0] == 'SEARCH']
+        self.assertEqual(searches[0][0][2].strip(), 'ALL')
+
+    def test_search_criteria_keep_unseen_outside_or(self):
+        """UNSEEN måste ligga utanför OR-trädet, annars bryts uttrycket.
+
+        IMAP:s OR tar exakt två nycklar. ``OR OR FROM q SUBJECT q TEXT q
+        UNSEEN`` läses som AND mellan OR-trädet och UNSEEN — lägger man
+        UNSEEN inuti får OR tre argument och servern svarar BAD.
+
+        Här granskas den genererade kriteriesträngen direkt: ett mockat
+        SEARCH svarar OK på vad som helst och hade dolt felet.
+        """
+        imap = self.env['user.mail.imap']
+        import inspect
+        src = inspect.getsource(imap._search_mails_imap)
+        self.assertIn("_flag_criteria", src,
+                      'sökningen ska lägga filterkriterierna via '
+                      '_flag_criteria, dvs. utanför OR-trädet')
+        # Och kriteriebyggaren får aldrig producera ett OR.
+        self.assertNotIn('OR', imap._flag_criteria('flagged', True))
+        # Den ska gå att klistra efter ett befintligt uttryck: ledande
+        # mellanslag, inget avslutande.
+        self.assertTrue(imap._flag_criteria('flagged').startswith(' '))
+        self.assertEqual(imap._flag_criteria('flagged'),
+                         imap._flag_criteria('flagged').rstrip())
+
+    def test_search_accepts_flag_and_unread(self):
+        """Sökningen ska ta både flagga och oläst, och båda samtidigt."""
+        from unittest.mock import patch
+
+        self.user.imap_password = self.user._encrypt_imap_pw('x')
+        self.user.postfix_mail = 'search-test@vertel.se'
+        fake = self._fake_filter_conn(['1'])
+
+        with patch('imaplib.IMAP4_SSL', return_value=fake):
+            res = self.env['user.mail.imap'].with_user(self.user)\
+                .action_search_mails('INBOX', 'faktura', 0, 80,
+                                     flag='flagged', unread=True)
+
+        self.assertIn('total', res)
+        searches = [c for c in fake.uid.call_args_list if c[0][0] == 'SEARCH']
+        self.assertTrue(searches, 'sökningen ska fråga servern')
+        criteria = searches[0][0][2]
+        self.assertIn('OR OR', criteria, 'OR-trädet ska vara intakt')
+        self.assertIn('FLAGGED', criteria)
+        self.assertIn('UNSEEN', criteria)
+        # AND-ordningen: UNSEEN får inte hamna inuti OR-trädet.
+        self.assertGreater(criteria.index('UNSEEN'),
+                           criteria.index('TEXT \"faktura\"'),
+                           'UNSEEN ska ligga efter OR-trädet (AND-led)')
+
+    def test_search_empty_query_with_filter_filters_the_folder(self):
+        """Tomt sökord + filter ska filtrera mappen, inte ge tomt."""
+        from unittest.mock import patch
+
+        self.user.imap_password = self.user._encrypt_imap_pw('x')
+        self.user.postfix_mail = 'search-test@vertel.se'
+        fake = self._fake_filter_conn(['1'])
+
+        with patch('imaplib.IMAP4_SSL', return_value=fake):
+            res = self.env['user.mail.imap'].with_user(self.user)\
+                .action_search_mails('INBOX', '', 0, 80, unread=True)
+
+        self.assertTrue(fake.uid.called, 'filtret ska fråga servern')
+        self.assertIn('total', res)
+
+    def test_okf_row_carries_real_read_state(self):
+        """OKF-raden ska inte påstå oläst när servern säger läst.
+
+        ``_okf_mail_row`` hårdkodade ``'seen': False``, så varje sökträff
+        renderades fetstilt och fastnade i olästfiltret oavsett verkligt
+        läge.
+        """
+        imap = self.env['user.mail.imap']
+        row = {'source_uid': 42, 'from_email': 'a@b.se',
+               'subject': 'Hej', 'received_at': False,
+               'message_id': '<x@y>'}
+        read = imap._okf_mail_row(row, {'seen': True,
+                                       'flags': ['flagged']})
+        self.assertTrue(read['seen'])
+        self.assertTrue(read['flagged'])
+        self.assertIn('flagged', read['flags'])
+
+        unread = imap._okf_mail_row(row, {'seen': False, 'flags': []})
+        self.assertFalse(unread['seen'])
+        self.assertFalse(unread['flagged'])
+
+    def test_okf_row_unknown_status_is_not_a_guess(self):
+        """Saknad status ska bli "okänd" — aldrig påstått oläst."""
+        imap = self.env['user.mail.imap']
+        row = {'source_uid': 42, 'from_email': 'a@b.se',
+               'subject': 'Hej', 'received_at': False,
+               'message_id': '<x@y>'}
+        unknown = imap._okf_mail_row(row, None)
+        self.assertIsNone(unknown['seen'], 'okänd får inte bli False')
+        self.assertIsNone(unknown['flagged'])
+
+    def test_fetch_flag_status_degrades_on_error(self):
+        """Misslyckad FLAGS-hämtning ska ge tom dict, inte krascha."""
+        from unittest.mock import patch, MagicMock
+
+        self.user.imap_password = self.user._encrypt_imap_pw('x')
+        self.user.postfix_mail = 'search-test@vertel.se'
+        fake = MagicMock()
+        fake.login.side_effect = OSError('nere')
+
+        with patch('imaplib.IMAP4_SSL', return_value=fake):
+            status = self.env['user.mail.imap'].with_user(self.user)\
+                ._fetch_flag_status('INBOX', [1, 2, 3])
+
+        self.assertEqual(status, {})
+
+    # ── Poll-budget: cursor, dedup-före-fetch, budget (fix-imap-poll-cron-backlog) ──
+
+    def _poll_user(self):
+        """Pollande testanvändare med postfix_mail satt (compute annars)."""
+        self.user.imap_password = self.user._encrypt_imap_pw('x')
+        self.user.imap_poll_enabled = True
+        self.env.flush_all()
+        self.user.postfix_mail = 'budget-test@vertel.se'
+        self.user.last_imap_sync = False
+        self.user.last_imap_uid = 0
+        self.user.last_imap_uidvalidity = False
+        return self.user
+
+    @staticmethod
+    def _fake_conn(uids, headers=None, bodies=None, uidvalidity='42'):
+        """Minimal IMAP-dubbel som svarar på UID SEARCH/FETCH och SELECT."""
+        from unittest.mock import MagicMock
+        fake = MagicMock()
+        # imaplib.select() returnerar BARA EXISTS; UIDVALIDITY ligger i
+        # untagged_responses och läses med response(). Att mocka select()
+        # att returnera UIDVALIDITY dolde en bugg där koden letade på fel
+        # ställe och alltid fick None.
+        fake.select.return_value = ('OK', [str(len(uids)).encode()])
+        fake.response.return_value = (
+            'UIDVALIDITY', [('UIDVALIDITY %s' % uidvalidity).encode()])
+        fake.login.return_value = ('OK', [b'logged in'])
+        fake.uid.return_value = ('OK', [b' '.join(str(u).encode() for u in uids)])
+
+        headers = headers or {}
+        bodies = bodies or {}
+
+        def _uid(cmd, *args):
+            if cmd == 'SEARCH':
+                return ('OK', [b' '.join(str(u).encode() for u in uids)])
+            if cmd == 'FETCH':
+                uid_set, spec = args[0], args[1]
+                ids = [int(x) for x in str(uid_set).split(',')]
+                if 'HEADER.FIELDS' in spec:
+                    out = []
+                    for u in ids:
+                        if u in headers:
+                            out.append((b'%d (UID %d BODY[HEADER] {1}' % (u, u),
+                                        headers[u]))
+                    return ('OK', out)
+                out = []
+                for u in ids:
+                    if u in bodies:
+                        out.append((b'%d (UID %d BODY[] {1}' % (u, u), bodies[u]))
+                return ('OK', out)
+            return ('OK', [b''])
+        fake.uid.side_effect = _uid
+        return fake
+
+    @staticmethod
+    def _header_bytes(message_id, subject='Test', sender='a@b.se'):
+        return ('Message-ID: %s\r\nSubject: %s\r\nFrom: %s\r\n'
+                'Date: Mon, 05 Aug 2026 10:00:00 +0200\r\n\r\n'
+                % (message_id, subject, sender)).encode()
+
+    @staticmethod
+    def _body_bytes(message_id, subject='Test'):
+        from email.message import EmailMessage
+        msg = EmailMessage()
+        msg['Message-ID'] = message_id
+        msg['Subject'] = subject
+        msg['From'] = 'a@b.se'
+        msg['Date'] = 'Mon, 05 Aug 2026 10:00:00 +0200'
+        msg.set_content('Hej!')
+        return msg.as_bytes()
+
+    def test_cursor_uses_uid_search_not_since(self):
+        """Med satt cursor ska pollern göra UID SEARCH UID n+1:* — inte SINCE."""
+        from unittest.mock import patch
+        user = self._poll_user()
+        user.last_imap_uid = 100
+        user.last_imap_uidvalidity = '42'
+        self.env.flush_all()
+        fake = self._fake_conn([], uidvalidity='42')
+
+        with patch('imaplib.IMAP4_SSL', return_value=fake):
+            self.env['user.mail.imap'].with_user(user).action_poll_user()
+
+        search_args = [c for c in fake.uid.call_args_list
+                       if c[0][0] == 'SEARCH']
+        self.assertTrue(search_args, 'pollern ska göra UID SEARCH')
+        self.assertIn('UID 101:*', str(search_args[0][0]))
+        self.assertFalse(fake.search.called,
+                         'SINCE-vägen får inte användas när cursor finns')
+
+    def test_no_cursor_falls_back_to_all(self):
+        """Utan cursor görs en engångs-omsynkronisering (SEARCH ALL)."""
+        from unittest.mock import patch
+        user = self._poll_user()
+        fake = self._fake_conn([], uidvalidity='42')
+
+        with patch('imaplib.IMAP4_SSL', return_value=fake):
+            self.env['user.mail.imap'].with_user(user).action_poll_user()
+
+        search_args = [c for c in fake.uid.call_args_list
+                       if c[0][0] == 'SEARCH']
+        self.assertIn('ALL', str(search_args[0][0]))
+
+    def test_uidvalidity_change_resets_cursor(self):
+        """Ändrad UIDVALIDITY ska nollställa cursorn (resync)."""
+        from unittest.mock import patch
+        user = self._poll_user()
+        user.last_imap_uid = 500
+        user.last_imap_uidvalidity = 'OLD'
+        self.env.flush_all()
+        fake = self._fake_conn([], uidvalidity='NEW')
+
+        with patch('imaplib.IMAP4_SSL', return_value=fake):
+            self.env['user.mail.imap'].with_user(user).action_poll_user()
+
+        user.invalidate_recordset()
+        self.assertEqual(user.last_imap_uidvalidity, 'NEW')
+        search_args = [c for c in fake.uid.call_args_list
+                       if c[0][0] == 'SEARCH']
+        self.assertIn('ALL', str(search_args[0][0]),
+                      'resync ska söka ALL, inte UID 501:*')
+
+    def test_dedup_before_full_body_fetch(self):
+        """Redan processat mail får aldrig ett BODY.PEEK[]-anrop."""
+        from unittest.mock import patch
+        user = self._poll_user()
+        user.last_imap_uid = 0
+        user.last_imap_uidvalidity = '42'
+        self.env['user.mail.processed'].create({
+            'user_id': user.id,
+            'message_id': '<seen-1@example.com>',
+        })
+        self.env.flush_all()
+        self.assertEqual(
+            self.env['user.mail.imap']._dedup_key(
+                {'message_id': '<seen-1@example.com>'}),
+            '<seen-1@example.com>',
+            'dedup-nyckeln ska vara Message-ID när det finns')
+        headers = {1: self._header_bytes('<seen-1@example.com>')}
+        fake = self._fake_conn([1], headers=headers,
+                               bodies={1: self._body_bytes('<seen-1@example.com>')})
+
+        with patch('imaplib.IMAP4_SSL', return_value=fake):
+            n, _failed = self.env['user.mail.imap'].with_user(
+                user).action_poll_user()
+
+        self.assertEqual(n, 0, 'redan processat mail ska inte räknas som nytt')
+        full_fetches = [c for c in fake.uid.call_args_list
+                        if c[0][0] == 'FETCH' and 'HEADER.FIELDS' not in c[0][2]]
+        self.assertFalse(full_fetches,
+                         'dedup ska ske före full body-fetch')
+
+    def test_budget_zero_processes_nothing(self):
+        """Budget 0 s: inga meddelanden bearbetas, inget kastas."""
+        from unittest.mock import patch
+        user = self._poll_user()
+        user.last_imap_uid = 0
+        user.last_imap_uidvalidity = '42'
+        self.env['ir.config_parameter'].sudo().set_param(
+            'user_mail_imap.poll_budget_seconds', '0')
+        headers = {1: self._header_bytes('<b1@example.com>')}
+        fake = self._fake_conn([1], headers=headers,
+                               bodies={1: self._body_bytes('<b1@example.com>')})
+
+        with patch('imaplib.IMAP4_SSL', return_value=fake):
+            n, _failed = self.env['user.mail.imap'].with_user(
+                user).action_poll_user()
+
+        self.assertEqual(n, 0)
+
+    def test_poison_message_advances_cursor(self):
+        """Ett mail som inte kan normaliseras blockar inte brevlådan."""
+        from unittest.mock import patch
+        user = self._poll_user()
+        user.last_imap_uid = 0
+        user.last_imap_uidvalidity = '42'
+        headers = {7: self._header_bytes('<poison@example.com>')}
+        poison = (b'Message-ID: <poison@example.com>\r\n'
+                  b'Subject: x\r\n'
+                  b'Content-Type: text/plain; charset="x-unknown-charset"\r\n'
+                  b'Content-Transfer-Encoding: base64\r\n\r\n'
+                  b'!!!not-base64!!!\r\n')
+        fake = self._fake_conn([7], headers=headers, bodies={7: poison})
+        self.env.flush_all()
+
+        with patch('imaplib.IMAP4_SSL', return_value=fake):
+            self.env['user.mail.imap'].with_user(user).action_poll_user()
+
+        user.invalidate_recordset()
+        self.assertEqual(user.last_imap_uid, 7,
+                         'cursorn ska avancera förbi det trasiga mailet')
+        row = self.env['user.mail.processed'].search([
+            ('user_id', '=', user.id),
+            ('message_id', '=', '<poison@example.com>'),
+        ])
+        self.assertTrue(row, 'det trasiga mailet ska spåras')
+        self.assertTrue(row.failed, 'raden ska vara markerad som misslyckad')
+        self.assertTrue(row.failure_reason,
+                        'felorsaken ska vara läsbar utan att läsa loggen')
+
+    def test_poll_health_reports_parse_errors(self):
+        """_poll_health() ska räkna misslyckade mail senaste dygnet."""
+        user = self.env['res.users'].create({
+            'name': 'Poll Health User',
+            'login': 'poll-health@vertel.se',
+            'password': 'x',
+        })
+        user.imap_password = user._encrypt_imap_pw('x')
+        self.env.flush_all()
+        self.env.cr.execute(
+            "UPDATE res_users SET imap_poll_enabled = true WHERE id = %s",
+            (user.id,))
+        user.invalidate_recordset()
+        self.env.cr.execute(
+            "SELECT imap_poll_enabled FROM res_users WHERE id = %s",
+            (user.id,))
+        self.assertTrue(self.env.cr.fetchone()[0],
+                        'testanvändaren ska vara pollande i DB')
+        self.env.invalidate_all()
+        self.env['user.mail.processed'].create({
+            'user_id': user.id,
+            'message_id': '<fail@example.com>',
+            'failed': True,
+            'failure_reason': 'MessageError: boom',
+        })
+        self.env.cr.execute(
+            "SELECT id, imap_poll_enabled, active FROM res_users "
+            "WHERE imap_poll_enabled = true")
+        rows = self.env.cr.fetchall()
+        self.assertIn(user.id, [r[0] for r in rows],
+                      'DB ska visa användaren som pollande: %r' % (rows,))
+        found = self.env['res.users'].sudo().search(
+            [('imap_poll_enabled', '=', True)])
+
+        self.assertIn(user, found,
+                      'användaren ska hittas av samma sökning som _poll_health gör')
+        health = self.env['user.mail.poll']._poll_health()
+        self.assertIn(user.login, health)
+        self.assertEqual(health[user.login]['parse_errors_24h'], 1)
+        for key in ('last_run', 'last_ok', 'truncated',
+                    'parse_errors_24h', 'backlog_estimate'):
+            self.assertIn(key, health[user.login])
+
+    # ── INC-2026-10-19: minnesfotavtryck ────────────────────────────
+
+    def test_normalize_message_carries_no_raw_bytes(self):
+        """Råbytes får inte bäras i den normaliserade formen.
+
+        Fältet `raw` kopierade hela meddelandet (inkl. bilagor) in i
+        dict:en, och en poll bygger en lista av alla normaliserade mail —
+        hela brevlådan låg i minnet samtidigt (RSS 500 MB -> 2 336 MB på
+        sju minuter, `virtual memory limit reached` 0,1-0,3 s efter
+        pollens slut).
+        """
+        raw = self._make_raw_email()
+        norm = self.imap._normalize_message(raw, folder='INBOX')
+        self.assertNotIn('raw', norm,
+                         'normaliserat mail får inte bära råbytes')
+
+    def test_normalize_message_hands_raw_to_sink(self):
+        """Råbytes lämnas till raw_sink medan de ännu finns i handen."""
+        raw = self._make_raw_email()
+        seen = []
+
+        def sink(norm, raw_bytes):
+            seen.append((norm['message_id'], raw_bytes))
+
+        norm = self.imap._normalize_message(
+            raw, folder='INBOX', raw_sink=sink)
+        self.assertEqual(len(seen), 1)
+        self.assertEqual(seen[0][0], '<test-1@example.com>')
+        self.assertEqual(seen[0][1], raw)
+        self.assertNotIn('raw', norm)
+
+    def test_normalize_message_carries_thread_refs(self):
+        """Trådreferenser bärs som korta strängar — inte som råbytes."""
+        from email.message import EmailMessage
+        msg = EmailMessage()
+        msg['Message-ID'] = '<reply@example.com>'
+        msg['Subject'] = 'Re: Hej'
+        msg['From'] = 'Anna <anna@example.com>'
+        msg['To'] = 'kalle@vertel.se'
+        msg['Date'] = 'Mon, 05 Aug 2026 10:00:00 +0200'
+        msg['In-Reply-To'] = '<parent@example.com>'
+        msg['References'] = '<parent@example.com> <grandparent@example.com>'
+        msg.set_content('Svar')
+        norm = self.imap._normalize_message(msg.as_bytes())
+        self.assertIn('<parent@example.com>', norm['thread_refs'])
+        self.assertIn('<grandparent@example.com>', norm['thread_refs'])
+
+    def test_raw_sink_failure_does_not_break_normalization(self):
+        """En trasig sink får inte fälla normaliseringen."""
+        raw = self._make_raw_email()
+
+        def broken_sink(norm, raw_bytes):
+            raise RuntimeError('sink is broken')
+
+        norm = self.imap._normalize_message(
+            raw, folder='INBOX', raw_sink=broken_sink)
+        self.assertEqual(norm['message_id'], '<test-1@example.com>')
+
+    def test_mail_cache_purges_by_ttl(self):
+        """Cachen ska rensa på tid, inte bara på storlek.
+
+        En cache som bara töms när den passerar ett antal poster håller
+        sina poster kvar så länge ingen ny post läggs till — och
+        `body_html` för 500 mail är inte trivialt.
+        """
+        from odoo.addons.user_mail_imap.models import imap_server
+        imap_server._mail_cache.clear()
+        imap_server._mail_cache['stale'] = (0.0, {'body_html': 'gammal'})
+        imap_server._mail_cache['fresh'] = (
+            imap_server.time.monotonic(), {'body_html': 'ny'})
+        imap_server._purge_mail_cache(ttl=60)
+        self.assertNotIn('stale', imap_server._mail_cache)
+        self.assertIn('fresh', imap_server._mail_cache)
+        imap_server._mail_cache.clear()
+
+    def _capture_logs(self, logger_name):
+        """Fånga loggrader oberoende av Odoos log_handler.
+
+        Odoo kör tester med `-l test`, som sätter loggernivån så att INFO
+        undertrycks. `assertLogs` fångar bara det som faktiskt når loggern,
+        så vi hänger på en egen handler och höjer nivån under testet.
+        """
+        import logging
+        logger = logging.getLogger(logger_name)
+        records = []
+
+        class _Handler(logging.Handler):
+            def emit(self, record):
+                records.append(record)
+
+        handler = _Handler()
+        old_level = logger.level
+        logger.addHandler(handler)
+        logger.setLevel(logging.DEBUG)
+        return logger, handler, records, old_level
+
+    def test_logout_failures_are_reported_summarized(self):
+        """Upprepade LOGOUT-fel ska ge en loggrad, inte en per förekomst."""
+        from odoo.addons.user_mail_imap.models import imap_server
+        imap_server._LOGOUT_FAILURES.clear()
+        for _ in range(20):
+            imap_server._LOGOUT_FAILURES.append('LOGOUT => Return-Path: x')
+        logger, handler, records, old_level = self._capture_logs(
+            'odoo.addons.user_mail_imap.models.imap_server')
+        try:
+            imap_server._report_logout_failures('anna@example.com')
+        finally:
+            logger.removeHandler(handler)
+            logger.setLevel(old_level)
+        self.assertEqual(
+            len(records), 1,
+            'tjugo identiska LOGOUT-fel ska bli EN sammanfattande rad')
+        self.assertIn('x20', records[0].getMessage())
+        self.assertEqual(imap_server._LOGOUT_FAILURES, [],
+                         'räknaren ska nollställas efter rapportering')
+
+    def test_poll_writes_progress_before_consuming(self):
+        """Framstegsmarkören skrivs FÖRE konsumtionen.
+
+        Kraschar konsumtionen (som LOGOUT-felen gjorde 2026-10-19) hämtas
+        annars samma mail igen nästa körning — och minnesfotavtrycket
+        upprepas utan att något nytt tillförs.
+        """
+        import inspect
+        src = inspect.getsource(self.imap.action_poll_user)
+        idx_write = src.find("'last_imap_sync'")
+        idx_consume = src.find('_on_new_messages(')
+        self.assertGreater(idx_write, -1)
+        self.assertGreater(idx_consume, -1)
+        self.assertLess(
+            idx_write, idx_consume,
+            'last_imap_sync ska skrivas innan _on_new_messages anropas')
+
+    def test_poll_reports_logout_failures_in_finally(self):
+        """LOGOUT-fel rapporteras i finally, även när poller kastar."""
+        import inspect
+        src = inspect.getsource(self.imap.action_poll_user)
+        idx_finally = src.find('finally:')
+        idx_report = src.find('_report_logout_failures')
+        self.assertGreater(idx_finally, -1)
+        self.assertGreater(
+            idx_report, idx_finally,
+            '_report_logout_failures ska anropas i finally-blocket')
+
+    def test_logout_failures_distinct_messages_logged_separately(self):
+        """Ett nytt, annorlunda fel får inte drunkna i det kända."""
+        from odoo.addons.user_mail_imap.models import imap_server
+        imap_server._LOGOUT_FAILURES.clear()
+        for _ in range(5):
+            imap_server._LOGOUT_FAILURES.append('LOGOUT => Return-Path: x')
+        imap_server._LOGOUT_FAILURES.append('ConnectionResetError: boom')
+        logger, handler, records, old_level = self._capture_logs(
+            'odoo.addons.user_mail_imap.models.imap_server')
+        try:
+            imap_server._report_logout_failures('anna@example.com')
+        finally:
+            logger.removeHandler(handler)
+            logger.setLevel(old_level)
+        self.assertEqual(len(records), 2)
+        joined = '\n'.join(r.getMessage() for r in records)
+        self.assertIn('x5', joined)
+        self.assertIn('ConnectionResetError', joined)
+        imap_server._LOGOUT_FAILURES.clear()
+
+    # ── Spam: header-baserat filter (skip-spam-flagged-mail) ──
+
+    @staticmethod
+    def _spam_header_bytes(message_id, spam_lines, subject='Test'):
+        """Header-block med godtyckliga spam-fält."""
+        extra = ''.join('%s: %s\r\n' % (k, v) for k, v in spam_lines.items())
+        return ('Message-ID: %s\r\nSubject: %s\r\nFrom: a@b.se\r\n'
+                'Date: Mon, 05 Aug 2026 10:00:00 +0200\r\n%s\r\n'
+                % (message_id, subject, extra)).encode()
+
+    def test_spam_flagged_message_skipped(self):
+        """X-Spam-Flag: YES hoppas över och når inte _on_new_messages."""
+        from unittest.mock import patch
+        user = self._poll_user()
+        user.last_imap_uid = 0
+        user.last_imap_uidvalidity = '42'
+        headers = {1: self._spam_header_bytes(
+            '<spam1@example.com>', {'X-Spam-Flag': 'YES'})}
+        fake = self._fake_conn([1], headers=headers,
+                               bodies={1: self._body_bytes('<spam1@example.com>')})
+
+        with patch('imaplib.IMAP4_SSL', return_value=fake):
+            n, _failed = self.env['user.mail.imap'].with_user(
+                user).action_poll_user()
+
+        self.assertEqual(n, 0, 'spam ska inte räknas som nytt mail')
+
+    def test_spam_status_with_score_skipped(self):
+        """X-Spam-Status: Yes, score=8.2 ... matchar (prefix)."""
+        from unittest.mock import patch
+        user = self._poll_user()
+        user.last_imap_uid = 0
+        user.last_imap_uidvalidity = '42'
+        headers = {1: self._spam_header_bytes(
+            '<spam2@example.com>',
+            {'X-Spam-Status': 'Yes, score=8.2 required=5.0 tests=BAYES_99'})}
+        fake = self._fake_conn([1], headers=headers,
+                               bodies={1: self._body_bytes('<spam2@example.com>')})
+
+        with patch('imaplib.IMAP4_SSL', return_value=fake):
+            n, _failed = self.env['user.mail.imap'].with_user(
+                user).action_poll_user()
+
+        self.assertEqual(n, 0)
+
+    def test_rspamd_header_skipped(self):
+        """Rspamd: X-Spam: Yes matchar."""
+        from unittest.mock import patch
+        user = self._poll_user()
+        user.last_imap_uid = 0
+        user.last_imap_uidvalidity = '42'
+        headers = {1: self._spam_header_bytes(
+            '<spam3@example.com>', {'X-Spam': 'Yes'})}
+        fake = self._fake_conn([1], headers=headers,
+                               bodies={1: self._body_bytes('<spam3@example.com>')})
+
+        with patch('imaplib.IMAP4_SSL', return_value=fake):
+            n, _failed = self.env['user.mail.imap'].with_user(
+                user).action_poll_user()
+
+        self.assertEqual(n, 0)
+
+    def test_unflagged_message_processed(self):
+        """Mail utan spam-header går igenom som förut."""
+        from unittest.mock import patch
+        user = self._poll_user()
+        user.last_imap_uid = 0
+        user.last_imap_uidvalidity = '42'
+        headers = {1: self._spam_header_bytes(
+            '<ham1@example.com>', {'X-Spam-Status': 'No, score=-2.1'})}
+        fake = self._fake_conn([1], headers=headers,
+                               bodies={1: self._body_bytes('<ham1@example.com>')})
+
+        with patch('imaplib.IMAP4_SSL', return_value=fake):
+            n, _failed = self.env['user.mail.imap'].with_user(
+                user).action_poll_user()
+
+        self.assertEqual(n, 1, 'vanligt mail ska processas')
+
+    def test_no_rules_means_no_filtering(self):
+        """Tom regel-lista → allt behandlas som vanligt mail."""
+        from unittest.mock import patch
+        user = self._poll_user()
+        user.last_imap_uid = 0
+        user.last_imap_uidvalidity = '42'
+        self.env['ir.config_parameter'].sudo().set_param(
+            'user_mail_imap.spam_headers', '[]')
+        headers = {1: self._spam_header_bytes(
+            '<spam4@example.com>', {'X-Spam-Flag': 'YES'})}
+        fake = self._fake_conn([1], headers=headers,
+                               bodies={1: self._body_bytes('<spam4@example.com>')})
+
+        with patch('imaplib.IMAP4_SSL', return_value=fake):
+            n, _failed = self.env['user.mail.imap'].with_user(
+                user).action_poll_user()
+
+        self.assertEqual(n, 1, 'utan regler ska inget filtreras')
+
+    def test_spam_no_body_fetch(self):
+        """Spam får aldrig ett BODY.PEEK[]-anrop."""
+        from unittest.mock import patch
+        user = self._poll_user()
+        user.last_imap_uid = 0
+        user.last_imap_uidvalidity = '42'
+        headers = {1: self._spam_header_bytes(
+            '<spam5@example.com>', {'X-Spam-Flag': 'YES'})}
+        fake = self._fake_conn([1], headers=headers,
+                               bodies={1: self._body_bytes('<spam5@example.com>')})
+
+        with patch('imaplib.IMAP4_SSL', return_value=fake):
+            self.env['user.mail.imap'].with_user(user).action_poll_user()
+
+        body_fetches = [
+            c for c in fake.uid.call_args_list
+            if c[0][0] == 'FETCH' and 'HEADER.FIELDS' not in c[0][2]]
+        self.assertFalse(body_fetches,
+                         'spam ska avgöras före body-fetch')
+
+    def test_spam_advances_cursor(self):
+        """Cursorn går förbi spam-mailet."""
+        from unittest.mock import patch
+        user = self._poll_user()
+        user.last_imap_uid = 0
+        user.last_imap_uidvalidity = '42'
+        headers = {9: self._spam_header_bytes(
+            '<spam6@example.com>', {'X-Spam-Flag': 'YES'})}
+        fake = self._fake_conn([9], headers=headers,
+                               bodies={9: self._body_bytes('<spam6@example.com>')})
+
+        with patch('imaplib.IMAP4_SSL', return_value=fake):
+            self.env['user.mail.imap'].with_user(user).action_poll_user()
+
+        user.invalidate_recordset()
+        self.assertEqual(user.last_imap_uid, 9,
+                         'cursorn ska avancera förbi spam')
+
+    def test_spam_not_counted_as_parse_error(self):
+        """Spam-överhopp får inte öka parse_errors_24h."""
+        from unittest.mock import patch
+        # _poll_health() söker via ORM, som filtrerar bort __system__ —
+        # använd en riktig användare så sökningen hittar den.
+        user = self.env['res.users'].create({
+            'name': 'Spam Health User',
+            'login': 'spam-health@vertel.se',
+            'password': 'x',
+        })
+        user.imap_password = user._encrypt_imap_pw('x')
+        user.imap_poll_enabled = True
+        user.postfix_mail = 'spam-health@vertel.se'
+        user.last_imap_sync = False
+        self.env.flush_all()
+        self.env.cr.execute(
+            "UPDATE res_users SET imap_poll_enabled = true WHERE id = %s",
+            (user.id,))
+        self.env.invalidate_all()
+        user.last_imap_uid = 0
+        user.last_imap_uidvalidity = '42'
+        headers = {1: self._spam_header_bytes(
+            '<spam7@example.com>', {'X-Spam-Flag': 'YES'})}
+        fake = self._fake_conn([1], headers=headers,
+                               bodies={1: self._body_bytes('<spam7@example.com>')})
+
+        with patch('imaplib.IMAP4_SSL', return_value=fake):
+            self.env['user.mail.imap'].with_user(user).action_poll_user()
+
+        health = self.env['user.mail.poll']._poll_health()
+        self.assertIn(user.login, health)
+        self.assertEqual(health[user.login]['parse_errors_24h'], 0,
+                         'spam är inte ett parse-fel')
+        self.assertEqual(health[user.login]['spam_skipped_24h'], 1)
+
+    def test_broken_rule_json_is_safe(self):
+        """Trasig JSON ger tom lista — ingen krasch."""
+        self.env['ir.config_parameter'].sudo().set_param(
+            'user_mail_imap.spam_headers', '{inte json')
+        rules = self.env['user.mail.imap']._spam_rules()
+        self.assertEqual(rules, [])
+
+    def test_spam_never_modifies_mailbox(self):
+        """Spam-vägen får aldrig anropa STORE/COPY/MOVE/EXPUNGE."""
+        from unittest.mock import patch
+        user = self._poll_user()
+        user.last_imap_uid = 0
+        user.last_imap_uidvalidity = '42'
+        headers = {1: self._spam_header_bytes(
+            '<spam8@example.com>', {'X-Spam-Flag': 'YES'})}
+        fake = self._fake_conn([1], headers=headers,
+                               bodies={1: self._body_bytes('<spam8@example.com>')})
+
+        with patch('imaplib.IMAP4_SSL', return_value=fake):
+            self.env['user.mail.imap'].with_user(user).action_poll_user()
+
+        forbidden = [
+            c for c in fake.uid.call_args_list
+            if c[0][0] in ('STORE', 'COPY', 'MOVE', 'EXPUNGE')]
+        self.assertFalse(forbidden, 'pollern får inte ändra brevlådan')
+        self.assertFalse(fake.store.called)
+        self.assertFalse(fake.expunge.called)
+
+    def test_uidvalidity_read_from_response_not_select(self):
+        """UIDVALIDITY ska läsas med response(), inte ur select()-svaret.
+
+        imaplib.select() returnerar bara EXISTS. Den tidigare koden letade
+        efter "UIDVALIDITY nnn" i det svaret, hittade aldrig något och
+        returnerade alltid None — så resync-detekteringen kunde aldrig slå
+        till.
+        """
+        from unittest.mock import patch
+        user = self._poll_user()
+        user.last_imap_uid = 500
+        user.last_imap_uidvalidity = False
+        self.env.flush_all()
+        fake = self._fake_conn([], uidvalidity='777')
+
+        with patch('imaplib.IMAP4_SSL', return_value=fake):
+            self.env['user.mail.imap'].with_user(user).action_poll_user()
+
+        user.invalidate_recordset()
+        self.assertEqual(user.last_imap_uidvalidity, '777',
+                         'UIDVALIDITY ska sparas från response()')
+        self.assertTrue(fake.response.called,
+                        'koden ska anropa response("UIDVALIDITY")')
+
+    def test_uidvalidity_missing_does_not_crash(self):
+        """Saknat UIDVALIDITY-svar ska ge None, inte krasch."""
+        from unittest.mock import patch
+        user = self._poll_user()
+        user.last_imap_uid = 500
+        self.env.flush_all()
+        fake = self._fake_conn([])
+        fake.response.return_value = ('UIDVALIDITY', [])
+
+        with patch('imaplib.IMAP4_SSL', return_value=fake):
+            self.env['user.mail.imap'].with_user(user).action_poll_user()
+
+        user.invalidate_recordset()
+        self.assertFalse(user.last_imap_uidvalidity,
+                         'tomt svar ska lämna fältet tomt')
+
+    def test_uidvalidity_change_triggers_resync(self):
+        """Bytet ska nollställa cursorn och söka ALL."""
+        from unittest.mock import patch
+        user = self._poll_user()
+        user.last_imap_uid = 500
+        user.last_imap_uidvalidity = 'OLD'
+        self.env.flush_all()
+        fake = self._fake_conn([], uidvalidity='NEW')
+
+        with patch('imaplib.IMAP4_SSL', return_value=fake):
+            self.env['user.mail.imap'].with_user(user).action_poll_user()
+
+        user.invalidate_recordset()
+        self.assertEqual(user.last_imap_uidvalidity, 'NEW')
+        search_args = [c for c in fake.uid.call_args_list
+                       if c[0][0] == 'SEARCH']
+        self.assertIn('ALL', str(search_args[0][0]),
+                      'resync ska söka ALL, inte UID 501:*')
+
+    # ── Mapplistning: batchning + cache (batch-imap-folder-listing) ──
+
+    def _fake_list_conn(self, uids, response_order=None, omit=None):
+        """IMAP-dubbel för action_fetch_mails.
+
+        `response_order` låter servern svara i en annan ordning än den
+        efterfrågade, `omit` hoppar över ett UID i svaret.
+        """
+        from unittest.mock import MagicMock
+        fake = MagicMock()
+        fake.select.return_value = ('OK', [str(len(uids)).encode()])
+        fake.login.return_value = ('OK', [b'logged in'])
+
+        def _uid(cmd, *args):
+            # Koden hämtar UID:n med UID SEARCH (`fake.search` fångar den
+            # aldrig) — svara både SEARCH och FETCH här.
+            if cmd == 'SEARCH':
+                return ('OK', [b' '.join(
+                    str(u).encode() for u in uids)])
+            if cmd != 'FETCH':
+                return ('OK', [b''])
+            uid_set = args[0]
+            ids = [int(x) for x in str(uid_set).split(',') if str(x).strip()]
+            if response_order:
+                ids = [u for u in response_order if u in ids]
+            out = []
+            for u in ids:
+                if omit and u == omit:
+                    continue
+                hdr = self._header_bytes('<m%d@example.com>' % u).replace(
+                    b'\r\n\r\n', b'\r\n\r\n')
+                out.append((b'%d (UID %d FLAGS (\\Seen) BODY[HEADER] {1}'
+                            % (u, u), hdr))
+            return ('OK', out)
+        fake.uid.side_effect = _uid
+        return fake
+
+    def _list_user(self):
+        """Testanvändare med postfix_mail + IMAP-lösenord (krävs av connect)."""
+        self.user.imap_password = self.user._encrypt_imap_pw('x')
+        self.user.postfix_mail = 'list-test@vertel.se'
+        return self.user
+
+    def _clear_page_cache(self):
+        from odoo.addons.user_mail_imap.models.imap_server import _mail_cache
+        _mail_cache.clear()
+
+    def test_fetch_mails_batches_single_command(self):
+        """80 UID:n ska hämtas med ETT FETCH."""
+        from unittest.mock import patch
+        self._clear_page_cache()
+        uids = list(range(1, 81))
+        fake = self._fake_list_conn(uids)
+
+        with patch('imaplib.IMAP4_SSL', return_value=fake):
+            res = self.env['user.mail.imap'].with_user(self._list_user()).action_fetch_mails('INBOX')
+
+        fetches = [c for c in fake.uid.call_args_list if c[0][0] == 'FETCH']
+        self.assertEqual(len(fetches), 1,
+                         'en sida på 80 ska vara ett FETCH, inte 80')
+        self.assertEqual(res['total'], 80)
+        self.assertEqual(len(res['messages']), 80)
+
+    def test_fetch_mails_splits_large_page(self):
+        """250 UID:n ska delas i två FETCH (UID_BATCH_SIZE=200)."""
+        from unittest.mock import patch
+        self._clear_page_cache()
+        uids = list(range(1, 251))
+        fake = self._fake_list_conn(uids)
+
+        with patch('imaplib.IMAP4_SSL', return_value=fake):
+            self.env['user.mail.imap'].with_user(self._list_user()).action_fetch_mails(
+                'INBOX', offset=0, limit=250)
+
+        fetches = [c for c in fake.uid.call_args_list if c[0][0] == 'FETCH']
+        self.assertEqual(len(fetches), 2,
+                         '250 UID:n ska delas i två batcher')
+
+    def test_fetch_mails_preserves_newest_first(self):
+        """Ordningen nyaste-först gäller även om servern svarar baklänges."""
+        from unittest.mock import patch
+        self._clear_page_cache()
+        uids = [1, 2, 3, 4, 5]
+        fake = self._fake_list_conn(uids, response_order=[1, 2, 3, 4, 5])
+
+        with patch('imaplib.IMAP4_SSL', return_value=fake):
+            res = self.env['user.mail.imap'].with_user(self._list_user()).action_fetch_mails('INBOX')
+
+        got = [m['uid'] for m in res['messages']]
+        self.assertEqual(got, [5, 4, 3, 2, 1],
+                         'nyaste först, oavsett svarsordning')
+
+    def test_fetch_mails_missing_uid_keeps_order(self):
+        """Ett UID servern inte svarar på stör inte restens ordning."""
+        from unittest.mock import patch
+        self._clear_page_cache()
+        uids = [1, 2, 3, 4, 5]
+        fake = self._fake_list_conn(uids, omit=3)
+
+        with patch('imaplib.IMAP4_SSL', return_value=fake):
+            res = self.env['user.mail.imap'].with_user(self._list_user()).action_fetch_mails('INBOX')
+
+        got = [m['uid'] for m in res['messages']]
+        self.assertEqual(got, [5, 4, 2, 1],
+                         'det saknade UID:et hoppas över, resten behåller ordningen')
+
+    def test_fetch_mails_second_call_uses_cache(self):
+        """Andra anropet för samma sida ska inte öppna en anslutning."""
+        from unittest.mock import patch
+        self._clear_page_cache()
+        uids = [1, 2, 3]
+        fake = self._fake_list_conn(uids)
+
+        with patch('imaplib.IMAP4_SSL', return_value=fake):
+            self.env['user.mail.imap'].with_user(self._list_user()).action_fetch_mails('INBOX')
+            calls_after_first = fake.uid.call_count
+            self.env['user.mail.imap'].with_user(self._list_user()).action_fetch_mails('INBOX')
+            self.assertEqual(fake.uid.call_count, calls_after_first,
+                             'andra anropet ska serveras ur cachen')
+
+    def test_fetch_mails_pages_do_not_collide(self):
+        """Sida 1 och sida 2 ska cachas separat."""
+        from unittest.mock import patch
+        self._clear_page_cache()
+        uids = list(range(1, 11))
+        fake = self._fake_list_conn(uids)
+
+        with patch('imaplib.IMAP4_SSL', return_value=fake):
+            p1 = self.env['user.mail.imap'].with_user(self._list_user()).action_fetch_mails(
+                'INBOX', offset=0, limit=3)
+            p2 = self.env['user.mail.imap'].with_user(self._list_user()).action_fetch_mails(
+                'INBOX', offset=3, limit=3)
+
+        self.assertEqual([m['uid'] for m in p1['messages']], [10, 9, 8])
+        self.assertEqual([m['uid'] for m in p2['messages']], [7, 6, 5],
+                         'sida 2 får inte servera sida 1:s innehåll')
+
+    def test_fetch_mails_failure_not_cached(self):
+        """Ett anslutningsfel ska inte lämna en cache-post."""
+        from unittest.mock import patch
+        from odoo.addons.user_mail_imap.models.imap_server import _mail_cache
+        self._clear_page_cache()
+        before = len(_mail_cache)
+
+        with patch('imaplib.IMAP4_SSL',
+                   side_effect=OSError('connection refused')):
+            with self.assertRaises(OSError):
+                self.env['user.mail.imap'].with_user(self._list_user()).action_fetch_mails('INBOX')
+
+        self.assertEqual(len(_mail_cache), before,
+                         'ett fel ska aldrig cachas')
+
+    def test_flag_change_invalidates_page_cache(self):
+        """Flaggbyte ska rensa mappens sid-cache."""
+        from unittest.mock import patch
+        from odoo.addons.user_mail_imap.models.imap_server import _mail_cache
+        self._clear_page_cache()
+        uids = [1, 2, 3]
+        fake = self._fake_list_conn(uids)
+
+        with patch('imaplib.IMAP4_SSL', return_value=fake):
+            self.env['user.mail.imap'].with_user(self._list_user()).action_fetch_mails('INBOX')
+            self.assertTrue(
+                [k for k in _mail_cache if k.startswith('page:')],
+                'sidan ska vara cachad')
+            self.env['user.mail.imap'].with_user(self._list_user()).action_set_flag(
+                'INBOX', [1], 'seen', True)
+
+        self.assertFalse(
+            [k for k in _mail_cache if k.startswith('page:')],
+            'flaggbytet ska ha rensat sid-cachen')
+
+    def test_move_invalidates_source_folder_cache(self):
+        """Flytt ska rensa både käll- och målmappens cache."""
+        from unittest.mock import patch
+        from odoo.addons.user_mail_imap.models.imap_server import _mail_cache
+        self._clear_page_cache()
+        uids = [1, 2, 3]
+        fake = self._fake_list_conn(uids)
+
+        with patch('imaplib.IMAP4_SSL', return_value=fake):
+            self.env['user.mail.imap'].with_user(self._list_user()).action_fetch_mails('INBOX')
+            self.env['user.mail.imap'].with_user(self._list_user()).action_move('INBOX', [1], 'Archive')
+
+        self.assertFalse(
+            [k for k in _mail_cache if k.startswith('page:')],
+            'flytten ska ha rensat källmappens cache')
+
+    def test_new_mail_invalidates_page_cache(self):
+        """Pollerns ingest ska rensa INBOX-cachen."""
+        from unittest.mock import patch
+        from odoo.addons.user_mail_imap.models.imap_server import _mail_cache
+        self._clear_page_cache()
+        uids = [1, 2, 3]
+        fake = self._fake_list_conn(uids)
+
+        with patch('imaplib.IMAP4_SSL', return_value=fake):
+            self.env['user.mail.imap'].with_user(self._list_user()).action_fetch_mails('INBOX')
+
+        self.assertTrue([k for k in _mail_cache if k.startswith('page:')])
+        # Pollerns väg rensar INBOX-cachen efter _on_new_messages.
+        from odoo.addons.user_mail_imap.models.imap_server import (
+            _invalidate_folder_cache)
+        _invalidate_folder_cache(self.env.user.id, 'INBOX')
+        self.assertFalse(
+            [k for k in _mail_cache if k.startswith('page:')],
+            'pollerns ingest ska rensa sid-cachen')
+
+    # ── Flaggmappning (fix-flag-search-and-message-labels, grupp 1) ───────
+    #
+    # `important` mappades tidigare till `\Answered`. Det gjorde att ett
+    # svar i klienten satte viktig-flaggan, och ett viktigt mail såg
+    # besvarat ut. Testet låser att mappningen är egen NU, och att
+    # `\Answered` fortfarande *läses* som important under övergången.
+
+    def test_important_writes_own_keyword(self):
+        r"""`important` skrivs som nyckelordet Important, inte \Answered."""
+        from odoo.addons.user_mail_imap.models.imap_server import ImapServer
+        self.assertEqual(ImapServer._FLAG_WRITE['important'], 'Important')
+        self.assertNotEqual(ImapServer._FLAG_WRITE['important'], '\\Answered')
+
+    def test_answered_still_reads_as_important(self):
+        r"""Befintliga \Answered-mail läses som important (övergång)."""
+        from odoo.addons.user_mail_imap.models.imap_server import _read_flags
+        self.assertIn('important', _read_flags([b'\\Answered']))
+        self.assertIn('important', _read_flags([b'Important']))
+        # Båda samtidigt får inte ge dubbletter.
+        both = _read_flags([b'\\Answered', b'Important'])
+        self.assertEqual(both.count('important'), 1)
+
+    def test_flag_write_and_read_agree(self):
+        """Varje skrivbar flaggtyp ska läsas tillbaka som sig själv."""
+        from odoo.addons.user_mail_imap.models.imap_server import (
+            ImapServer, _read_flags)
+        for kind, imap_flag in ImapServer._FLAG_WRITE.items():
+            if kind == 'seen':
+                continue
+            read_back = _read_flags([imap_flag.encode()])
+            self.assertIn(
+                kind, read_back,
+                '%s skrivs som %r men läses tillbaka som %r'
+                % (kind, imap_flag, read_back))
+
+    def test_sieve_flag_map_matches_client(self):
+        """Sieve-nyckelordet och klientens nyckelord måste vara samma.
+
+        En regel kan sätta flaggan server-side och användaren i klienten —
+        säger de olika saker glider de isär tyst.
+        """
+        from odoo.addons.user_mail_imap.models.imap_server import ImapServer
+        # sieves kompilator är en AbstractModel — nås via registret, inte
+        # via modulimport, så testet inte binds till en filplacering.
+        sieve_flag_map = self.env['sieve.compiler'].FLAG_MAP
+        for kind, (_action, sieve_flag) in sieve_flag_map.items():
+            self.assertEqual(
+                ImapServer._FLAG_WRITE[kind], sieve_flag,
+                'flaggtyp %r: sieve sätter %r, klienten %r'
+                % (kind, sieve_flag, ImapServer._FLAG_WRITE[kind]))

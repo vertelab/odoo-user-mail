@@ -1,0 +1,65 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <data>
+
+        <!--
+            Inställningar → E-postinställningar
+
+            Öppnar användarens EGNA e-postinställningar i en fristående form
+            (view_user_mail_own_settings_form): namn överst, e-postfälten
+            under, inga profil- eller säkerhetsflikar.
+
+            VARFÖR EN SERVER ACTION OCH INTE EN act_window MED res_id:
+            `ir.actions.act_window.res_id` är ett STATISKT heltal. Vi kan
+            inte skriva "den inloggade användaren" där. En server action
+            som returnerar act_window-dicten kan sätta res_id = env.uid
+            vid körning. Alternativet — en act_window utan res_id — öppnar
+            en lista, och en vanlig användare får då "ingen behörighet"
+            eftersom den inte får läsa andra användare.
+        -->
+        <record id="action_user_mail_own_settings" model="ir.actions.server">
+            <field name="name">E-postkonfiguration</field>
+            <field name="model_id" ref="base.model_res_users"/>
+            <field name="state">code</field>
+            <field name="groups_id" eval="[(4, ref('user_mail_common.group_own_email_settings'))]"/>
+            <field name="code">
+# Öppna den inloggade användarens egna e-postinställningar.
+# form_view_initial_mode=edit gör att formuläret är redigerbart direkt —
+# användaren kommer hit för att ÄNDRA sin e-postkonfiguration.
+action = {
+    'type': 'ir.actions.act_window',
+    'name': 'E-postinställningar',
+    'res_model': 'res.users',
+    'res_id': env.uid,
+    'view_mode': 'form',
+    # Fristående vy, inte simple_modif. Den ärvda vyn tvingade in hela
+    # Min profil (alla flikar) och filtrerades dessutom mot
+    # SELF_*_FIELDS, så e-postfälten blev tomma grupper. Se
+    # res_users_mail_settings_view.xml.
+    'views': [(env.ref('user_mail_client.view_user_mail_own_settings_form').id, 'form')],
+    'target': 'current',
+    'context': {'form_view_initial_mode': 'edit'},
+}
+            </field>
+        </record>
+
+        <!--
+            E-postinställningar — användarens egen fristående mailform.
+
+            Ligger under Odoos egen Discuss → Konfiguration tillsammans med
+            Notifications / Voice & Video / Canned Responses. Vi bygger ingen
+            egen rot: en parallell "Konfiguration" hade kolliderat med den
+            som redan finns.
+
+            Sequence 20 sätter oss efter Canned Responses (15) utan att röra
+            Odoos numrering.
+        -->
+        <menuitem id="menu_user_mail_own_settings"
+            name="E-postinställningar"
+            parent="mail.menu_configuration"
+            action="action_user_mail_own_settings"
+            sequence="20"
+            groups="user_mail_common.group_own_email_settings"/>
+
+    </data>
+</odoo>

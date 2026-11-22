@@ -2,7 +2,7 @@
 ##############################################################################
 #
 #    Odoo SA, Open Source Management Solution, third party addon
-#    Copyright (C) 2023- Vertel AB (<https://vertel.se>).
+#    Copyright (C) 2023- Vertel Sverige AB (<https://vertel.se>).
 #
 #    This program is free software: you can redistribute it and/or modify
 #    it under the terms of the GNU Affero General Public License as
@@ -21,7 +21,7 @@
 
 {
     'name': 'User Mail: User Mail Common',
-    'version': '1.0.0',
+    'version': '1.1.0',
     # Version ledger: 14.0 = Odoo version. 1 = Major. Non regressionable code. 2 = Minor. New features that are regressionable. 3 = Bug fixes
     'summary': 'Administration of mail for users on client side.',
     # Categories can be used to filter modules in modules listing
@@ -40,20 +40,35 @@ User Mail Common
         - Extends Odoo: Builds on postfix.alias, postfix.vacation_notification.
     ''',
     #'sequence': '1',
-    'author': 'Vertel AB',
+    'author': 'Vertel Sverige AB',
     'website': 'https://vertel.se/apps/odoo-user-mail/user_mail_common',
     'images': ['static/description/banner.png'], # 560x280 px.
     'license': 'AGPL-3',
     'contributor': '',
-    'maintainer': 'Vertel AB',
+    'maintainer': 'Vertel Sverige AB',
     'repository': 'https://github.com/vertelab/odoo-user-mail',
     # Any module necessary for this one to work correctly
 
-    'depends': ['base', 'base_setup'],
+    # `mail` krävs: menyn hänger under mail.menu_root_discuss och
+    # mail.menu_configuration. Utan beroendet laddas den här modulen före
+    # mail och menyn får ingen förälder — Odoo 18 kastar då
+    # "External ID not found" vid uppgradering på en ren installation.
+    # Det syntes aldrig här eftersom mail alltid redan var installerad.
+    'depends': ['base', 'base_setup', 'mail'],
+    'external_dependencies': {
+        # sievelib: ManageSieve-klient (RFC 5804) + Sieve-parser/factory.
+        # KRITISK — utan den kan inga server-side regler eller vacation
+        # skickas. Finns i requirements.txt (repo_apply verifierar).
+        'python': ['sievelib'],
+    },
     'data': [
         'security/user_mail_security.xml',
-        'security/ir.access.csv',
-        'views/res_users_view.xml'
+        'security/ir.model.access.csv',
+        'security/sieve_rules.xml',
+        'data/cron_sieve_vacation.xml',
+        'views/res_users_view.xml',
+        'views/sieve_script_views.xml',
+        'views/menus_views.xml'
     ],
     'installable': True,
     'application': False,

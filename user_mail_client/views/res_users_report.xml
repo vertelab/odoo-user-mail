@@ -39,7 +39,7 @@
                                                                     <strong>​Port</strong>
                                                                 </td>
                                                                 <td>
-                                                                    <strong>​SSL/TSL</strong>
+                                                                    <strong>​SSL/TLS</strong>
                                                                 </td>
                                                                 <td>
                                                                     <strong>​Authentication</strong>
@@ -47,25 +47,25 @@
                                                             </tr>
                                                             <tr>
                                                                 <td>​Incomming (IMAP)</td>
-                                                                <td t-raw="'imap.' + (o.company_id.domain or 'example.com')" />
+                                                                <td t-out="'imap.' + (o.company_id.domain or 'example.com')" />
                                                                 <td>​143</td>
                                                                 <td>​STARTTLS</td>
                                                                 <td>​Lösenord</td>
                                                             </tr>
                                                             <tr>
                                                                 <td>Outgoing​ (SMTP)</td>
-                                                                <td t-raw="'smtp.' + (o.company_id.domain or 'example.com')" />
+                                                                <td t-out="'smtp.' + (o.company_id.domain or 'example.com')" />
                                                                 <td>​587</td>
                                                                 <td>STARTTLS​</td>
                                                                 <td>​Lösenord</td>
                                                             </tr>
                                                             <tr>
                                                                 <td>​Username</td>
-                                                                <td t-raw="o.postfix_mail" colspan="4" />
+                                                                <td t-out="o.postfix_mail" colspan="4" />
                                                             </tr>
                                                             <tr>
                                                                 <td>Password</td>
-                                                                <td t-raw="o.passwd_tmp" colspan="4" />
+                                                                <td t-out="o.passwd_tmp" colspan="4" />
                                                             </tr>
                                                         </tbody>
                                                     </table>
@@ -75,15 +75,15 @@
                                                         <tbody>
                                                             <tr>
                                                                 <td>URL</td>
-                                                                <td t-raw="'http://epost.' + (o.company_id.domain or 'example.com')" />
+                                                                <td t-out="'https://epost.' + (o.company_id.domain or 'example.com')" />
                                                             </tr>
                                                             <tr>
                                                                 <td>​Username</td>
-                                                                <td colspan="4" t-raw="o.postfix_mail" />
+                                                                <td colspan="4" t-out="o.postfix_mail" />
                                                             </tr>
                                                             <tr>
                                                                 <td>Password</td>
-                                                                <td colspan="4" t-raw="o.passwd_tmp" />
+                                                                <td colspan="4" t-out="o.passwd_tmp" />
                                                             </tr>
                                                         </tbody>
                                                     </table>
@@ -94,7 +94,59 @@
                                 </div>
                             </div>
                         <div class="oe_structure" />
-                        </div>
+                        
+                                                    <!-- DAV-ENDPOINT: verifierat mot base_dav PREFIX='/.dav' -->
+                                                    <h1>Calendar and Contacts (CalDAV / CardDAV)</h1>
+                                                    <p>Connect your phone, tablet or desktop calendar and contacts app
+                                                       directly to Odoo. Use your Odoo username and password.</p>
+                                                    <table class="table table-bordered table-responsive">
+                                                        <tbody>
+                                                            <tr>
+                                                                <td>Server URL</td>
+                                                                <td t-out="'https://' + (o.company_id.domain or 'example.com') + '/.dav/'" />
+                                                            </tr>
+                                                            <tr>
+                                                                <td>Username</td>
+                                                                <td t-out="o.login" />
+                                                            </tr>
+                                                            <tr>
+                                                                <td>Password</td>
+                                                                <td t-out="o.passwd_tmp" />
+                                                            </tr>
+                                                        </tbody>
+                                                    </table>
+                                                    <p class="text-muted">
+                                                        Enter only the server URL above &#8212; most clients discover the
+                                                        individual calendar and address-book collections automatically via
+                                                        <code>/.well-known/caldav</code> and <code>/.well-known/carddav</code>.
+                                                        Your personal collection URLs are listed in
+                                                        <em>Settings &#8594; Users &#8594; Calendar</em>
+                                                        (format: <code>https://&lt;domain&gt;/.dav/&lt;username&gt;/&lt;collection-id&gt;</code>).
+                                                    </p>
+
+                                                    <h1>Documents (WebDAV)</h1>
+                                                    <p>Mount your Odoo documents directly in Finder, Explorer or Nautilus.</p>
+                                                    <table class="table table-bordered table-responsive">
+                                                        <tbody>
+                                                            <tr>
+                                                                <td>Server URL</td>
+                                                                <td t-out="'https://' + (o.company_id.domain or 'example.com') + '/.dav/'" />
+                                                            </tr>
+                                                            <tr>
+                                                                <td>Username</td>
+                                                                <td t-out="o.login" />
+                                                            </tr>
+                                                            <tr>
+                                                                <td>Password</td>
+                                                                <td t-out="o.passwd_tmp" />
+                                                            </tr>
+                                                        </tbody>
+                                                    </table>
+                                                    <p class="text-muted">
+                                                        The same DAV endpoint serves calendar, contacts and documents.
+                                                        The exact document path depends on your DMS configuration.
+                                                    </p>
+                                                </div>
                     </t>
                 </t>
             </t>

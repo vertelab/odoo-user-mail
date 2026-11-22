@@ -1,6 +1,7 @@
 from . import res_users
 from . import user_mail_imap
 from . import user_mail_ai_mail
+from . import user_mail_ai_okf
 from . import mail_message
 from . import ai_coworker_hitl
 from . import user_mail_ai_routing

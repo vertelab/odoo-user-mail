@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 ##############################################################################
 #
-#    Vertel AB (<http://www.vertel.se>)
+#    Vertel Sverige AB (<http://www.vertel.se>)
 #
 #    This program is free software: you can redistribute it and/or modify
 #    it under the terms of the GNU Affero General Public License as
@@ -26,11 +26,7 @@ def _scim_config(key, default=''):
     val = odoo_config.get(key, '')
     if not val:
         IParam = http.request.env['ir.config_parameter'].sudo()
-        # #if VERSION >= "20.0"
-        val = IParam.get_str(key, default)
-        # #else
         val = IParam.get_param(key, default)
-        # #endif
     return val
 
 
@@ -39,21 +35,9 @@ class ScimDirectoryController(http.Controller):
     def _scim_admin_config(self):
         """Hämta admin-config från tools.config eller ir.config_parameter."""
         IParam = request.env['ir.config_parameter'].sudo()
-        # #if VERSION >= "20.0"
-        bridge_url = odoo_config.get('scim_bridge_url', '') or IParam.get_str('scim.bridge_url', '')
-        # #else
         bridge_url = odoo_config.get('scim_bridge_url', '') or IParam.get_param('scim.bridge_url', '')
-        # #endif
-        # #if VERSION >= "20.0"
-        api_key = odoo_config.get('scim_admin_api_key', '') or IParam.get_str('scim.admin_api_key', '')
-        # #else
         api_key = odoo_config.get('scim_admin_api_key', '') or IParam.get_param('scim.admin_api_key', '')
-        # #endif
-        # #if VERSION >= "20.0"
-        verify = odoo_config.get('scim_verify_ssl', '') or IParam.get_str('scim.verify_ssl', 'True')
-        # #else
         verify = odoo_config.get('scim_verify_ssl', '') or IParam.get_param('scim.verify_ssl', 'True')
-        # #endif
         return {
             'bridge_url': bridge_url.rstrip('/'),
             'api_key': api_key,
@@ -106,11 +90,7 @@ class ScimDirectoryController(http.Controller):
     def scim_webhook(self):
         """Webhook från SCIM Bridge — LDAP-ändringar i realtid."""
         IParam = request.env['ir.config_parameter'].sudo()
-        # #if VERSION >= "20.0"
-        webhook_secret = odoo_config.get('scim_webhook_secret', '') or IParam.get_str('scim.webhook_secret', '')
-        # #else
         webhook_secret = odoo_config.get('scim_webhook_secret', '') or IParam.get_param('scim.webhook_secret', '')
-        # #endif
 
         if webhook_secret:
             import hashlib, hmac, json
@@ -136,10 +116,6 @@ class ScimDirectoryController(http.Controller):
                 existing.unlink()
                 _logger.info(f'Webhook: removed {uid} from directory')
         else:
-            # #if VERSION >= "20.0"
-            IParam.set_str('scim.last_webhook', payload.get('timestamp', ''))
-            # #else
             IParam.set_param('scim.last_webhook', payload.get('timestamp', ''))
-            # #endif
 
         return {'status': 'ok'}

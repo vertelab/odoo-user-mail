@@ -124,7 +124,6 @@
                 <filter name="has_no_forward" string="No Forward"
                         domain="[('forward_active', '=', False)]" />
 
-                <!-- #if VERSION <= "19.0" -->
                 <group expand="0" string="Group by">
                     <filter name="group_customer" string="Customer"
                             context="{'group_by': 'customer'}" />
@@ -133,7 +132,6 @@
                     <filter name="group_has_matrix" string="Has Matrix"
                             context="{'group_by': 'has_matrix'}" />
                 </group>
-                <!-- #endif -->
             </search>
         </field>
     </record>

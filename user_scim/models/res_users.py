@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 ##############################################################################
 #
-#    Vertel AB (<http://www.vertel.se>)
+#    Vertel Sverige AB (<http://www.vertel.se>)
 #
 #    This program is free software: you can redistribute it and/or modify
 #    it under the terms of the GNU Affero General Public License as
@@ -75,9 +75,9 @@ class ResUsers(models.Model):
         """
         IParam = self.env['ir.config_parameter'].sudo()
 
-        bridge_url = odoo_config.get('scim_bridge_url', '') or IParam.get_str('scim.bridge_url', '')
-        api_key = odoo_config.get('scim_api_key', '') or IParam.get_str('scim.api_key', '')
-        verify = odoo_config.get('scim_verify_ssl', '') or IParam.get_str('scim.verify_ssl', 'True')
+        bridge_url = odoo_config.get('scim_bridge_url', '') or IParam.get_param('scim.bridge_url', '')
+        api_key = odoo_config.get('scim_api_key', '') or IParam.get_param('scim.api_key', '')
+        verify = odoo_config.get('scim_verify_ssl', '') or IParam.get_param('scim.verify_ssl', 'True')
 
         return {
             'bridge_url': bridge_url.rstrip('/'),

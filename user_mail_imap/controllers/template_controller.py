@@ -6,11 +6,22 @@ class ImapTemplateController(http.Controller):
 
     @http.route('/imap/templates', type='json', auth='user')
     def templates(self):
-        """List mail.templates available for the user."""
+        """List mail.templates available for the user.
+
+        Samma urval som Odoos chatter: användarens egna mallar OCH de som
+        saknar ägare. Att bara matcha ``user_id = env.user.id`` gav noll
+        träffar — Odoos standardmallar har ingen ``user_id``, och då såg
+        mallväljaren tom ut trots 26 mallar i databasen.
+
+        ``model_id`` styr om mallen kan renderas: en mall bunden till
+        sale.order kräver en order som kontext. De visas ändå, men
+        anroparen får ``model_id`` med så den kan avgöra.
+        """
         Template = request.env['mail.template'].sudo()
         records = Template.search_read(
-            [('user_id', '=', request.env.user.id)],
+            ['|', ('user_id', '=', request.env.user.id), ('user_id', '=', False)],
             ['id', 'name', 'subject', 'body_html', 'model_id'],
+            order='name',
         )
         return {'templates': records}
 

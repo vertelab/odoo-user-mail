@@ -4,6 +4,7 @@ heartbeat."""
 
 import json
 from datetime import datetime, timedelta
+from unittest.mock import patch
 
 from odoo.tests.common import TransactionCase
 
@@ -26,8 +27,10 @@ class TestUserMailAiIntelligence(TransactionCase):
         msg['From'] = frm
         msg['To'] = 'kalle@vertel.se'
         msg.set_content('Hej!')
-        norm = self.imap._normalize_message(msg.as_bytes(), folder='INBOX')
-        return self.Mail._ingest_message(norm, user=self.user)
+        raw = msg.as_bytes()
+        norm = self.imap._normalize_message(raw, folder='INBOX')
+        return self.Mail._ingest_message(
+            norm, user=self.user, raw_bytes=raw)
 
     # ── Regel-modell ─────────────────────────────────────────────────
 
@@ -73,6 +76,13 @@ class TestUserMailAiIntelligence(TransactionCase):
 
     def test_priority_wins(self):
         # Lägre prioritetstal = högre prioritet → move vinner över ignore
+        # Seed-reglerna (data-XML) har egna prioriteter och kan fånga
+        # mailet före våra två. Stäng av dem för det här testet — annars
+        # prövas inte prioriteringen, utan bara att någon seed-regel
+        # råkade matcha först.
+        self.Rule.search([
+            ('user_id', '=', self.user.id), ('source', '=', 'seed'),
+        ]).write({'active': False})
         self.Rule.create({
             'user_id': self.user.id, 'name': 'Låg prio ignore',
             'priority': 50, 'condition_kind': 'sender',
@@ -94,8 +104,13 @@ class TestUserMailAiIntelligence(TransactionCase):
         # Gate (mail-credentials): poll-flaggan kräver ett lösenord.
         self.user.imap_password = self.user._encrypt_imap_pw('x')
         self.user.write({'imap_poll_enabled': True})
+        # Utgångsläget är inte tomt: användaren kan redan ha seed-reglerna
+        # (de skapas av data-XML och av en tidigare körning i samma DB).
+        # `first` mäter därför TILLSKOTTET, inte totalen — testet ska pröva
+        # att en andra körning ger noll, inte att den första ger något.
+        self.Mail._ensure_default_rules()
         first = self.Mail._ensure_default_rules()
-        self.assertGreater(first, 0)
+        self.assertEqual(first, 0, 'Andra körningen ska inte skapa något')
         second = self.Mail._ensure_default_rules()
         self.assertEqual(second, 0, "Inga dubletter vid omkörning")
         count = self.Rule.search_count([
@@ -211,8 +226,9 @@ class TestUserMailAiIntelligence(TransactionCase):
         msg['To'] = 'kalle@vertel.se'
         msg['References'] = '<thread-1@example.com>'
         msg.set_content('Svar i tråden')
-        norm = self.imap._normalize_message(msg.as_bytes(), folder='INBOX')
-        rec = self.Mail._ingest_message(norm, user=self.user)
+        raw = msg.as_bytes()
+        norm = self.imap._normalize_message(raw, folder='INBOX')
+        rec = self.Mail._ingest_message(norm, user=self.user, raw_bytes=raw)
 
         # Simulera att LLM-svaret saknade kandidat → skriv nolla
         rec.write({'object_link_candidate': False})
@@ -232,8 +248,9 @@ class TestUserMailAiIntelligence(TransactionCase):
         msg['From'] = 'a@example.com'
         msg['To'] = 'b@example.com'
         msg.set_content('x')
-        norm = self.imap._normalize_message(msg.as_bytes(), folder='INBOX')
-        rec = self.Mail._ingest_message(norm, user=self.user)
+        raw = msg.as_bytes()
+        norm = self.imap._normalize_message(raw, folder='INBOX')
+        rec = self.Mail._ingest_message(norm, user=self.user, raw_bytes=raw)
         rec.write({
             'object_model': 'project.task', 'object_res_id': 1,
             'object_link_candidate': json.dumps({
@@ -266,10 +283,19 @@ class TestUserMailAiIntelligence(TransactionCase):
     # ── mail-memory-sync: markör, reparation, städning ───────────────
 
     def test_ingest_sets_memory_marker(self):
+        """Ingest lämnar mailet som 'pending' — cronen bygger minnet.
+
+        Den synkrona minnesvägen är avvecklad (mail-okf-indexing 4.1/4.2):
+        ingest sätter `okf_dirty` och `memory_state='pending'`, och
+        `_refresh_memory` (cron) gör jobbet. Att kräva 'synced' här vore att
+        kräva en LLM-tur per mail i pollningsvägen.
+        """
         rec = self._ingest(message_id='<mem-1@example.com>')
-        # Grafen kan vara otillgänglig i test → antingen synced eller failed,
-        # men aldrig kvar på default 'pending'.
-        self.assertIn(rec.memory_state, ('synced', 'failed'))
+        self.assertEqual(
+            rec.memory_state, 'pending',
+            'Ingest ska flagga för senare bearbetning, inte synka synkront')
+        self.assertTrue(rec.okf_dirty,
+                        'Mailet ska vara flaggat för indexering')
 
     def test_ingest_creates_graph_node(self):
         """8.3: ingest → :MailMessage-nod finns + markören satt.
@@ -302,15 +328,85 @@ class TestUserMailAiIntelligence(TransactionCase):
         msg['From'] = 'Bo <bo@example.com>'
         msg['To'] = 'other@vertel.se'
         msg.set_content('Hej')
+        raw = msg.as_bytes()
         theirs = self.Mail.with_user(other)._ingest_message(
-            self.imap._normalize_message(msg.as_bytes(), folder='INBOX'),
-            user=other)
+            self.imap._normalize_message(raw, folder='INBOX'),
+            user=other, raw_bytes=raw)
         self.Mail.with_user(self.user)._refresh_memory(self.user)
         # Den andra användarens mail får inte ha rörts av min refresh.
         self.assertNotEqual(
             self.Mail.browse(theirs.id).memory_state, 'synced')
         self.assertIn(self.Mail.browse(mine.id).memory_state,
                       ('synced', 'failed'))
+
+    def test_refresh_memory_returns_stats(self):
+        """_refresh_memory ska ge en statistik-dict, inte ett bart tal.
+
+        Regression 2026-10-14: knappen visade "0 mail synkades" både när
+        allt redan var synkat och när allt misslyckats. Anroparen måste
+        kunna skilja lägena.
+
+        Testet tvingar fram ett OSYNKAT läge: `_ingest_message` sätter
+        redan `synced`, så utan återställningen finns inget för
+        `_refresh_memory` att göra och `synced` blir 0 av rätt skäl.
+        """
+        rec = self._ingest(message_id='<mem-stats@example.com>')
+        rec.write({'memory_state': 'pending'})
+        self.env['ai.okf.concept'].sudo().search([
+            ('source_ref', '=', '<mem-stats@example.com>'),
+        ]).unlink()
+        stats = self.Mail.with_user(self.user)._refresh_memory(self.user)
+        self.assertIsInstance(stats, dict)
+        for key in ('synced', 'failed', 'pending', 'total'):
+            self.assertIn(key, stats)
+        self.assertGreaterEqual(stats['total'], 1)
+        self.assertGreaterEqual(stats['synced'], 1)
+
+    def test_refresh_memory_stats_when_all_synced(self):
+        """Redan synkat ska ge synced=0 men total>0 — inte en tyst nolla."""
+        rec = self._ingest(message_id='<mem-all-synced@example.com>')
+        self.Mail.with_user(self.user)._refresh_memory(self.user)
+        rec.invalidate_recordset()
+        if rec.memory_state != 'synced':
+            self.skipTest('mail blev inte synkat i denna miljö')
+        stats = self.Mail.with_user(self.user)._refresh_memory(self.user)
+        self.assertEqual(stats['synced'], 0)
+        self.assertGreater(stats['total'], 0,
+                           'total ska visa att mail finns, även vid 0 synkade')
+
+    def test_rebuild_memory_survives_embedding_failure(self):
+        """Ett embedding-fel får inte sätta mailet till 'failed'.
+
+        Regression 2026-10-14: `create_from_mail` skapar konceptet FÖRST och
+        embeddar SEDAN. Kastar embeddingen (provider nere, extern HTTP
+        blockerad i tester) kastade hela anropet — och `_rebuild_memory`
+        satte `failed`, fast konceptet fanns och mailet är sökbart via BM25.
+        Statusen ska avgöras av vad som FINNS, inte av att anropet kastade.
+        """
+        if 'ai.okf.concept' not in self.env:
+            self.skipTest('OKF inte installerat')
+        rec = self._ingest(message_id='<mem-embed-fail@example.com>')
+        rec.write({'memory_state': 'pending'})
+        # `create_from_mail` finns inte längre — den synkrona vägen är
+        # avvecklad (mail-okf-indexing 4.1/4.2). Det som kan kasta nu är
+        # graf-noden, så det är den som simuleras trasig.
+        rec._set_okf_dirty()
+        # `_sync_graph_node` fångar sina egna fel och returnerar False — det
+        # är dess kontrakt ("ingestion ska aldrig blockeras av grafen").
+        # Testet ska därför inte kasta in ett undantag, utan simulera det
+        # falska svaret.
+        with patch.object(type(rec), '_sync_graph_node',
+                          return_value=False):
+            ok = rec._rebuild_memory()
+        rec.invalidate_recordset()
+        # `_rebuild_memory` skapar inget koncept längre — den flaggar för
+        # indexeraren (4.1/4.2). Statusen blir 'synced' eftersom mailet är
+        # flaggat (`okf_ok = _okf_concept_exists() or okf_dirty`).
+        self.assertTrue(
+            ok, 'mailet är flaggat för indexering — då är det synkat')
+        self.assertEqual(rec.memory_state, 'synced')
+        self.assertTrue(rec.okf_dirty,
+                        'Flaggan ska vara satt så indexeraren plockar upp det')
 
     def test_rebuild_memory_no_version_on_existing_concept(self):
         rec = self._ingest(message_id='<mem-3@example.com>')

@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 ##############################################################################
 #
-#    Vertel AB (<http://www.vertel.se>)
+#    Vertel Sverige AB (<http://www.vertel.se>)
 #
 #    This program is free software: you can redistribute it and/or modify
 #    it under the terms of the GNU Affero General Public License as
@@ -32,9 +32,9 @@ class ScimAdminController(http.Controller):
             return {'error': 'Access denied — admin only'}
 
         IParam = request.env['ir.config_parameter'].sudo()
-        bridge_url = IParam.get_str('scim.bridge_url', '').rstrip('/')
-        api_key = IParam.get_str('scim.admin_api_key', '')
-        verify = IParam.get_str('scim.verify_ssl', 'True') == 'True'
+        bridge_url = IParam.get_param('scim.bridge_url', '').rstrip('/')
+        api_key = IParam.get_param('scim.admin_api_key', '')
+        verify = IParam.get_param('scim.verify_ssl', 'True') == 'True'
 
         if not bridge_url or not api_key:
             return {'error': 'SCIM bridge not configured'}
@@ -57,9 +57,9 @@ class ScimAdminController(http.Controller):
             return {'error': 'Access denied — admin only'}
 
         IParam = request.env['ir.config_parameter'].sudo()
-        bridge_url = IParam.get_str('scim.bridge_url', '').rstrip('/')
-        api_key = IParam.get_str('scim.admin_api_key', '')
-        verify = IParam.get_str('scim.verify_ssl', 'True') == 'True'
+        bridge_url = IParam.get_param('scim.bridge_url', '').rstrip('/')
+        api_key = IParam.get_param('scim.admin_api_key', '')
+        verify = IParam.get_param('scim.verify_ssl', 'True') == 'True'
 
         if not bridge_url or not api_key:
             return {'error': 'SCIM bridge not configured'}

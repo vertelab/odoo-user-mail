@@ -18,10 +18,15 @@ from odoo import api, fields, models
 
 _logger = logging.getLogger(__name__)
 
+# `Message`/`Role` krävs: provider.chat() tar dataclass-objekt, inte dicts
+# (den anropade `msg.to_openai()` och föll med
+# "'dict' object has no attribute 'to_openai'").
 try:
-    from ai_agent_core.core.provider import ProviderFactory
+    from odoo.addons.ai_agent_core.core.provider import (
+        Message, ProviderFactory, Role,
+    )
 except ImportError:  # pragma: no cover
-    ProviderFactory = None
+    Message = ProviderFactory = Role = None
 
 _PROFILE_W_LLM_DEFAULT = 0.7
 
@@ -57,36 +62,47 @@ class UserMailAiIntelligence(models.Model):
         """Bygg det som saknas för detta mail (idempotent).
 
         Verifierar vad som faktiskt finns i stället för att lita blint på
-        markören (D2): OKF-koncept skapas BARA om det saknas (D4, mail är
-        immutabla — ingen versionering), grafen upsertas (idempotent) och
-        kanter körs om så sena partner-noder läks (D3).
+        markören (D2): OKF-konceptet byggs av indexeraren (dirty-flaggan),
+        grafen upsertas (idempotent) och kanter körs om så sena
+        partner-noder läks (D3).
+
+        **OKF och grafen är OBEROENDE steg (2026-10-14).** Tidigare krävdes
+        båda (`if okf_ok and graph_ok`) för `synced`. Är grafen otillgänglig
+        (AGE saknas, `graph.node.definition` ej laddad) blev mailet `failed`
+        för alltid — trots att OKF-konceptet skapades och mailet DÄRMED är
+        sökbart. Knappen rapporterade 0 utan att säga varför. OKF är det som
+        gör mailet sökbart; grafen är en sekundär berikning och får inte
+        blockera statusen.
+
+        **OKF-vägen (mail-okf-indexing D1):** reparationen skapar INTE
+        längre konceptet synkront (`create_from_mail`). Den sätter
+        `okf_dirty` och låter `cron_okf_index_dirty` arkivera via mixinen —
+        samma väg som allt annat. Om konceptet redan finns (arkiverat av
+        den gamla vägen) är nyckeln `mail:<message_id>` identisk, så
+        indexeraren hittar kedjan och skapar ingen dubblett.
+
+        Returnerar True om OKF-delen lyckades (det som ger sökbarhet).
         """
         self.ensure_one()
-        okf_ok = True
-        # ① OKF — bara om konceptet saknas (ingen ny version)
-        try:
-            if 'ai.okf.concept' in self.env and not self._okf_concept_exists():
-                eml = self.env['ir.attachment'].sudo().search([
-                    ('res_model', '=', 'user_mail_ai.mail'),
-                    ('res_id', '=', self.id),
-                    ('mimetype', '=', 'message/rfc822'),
-                ], limit=1)
-                self.env['ai.okf.concept'].create_from_mail(
-                    subject=self.subject,
-                    body=self.notes or self.subject or '',
-                    from_email=self.from_email,
-                    from_name=self.from_name,
-                    user=self.user_id,
-                    eml_data=eml.datas.decode() if eml and eml.datas else None,
-                    source_ref=self.message_id,
-                )
-        except Exception as e:
-            _logger.warning('Memory repair: OKF failed for %s: %s',
-                            self.subject, e)
-            okf_ok = False
-        # ② Graf-nod + kant
+        # ① OKF — flagga för indexeraren (ingen synkron embedding här).
+        #    `_okf_concept_exists()` avgör om konceptet redan finns; finns
+        #    det rör vi inte flaggan (ingen ny version i onödan).
+        if 'ai.okf.concept' in self.env and not self._okf_concept_exists():
+            self._set_okf_dirty()
+        # ② Graf-nod + kant — sekundärt. Misslyckas den är mailet ändå
+        #    sökbart via OKF:en, så det får inte fälla statusen.
         graph_ok = self._sync_graph_node()
-        if okf_ok and graph_ok:
+        if graph_ok is False:
+            _logger.info(
+                'Memory repair: graf-nod kunde inte skapas för %s '
+                '(grafen otillgänglig?) — OKF-status behålls',
+                self.subject)
+        # ③ Status: konceptet finns (eller är flaggat för indexering).
+        if 'ai.okf.concept' in self.env:
+            okf_ok = self._okf_concept_exists() or self.okf_dirty
+        else:
+            okf_ok = True
+        if okf_ok:
             self.write({
                 'memory_synced_at': fields.Datetime.now(),
                 'memory_state': 'synced',
@@ -100,32 +116,61 @@ class UserMailAiIntelligence(models.Model):
 
         Anropas av knappen i Min profil (env.user) och av cronen (per
         användare). Bounded batch — resten tas nästa varv (D6).
+
+        Returnerar en statistik-dict i stället för ett bart tal
+        (2026-10-14): knappen visade "0 mail synkades" både när allt redan
+        var synkat och när allt misslyckats — två helt olika lägen. Nu får
+        anroparen veta vilket.
+
+            {'synced': n, 'failed': n, 'pending': n, 'total': n}
         """
         pending = self.search([
             ('user_id', '=', user.id),
             ('memory_state', '!=', 'synced'),
         ], limit=batch_size)
-        done = 0
+        synced = 0
+        failed = 0
         for rec in pending:
             try:
                 if rec._rebuild_memory():
-                    done += 1
+                    synced += 1
+                else:
+                    failed += 1
             except Exception as e:
                 _logger.warning('Memory refresh failed for %s: %s',
                                 rec.subject, e)
                 rec.write({'memory_state': 'failed'})
-        return done
+                failed += 1
+        # Kvarvarande icke-synkade efter denna batch (bounded — D6).
+        remaining = self.search_count([
+            ('user_id', '=', user.id),
+            ('memory_state', '!=', 'synced'),
+        ])
+        return {
+            'synced': synced,
+            'failed': failed,
+            'pending': remaining,
+            'total': self.search_count([('user_id', '=', user.id)]),
+        }
 
     @api.model
     def _repair_memory_all(self, batch_size=50):
-        """Cron: reparera minnet för användare med pollning aktiverad."""
+        """Cron: reparera minnet för användare med pollning aktiverad.
+
+        Returnerar antalet synkade mail (cronen loggar talet).
+        """
         users = self.env['res.users'].search([
             ('imap_poll_enabled', '=', True)])
         total = 0
         for user in users:
             try:
-                total += self.with_user(user.id)._refresh_memory(
+                stats = self.with_user(user.id)._refresh_memory(
                     user, batch_size=batch_size)
+                total += stats.get('synced', 0)
+                if stats.get('failed'):
+                    _logger.warning(
+                        'Memory repair: %s mail misslyckades för %s',
+                        stats['failed'], user.login)
             except Exception as e:
                 _logger.error(
                     'Memory repair failed for %s: %s', user.login, e)
@@ -174,10 +219,23 @@ class UserMailAiIntelligence(models.Model):
             return set()
 
     def _matching_rules(self):
-        """Alla aktiva regler för användaren, sorterade på prioritet."""
+        """Alla aktiva KLIENT-regler för användaren, sorterade på prioritet.
+
+        Regler med enforcement='server' är medvetet uteslutna: de körs av
+        Dovecot vid leverans, redan innan mailet når pollern. Att även
+        köra dem här skulle flytta mailet en andra gång — `_move_to_folder`
+        skulle leta efter ett mail som redan ligger i mål mappen, eller
+        flytta det vidare till nästa regel.
+
+        Filtreringen ligger här och inte i _apply_rules() därför att
+        _matching_rules() också används för att visa vilka regler som
+        matchade ett mail (matched_rules). En server-regel som listas där
+        skulle se ut som att Odoo hanterade den.
+        """
         rules = self.env['user_mail_ai.rule'].search([
             ('user_id', '=', self.user_id.id),
             ('active', '=', True),
+            ('enforcement', '=', 'client'),
         ], order='priority')
         return [r for r in rules if self._rule_matches(r)]
 
@@ -197,32 +255,46 @@ class UserMailAiIntelligence(models.Model):
         nudged = False
         for rule in self._matching_rules():
             cfg = rule._parse_config()
+            # `_matching_rules()` är sorterad på prioritet, och docstringen
+            # lovar att HÖGST prioriterad matchande regel vinner. Loopen bröt
+            # tidigare bara på `handled`, så en `nudge` (som bara sätter
+            # `nudged`) föll igenom till nästa regel — och en lägre
+            # prioriterad `ignore` kunde då sätta handled=True. Regeln som
+            # faktiskt vann blev alltså den lägst prioriterade.
+            applied = False
             if rule.action == 'ignore':
                 self.write({'status': 'ignored',
                             'notes': 'Regel: %s' % rule.name})
-                handled = True
+                handled = applied = True
             elif rule.action == 'block':
                 self.write({'status': 'ignored',
                             'notes': 'Blockerad av regel: %s' % rule.name})
-                handled = True
+                handled = applied = True
             elif rule.action == 'move_to_folder':
                 folder = cfg.get('folder') or 'AI/Arkiv'
                 if self._move_to_folder(folder):
-                    handled = True
+                    handled = applied = True
             elif rule.action == 'flag':
                 self._flag_action_mail()
+                applied = True
             elif rule.action == 'nudge':
-                nudged = True
+                nudged = applied = True
             elif rule.action == 'draft_reply':
                 if self._maybe_draft_reply():
-                    handled = True
+                    handled = applied = True
             elif rule.action == 'send_to_specialist':
                 specialist = self.env['ai.coworker'].browse(
                     cfg.get('coworker_id')) if cfg.get('coworker_id') \
                     else False
                 if self._try_handoff_to(specialist):
-                    handled = True
-            if handled:
+                    handled = applied = True
+            elif rule.action == 'create_object':
+                if self._create_object(rule):
+                    handled = applied = True
+            elif rule.action == 'create_activity':
+                if self._create_activity_on_object(rule):
+                    handled = applied = True
+            if applied:
                 break
         return handled, nudged
 
@@ -406,7 +478,7 @@ class UserMailAiIntelligence(models.Model):
         try:
             resp = asyncio.run(provider.chat(
                 model.api_name or model.name,
-                [{'role': 'user', 'content': prompt}],
+                [Message(role=Role.USER, content=prompt)],
                 temperature=0.3, max_tokens=600))
         except Exception as e:
             _logger.warning('Profile LLM failed for %s: %s', user.login, e)
@@ -485,11 +557,7 @@ class UserMailAiIntelligence(models.Model):
 
     @api.model
     def _profile_weight_llm(self):
-        # #if VERSION >= "20.0"
-        param = self.env['ir.config_parameter'].sudo().get_str(
-        # #else
         param = self.env['ir.config_parameter'].sudo().get_param(
-        # #endif
             'user_mail_ai.profile_weight_llm', str(_PROFILE_W_LLM_DEFAULT))
         try:
             return float(param)
@@ -561,7 +629,7 @@ class UserMailAiIntelligence(models.Model):
         try:
             resp = asyncio.run(provider.chat(
                 model.api_name or model.name,
-                [{'role': 'user', 'content': prompt}],
+                [Message(role=Role.USER, content=prompt)],
                 temperature=0.4, max_tokens=800))
         except Exception as e:
             _logger.warning('Digest LLM failed for %s: %s', user.login, e)
@@ -723,20 +791,24 @@ class UserMailAiIntelligence(models.Model):
         Idempotent: en användare får varje seed-regel en gång.
         """
         root = self.env.ref('base.user_root')
-        templates = self.env['user_mail_ai.rule'].search([
-            ('source', '=', 'seed'),
-            ('user_id', '=', root.id),
-        ])
+        # active_test=False: templates 4–7 are inactive in probe mode and
+        # would otherwise be filtered out by the ORM's active filter.
+        templates = self.env['user_mail_ai.rule'].with_context(
+            active_test=False).search([
+                ('source', '=', 'seed'),
+                ('user_id', '=', root.id),
+            ])
         if not templates:
             return 0
         users = self.env['res.users'].search([
             ('imap_poll_enabled', '=', True)])
         created = 0
         for user in users:
-            existing = set(self.env['user_mail_ai.rule'].search([
-                ('user_id', '=', user.id),
-                ('source', '=', 'seed'),
-            ]).mapped('name'))
+            existing = set(self.env['user_mail_ai.rule'].with_context(
+                active_test=False).search([
+                    ('user_id', '=', user.id),
+                    ('source', '=', 'seed'),
+                ]).mapped('name'))
             for t in templates:
                 if t.name in existing:
                     continue
@@ -748,6 +820,7 @@ class UserMailAiIntelligence(models.Model):
                     'condition_text': t.condition_text,
                     'action': t.action,
                     'action_config': t.action_config,
+                    'active': t.active,
                     'source': 'seed',
                 })
                 created += 1

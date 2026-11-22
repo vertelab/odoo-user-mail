@@ -1,15 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
     <!-- Regler är personliga: användaren ser/redigerar sina egna -->
-    <!-- #if VERSION >= "20.0" -->
-    <record id="user_mail_ai_rule_owner_rule" model="ir.access">
-        <field name="name">user_mail_ai.rule: ägare ser egna</field>
-        <field name="model_id" ref="model_user_mail_ai_rule"/>
-        <field name="domain">[('user_id', '=', user.id)]</field>
-        <field name="group_id" ref="base.group_user"/>
-        <field name="operation">crud</field>
-    </record>
-    <!-- #else -->
     <record id="user_mail_ai_rule_owner_rule" model="ir.rule">
         <field name="name">user_mail_ai.rule: ägare ser egna</field>
         <field name="model_id" ref="model_user_mail_ai_rule"/>
@@ -20,5 +11,4 @@
         <field name="perm_create" eval="True"/>
         <field name="perm_unlink" eval="True"/>
     </record>
-    <!-- #endif -->
 </odoo>
