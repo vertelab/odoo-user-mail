@@ -1,5 +1,5 @@
 id,name,model_id,group_id/id,operation,domain
-access_imap_server,access.imap.server,user.mail.imap,base.group_user,read,
-access_processed,access.user.mail.processed,user.mail.processed,base.group_user,"read,write,create,unlink",
-access_poll,access.user.mail.poll,user.mail.poll,base.group_user,read,
-access_imap_password_wizard,access.user.mail.imap.password.wizard,user.mail.imap.password.wizard,user_mail_common.group_own_email_settings,"read,write,create,unlink",
+access_imap_server,access.imap.server,user_mail_imap,base.group_user,r,
+access_processed,access.user.mail.processed,user_mail_processed,base.group_user,crud,
+access_poll,access.user.mail.poll,user_mail_poll,base.group_user,r,
+access_imap_password_wizard,access.user.mail.imap.password.wizard,user_mail_imap_password_wizard,user_mail_common.group_own_email_settings,crud,
