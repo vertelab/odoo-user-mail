@@ -135,7 +135,12 @@
                         domain="[('draft_uid', '!=', False)]"/>
                 <filter name="handoff" string="Delegerade"
                         domain="[('handoff_state', '!=', 'none')]"/>
+<!-- #if VERSION >= "19.0" -->
+                <!-- Odoo 19 tog bort expand och string från <group> i sökvyer. -->
+                <group>
+<!-- #else -->
                 <group expand="0" string="Gruppera">
+<!-- #endif -->
                     <filter name="g_status" string="Status"
                             domain="[]" context="{'group_by': 'status'}"/>
                     <filter name="g_category" string="Kategori"
