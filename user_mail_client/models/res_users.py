@@ -86,9 +86,9 @@ class ResUsers(models.Model):
     _inherit = 'res.users'
 
     def _get_param(self, param, value):
-        if not self.env['ir.config_parameter'].get_param(param):
-            self.env['ir.config_parameter'].set_param(param, value)
-        return self.env['ir.config_parameter'].get_param(param)
+        if not self.env['ir.config_parameter'].get_str(param):
+            self.env['ir.config_parameter'].set_str(param, value)
+        return self.env['ir.config_parameter'].get_str(param)
 
     def generate_password(self):
         length = int(self._get_param('pw_length', 13))
@@ -253,9 +253,9 @@ class ResCompany(models.Model):
     _inherit = 'res.company'
 
     def _get_param(self, param, value):
-        if not self.env['ir.config_parameter'].get_param(param):
-            self.env['ir.config_parameter'].set_param(param, value)
-        return self.env['ir.config_parameter'].get_param(param)
+        if not self.env['ir.config_parameter'].get_str(param):
+            self.env['ir.config_parameter'].set_str(param, value)
+        return self.env['ir.config_parameter'].get_str(param)
 
     def generateUUID(self):
         return str(uuid.uuid4())
@@ -280,7 +280,7 @@ class ResCompany(models.Model):
             self.company_sync_settings()
             # Create mail servers when its a main company
             if self.id == self.env.ref('base.main_company').id:
-                self.env['ir.config_parameter'].set_param(
+                self.env['ir.config_parameter'].set_str(
                     'mail.catchall.domain', domain)
                 password = self._createcatchall()
                 if password:
@@ -312,7 +312,7 @@ class ResCompany(models.Model):
             company.company_sync_settings()
             domain = company.domain
             if domain and self.id == self.env.ref('base.main_company').id:
-                self.env['ir.config_parameter'].set_param(
+                self.env['ir.config_parameter'].set_str(
                     'mail.catchall.domain', domain)
                 password = company._createcatchall()[0]
                 self._smtpserver(password)
