@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- Reparation av mail-minnet: hittar mail vars OKF/graf inte byggdes
+         (memory_state != 'synced') och kompletterar dem. Frekvent och
+         ofarlig — idempotent. Städningen (spöknoder) är separat och
+         sällsynt (se cron_prune_graph). -->
+    <record id="ir_actions_server_memory_repair" model="ir.actions.server">
+        <field name="name">Mail-AI: Reparera mail-minne</field>
+        <field name="model_id" ref="model_user_mail_ai_mail"/>
+        <field name="state">code</field>
+        <field name="code">
+model._repair_memory_all(batch_size=50)
+        </field>
+    </record>
+    <record id="cron_memory_repair" model="ir.cron">
+        <field name="name">Mail-AI: Reparera mail-minne</field>
+        <field name="cron_name">Mail-AI: Reparera mail-minne</field>
+        <field name="ir_actions_server_id" ref="ir_actions_server_memory_repair"/>
+        <field name="interval_number">15</field>
+        <field name="interval_type">minutes</field>
+        <field name="active">True</field>
+    </record>
+
+    <!-- Städning av spöknoder: :MailMessage-noder vars Odoo-rad inte
+         längre finns. Destruktivt → dygnsvis, skilt från reparationen. -->
+    <record id="ir_actions_server_memory_prune" model="ir.actions.server">
+        <field name="name">Mail-AI: Städa graf-spöknoder</field>
+        <field name="model_id" ref="model_user_mail_ai_mail"/>
+        <field name="state">code</field>
+        <field name="code">
+model._prune_graph_nodes()
+        </field>
+    </record>
+    <record id="cron_memory_prune" model="ir.cron">
+        <field name="name">Mail-AI: Städa graf-spöknoder</field>
+        <field name="cron_name">Mail-AI: Städa graf-spöknoder</field>
+        <field name="ir_actions_server_id" ref="ir_actions_server_memory_prune"/>
+        <field name="interval_number">1</field>
+        <field name="interval_type">days</field>
+        <field name="active">True</field>
+    </record>
+</odoo>

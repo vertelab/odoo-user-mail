@@ -1,0 +1,190 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <data noupdate="0">
+
+    <!-- ═══════════════════════════════════════════════════════════════════
+         SEKTION 4: AI-assistenten i inkorgen
+         ═══════════════════════════════════════════════════════════════════ -->
+
+    <record id="slide_category_mail_s4" model="slide.slide">
+        <field name="name">4. AI-assistenten i inkorgen</field>
+        <field name="is_category" eval="True"/>
+        <field name="channel_id" ref="user_mail_onboarding.slide_channel_user_mail"/>
+        <field name="sequence">300</field>
+    </record>
+
+    <record id="slide_mail_s4_01" model="slide.slide">
+        <field name="name">Vad assistenten gör — och inte gör</field>
+        <field name="sequence">310</field>
+        <field name="slide_category">article</field>
+        <field name="channel_id" ref="user_mail_onboarding.slide_channel_user_mail"/>
+        <field name="is_published" eval="True"/>
+        <field name="is_preview" eval="True"/>
+        <field name="completion_time">0.30</field>
+        <field name="html_content" type="html">
+<section class="s_cover o_cc o_cc3 pt160 pb160">
+    <div class="container">
+        <h1 class="display-3-fs" style="text-align: center;">Vad assistenten gör — och inte gör</h1>
+        <p class="lead" style="text-align: center;">Ett verktyg, inte en ersättare. Du bestämmer.</p>
+    </div>
+</section>
+
+<section class="s_text_block pt64 pb40">
+    <div class="container s_allow_columns">
+        <h2>Grundprincipen</h2>
+        <p>AI-assistenten läser din e-post och <strong>föreslår</strong> — den agerar inte på egen hand. Ingenting skickas, raderas eller flyttas utan att du godkänt det.</p>
+        <p>Det är samma princip som gäller överallt i Vertels AI-stöd: <strong>människan har sista ordet.</strong></p>
+    </div>
+</section>
+
+<section class="s_features pt32 pb64">
+    <div class="container">
+        <div class="row">
+            <div class="col-lg-6">
+                <h3 class="h4-fs">✅ Det assistenten hjälper med</h3>
+                <ul>
+                    <li><strong>Triagera</strong> — sortera inkorgen efter vad som kräver handling</li>
+                    <li><strong>Sammanfatta</strong> — korta ner långa mejltrådar till huvudsaken</li>
+                    <li><strong>Föreslå svar</strong> — utkast som du redigerar innan du skickar</li>
+                    <li><strong>Hitta</strong> — söka upp vad som sagts i en konversation</li>
+                    <li><strong>Extrahera</strong> — plocka ut datum, namn och åtaganden</li>
+                </ul>
+            </div>
+            <div class="col-lg-6">
+                <h3 class="h4-fs">❌ Det assistenten inte gör</h3>
+                <ul>
+                    <li><strong>Skickar inte</strong> mejl utan ditt godkännande</li>
+                    <li><strong>Raderar inte</strong> något</li>
+                    <li><strong>Bestämmer inte</strong> vad som ska prioriteras</li>
+                    <li><strong>Lovar inte</strong> något åt dig</li>
+                    <li><strong>Ersätter inte</strong> ditt omdöme</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+</section>
+
+<section class="s_text_block pt40 pb64">
+    <div class="container s_allow_columns">
+        <h2>Arbetsflödet</h2>
+        <ol>
+            <li>Assistenten går igenom inkorgen och grupperar mejlen.</li>
+            <li>Du får en lista med förslag: ”dessa kräver svar”, ”dessa är information”, ”dessa kan vänta”.</li>
+            <li>Du går igenom listan och godkänner, ändrar eller avvisar.</li>
+            <li>Förslag på svar visas som <strong>utkast</strong> — du läser, justerar och skickar själv.</li>
+        </ol>
+        <p class="small text-muted">Assistenten lär sig av dina val över tid, men den fattar aldrig beslut åt dig.</p>
+    </div>
+</section>
+
+<section class="s_call_to_action o_cc o_cc5 pt48 pb48">
+    <div class="container">
+        <div class="row">
+            <div class="col-lg-9">
+                <h3>Granska alltid innan du skickar</h3>
+                <p class="lead">Ett AI-genererat svar kan vara nästan rätt och ändå fel i en detalj som spelar roll. Läs igenom, särskilt siffror, datum och namn.</p>
+            </div>
+        </div>
+    </div>
+</section>
+        </field>
+        <field name="description">Vad AI-assistenten i inkorgen hjälper till med och var gränsen går. Grundprincipen: assistenten föreslår, du bestämmer.</field>
+    </record>
+
+    <record id="slide_mail_s4_02" model="slide.slide">
+        <field name="name">🧪 Testa dina kunskaper — Assistenten</field>
+        <field name="sequence">320</field>
+        <field name="slide_category">quiz</field>
+        <field name="channel_id" ref="user_mail_onboarding.slide_channel_user_mail"/>
+        <field name="is_published" eval="True"/>
+        <field name="completion_time">0.25</field>
+        <field name="quiz_first_attempt_reward">100</field>
+        <field name="quiz_second_attempt_reward">75</field>
+        <field name="quiz_third_attempt_reward">50</field>
+        <field name="quiz_fourth_attempt_reward">25</field>
+        <field name="description">Testa dina kunskaper om AI-assistenten och var gränsen går för vad den får göra.</field>
+    </record>
+
+    <record id="slide_mail_s4_02_q1" model="slide.question">
+        <field name="question">Vad gör assistenten när den föreslagit ett svar?</field>
+        <field name="sequence">1</field>
+        <field name="slide_id" ref="slide_mail_s4_02"/>
+    </record>
+    <record id="slide_mail_s4_02_q1_a1" model="slide.answer">
+        <field name="text_value">Skickar det direkt</field>
+        <field name="sequence">1</field>
+        <field name="is_correct" eval="False"/>
+        <field name="comment">Nej — ingenting skickas utan ditt godkännande.</field>
+        <field name="question_id" ref="slide_mail_s4_02_q1"/>
+    </record>
+    <record id="slide_mail_s4_02_q1_a2" model="slide.answer">
+        <field name="text_value">Lägger det som utkast som du granskar</field>
+        <field name="sequence">2</field>
+        <field name="is_correct" eval="True"/>
+        <field name="comment">Rätt! Du läser, justerar och skickar själv.</field>
+        <field name="question_id" ref="slide_mail_s4_02_q1"/>
+    </record>
+    <record id="slide_mail_s4_02_q1_a3" model="slide.answer">
+        <field name="text_value">Frågar en kollega om lov</field>
+        <field name="sequence">3</field>
+        <field name="is_correct" eval="False"/>
+        <field name="comment">Nej — det är du som godkänner.</field>
+        <field name="question_id" ref="slide_mail_s4_02_q1"/>
+    </record>
+
+    <record id="slide_mail_s4_02_q2" model="slide.question">
+        <field name="question">Vilket av följande gör assistenten INTE?</field>
+        <field name="sequence">2</field>
+        <field name="slide_id" ref="slide_mail_s4_02"/>
+    </record>
+    <record id="slide_mail_s4_02_q2_a1" model="slide.answer">
+        <field name="text_value">Sammanfattar en lång mejltråd</field>
+        <field name="sequence">1</field>
+        <field name="is_correct" eval="False"/>
+        <field name="comment">Jo — det gör den.</field>
+        <field name="question_id" ref="slide_mail_s4_02_q2"/>
+    </record>
+    <record id="slide_mail_s4_02_q2_a2" model="slide.answer">
+        <field name="text_value">Raderar mejl på egen hand</field>
+        <field name="sequence">2</field>
+        <field name="is_correct" eval="True"/>
+        <field name="comment">Rätt! Assistenten raderar aldrig något utan att du bestämt det.</field>
+        <field name="question_id" ref="slide_mail_s4_02_q2"/>
+    </record>
+    <record id="slide_mail_s4_02_q2_a3" model="slide.answer">
+        <field name="text_value">Föreslår vilka mejl som kräver svar</field>
+        <field name="sequence">3</field>
+        <field name="is_correct" eval="False"/>
+        <field name="comment">Jo — det är en av kärnfunktionerna.</field>
+        <field name="question_id" ref="slide_mail_s4_02_q2"/>
+    </record>
+
+    <record id="slide_mail_s4_02_q3" model="slide.question">
+        <field name="question">Varför ska du alltid läsa igenom ett AI-förslag innan du skickar?</field>
+        <field name="sequence">3</field>
+        <field name="slide_id" ref="slide_mail_s4_02"/>
+    </record>
+    <record id="slide_mail_s4_02_q3_a1" model="slide.answer">
+        <field name="text_value">Det kan vara nästan rätt men fel i en detalj</field>
+        <field name="sequence">1</field>
+        <field name="is_correct" eval="True"/>
+        <field name="comment">Rätt! Siffror, datum och namn är särskilt viktiga att kontrollera.</field>
+        <field name="question_id" ref="slide_mail_s4_02_q3"/>
+    </record>
+    <record id="slide_mail_s4_02_q3_a2" model="slide.answer">
+        <field name="text_value">Det krävs av systemet</field>
+        <field name="sequence">2</field>
+        <field name="is_correct" eval="False"/>
+        <field name="comment">Nej — det är ett omdöme, inte ett tekniskt krav.</field>
+        <field name="question_id" ref="slide_mail_s4_02_q3"/>
+    </record>
+    <record id="slide_mail_s4_02_q3_a3" model="slide.answer">
+        <field name="text_value">Assistenten skriver på ett annat språk</field>
+        <field name="sequence">3</field>
+        <field name="is_correct" eval="False"/>
+        <field name="comment">Nej — den skriver på svenska. Det är innehållet som kan vara fel.</field>
+        <field name="question_id" ref="slide_mail_s4_02_q3"/>
+    </record>
+
+    </data>
+</odoo>

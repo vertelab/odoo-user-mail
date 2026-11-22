@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- SCIM Settings fields TA BORT från General Settings UI.
+         Konfiguration sker via Salt pillar → odoo.conf, inte via användar-GUI. -->
+
+    <record id="action_scim_sync_all" model="ir.actions.server">
+        <field name="name">Sync all users to SCIM</field>
+        <field name="model_id" ref="base.model_res_users"/>
+        <field name="binding_model_id" ref="base.model_res_users"/>
+        <field name="state">code</field>
+        <field name="code">
+            records._scim_push()
+        </field>
+    </record>
+</odoo>

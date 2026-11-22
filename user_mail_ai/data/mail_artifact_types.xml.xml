@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!--
+        Artefakttyp för user_mail_ai (mail-okf-indexing).
+
+        Kärnans okf_default_artifact_types.xml får inga nya rader — kärnan
+        ska förbli domän-ren. Bryggan registrerar sin egen typ, med
+        bridge_module satt så taxonomin går att spåra tillbaka hit.
+
+        `_okf_upsert()` kastar ValidationError på en okänd artefakttyp, så
+        typen MÅSTE finnas innan indexeraren kör. Den gamla vägen
+        (`create_from_mail`) skapade den lazily — det gjorde den till en
+        dold sidoeffekt; nu är den ett deklarerat data-record.
+
+        stale_policy 'source': mailets text är immutabel (RFC 5322), men
+        triage-kategorin kan ändras → konceptet blir inaktuellt när källan
+        ändras, inte efter en fast TTL.
+
+        retention_purpose 'crm_lead', 180 dagar: mail kan bära
+        personuppgifter om en kontaktperson. Samma policy som kärnans
+        artifact_type_email redan använder för crm_lead.
+    -->
+    <record id="artifact_type_mail" model="ai.artifact.type">
+        <field name="name">mail</field>
+        <field name="kind">knowledge</field>
+        <field name="bridge_module">user_mail_ai</field>
+        <field name="model_id" ref="model_user_mail_ai_mail"/>
+        <field name="okf_contract" eval="{'generated_by': 'process', 'stale_policy': 'source', 'stale_ttl_days': 0, 'retention_purpose': 'crm_lead', 'retention_days': 180}"/>
+    </record>
+</odoo>

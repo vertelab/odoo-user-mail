@@ -1,0 +1,827 @@
+# -*- coding: utf-8 -*-
+"""Skiva 3 — intelligens: regler, intresseprofil, digest, heartbeat.
+
+- Regel-utvärdering (deterministisk pre-filter + LLM-regler i prompten).
+- Intresseprofil (hybrid: prompt-text + embedding-likhet, vecko-cron).
+- Digest (daglig brief + veckovis djup, per-användare).
+- Heartbeat-uppföljning (stale action mail, osedda utkast, förfallna
+  follow-ups, Reply Zero).
+"""
+
+import asyncio
+import json
+import logging
+import math
+from datetime import date, timedelta
+
+from odoo import api, fields, models
+
+_logger = logging.getLogger(__name__)
+
+# `Message`/`Role` krävs: provider.chat() tar dataclass-objekt, inte dicts
+# (den anropade `msg.to_openai()` och föll med
+# "'dict' object has no attribute 'to_openai'").
+try:
+    from odoo.addons.ai_agent_core.core.provider import (
+        Message, ProviderFactory, Role,
+    )
+except ImportError:  # pragma: no cover
+    Message = ProviderFactory = Role = None
+
+_PROFILE_W_LLM_DEFAULT = 0.7
+
+
+class UserMailAiIntelligence(models.Model):
+    _inherit = 'user_mail_ai.mail'
+
+    # ══════════════════════════════════════════════════════════════
+    # Minnessynk (mail-memory-sync): reparation + städning
+    # ══════════════════════════════════════════════════════════════
+
+    def _okf_concept_exists(self):
+        """Finns ett OKF-koncept för detta mail (source_ref = message-id)?"""
+        self.ensure_one()
+        if 'ai.okf.concept' not in self.env:
+            return False
+        return bool(self.env['ai.okf.concept'].sudo().search([
+            ('source_ref', '=', self.message_id),
+        ], limit=1))
+
+    def _graph_node_exists(self):
+        """Finns :MailMessage-noden i AGE-grafen?"""
+        self.ensure_one()
+        try:
+            res = self.env['graph.executor'].cypher(
+                "MATCH (n:MailMessage {id: %d}) RETURN n.id" % self.id,
+                read_only=True)
+            return bool(res)
+        except Exception:
+            return None  # grafen otillgänglig — vet inte
+
+    def _rebuild_memory(self):
+        """Bygg det som saknas för detta mail (idempotent).
+
+        Verifierar vad som faktiskt finns i stället för att lita blint på
+        markören (D2): OKF-konceptet byggs av indexeraren (dirty-flaggan),
+        grafen upsertas (idempotent) och kanter körs om så sena
+        partner-noder läks (D3).
+
+        **OKF och grafen är OBEROENDE steg (2026-10-14).** Tidigare krävdes
+        båda (`if okf_ok and graph_ok`) för `synced`. Är grafen otillgänglig
+        (AGE saknas, `graph.node.definition` ej laddad) blev mailet `failed`
+        för alltid — trots att OKF-konceptet skapades och mailet DÄRMED är
+        sökbart. Knappen rapporterade 0 utan att säga varför. OKF är det som
+        gör mailet sökbart; grafen är en sekundär berikning och får inte
+        blockera statusen.
+
+        **OKF-vägen (mail-okf-indexing D1):** reparationen skapar INTE
+        längre konceptet synkront (`create_from_mail`). Den sätter
+        `okf_dirty` och låter `cron_okf_index_dirty` arkivera via mixinen —
+        samma väg som allt annat. Om konceptet redan finns (arkiverat av
+        den gamla vägen) är nyckeln `mail:<message_id>` identisk, så
+        indexeraren hittar kedjan och skapar ingen dubblett.
+
+        Returnerar True om OKF-delen lyckades (det som ger sökbarhet).
+        """
+        self.ensure_one()
+        # ① OKF — flagga för indexeraren (ingen synkron embedding här).
+        #    `_okf_concept_exists()` avgör om konceptet redan finns; finns
+        #    det rör vi inte flaggan (ingen ny version i onödan).
+        if 'ai.okf.concept' in self.env and not self._okf_concept_exists():
+            self._set_okf_dirty()
+        # ② Graf-nod + kant — sekundärt. Misslyckas den är mailet ändå
+        #    sökbart via OKF:en, så det får inte fälla statusen.
+        graph_ok = self._sync_graph_node()
+        if graph_ok is False:
+            _logger.info(
+                'Memory repair: graf-nod kunde inte skapas för %s '
+                '(grafen otillgänglig?) — OKF-status behålls',
+                self.subject)
+        # ③ Status: konceptet finns (eller är flaggat för indexering).
+        if 'ai.okf.concept' in self.env:
+            okf_ok = self._okf_concept_exists() or self.okf_dirty
+        else:
+            okf_ok = True
+        if okf_ok:
+            self.write({
+                'memory_synced_at': fields.Datetime.now(),
+                'memory_state': 'synced',
+            })
+            return True
+        self.write({'memory_state': 'failed'})
+        return False
+
+    def _refresh_memory(self, user, batch_size=50):
+        """Kärna: bygg minnet för en användares icke-synkade mail.
+
+        Anropas av knappen i Min profil (env.user) och av cronen (per
+        användare). Bounded batch — resten tas nästa varv (D6).
+
+        Returnerar en statistik-dict i stället för ett bart tal
+        (2026-10-14): knappen visade "0 mail synkades" både när allt redan
+        var synkat och när allt misslyckats — två helt olika lägen. Nu får
+        anroparen veta vilket.
+
+            {'synced': n, 'failed': n, 'pending': n, 'total': n}
+        """
+        pending = self.search([
+            ('user_id', '=', user.id),
+            ('memory_state', '!=', 'synced'),
+        ], limit=batch_size)
+        synced = 0
+        failed = 0
+        for rec in pending:
+            try:
+                if rec._rebuild_memory():
+                    synced += 1
+                else:
+                    failed += 1
+            except Exception as e:
+                _logger.warning('Memory refresh failed for %s: %s',
+                                rec.subject, e)
+                rec.write({'memory_state': 'failed'})
+                failed += 1
+        # Kvarvarande icke-synkade efter denna batch (bounded — D6).
+        remaining = self.search_count([
+            ('user_id', '=', user.id),
+            ('memory_state', '!=', 'synced'),
+        ])
+        return {
+            'synced': synced,
+            'failed': failed,
+            'pending': remaining,
+            'total': self.search_count([('user_id', '=', user.id)]),
+        }
+
+    @api.model
+    def _repair_memory_all(self, batch_size=50):
+        """Cron: reparera minnet för användare med pollning aktiverad.
+
+        Returnerar antalet synkade mail (cronen loggar talet).
+        """
+        users = self.env['res.users'].search([
+            ('imap_poll_enabled', '=', True)])
+        total = 0
+        for user in users:
+            try:
+                stats = self.with_user(user.id)._refresh_memory(
+                    user, batch_size=batch_size)
+                total += stats.get('synced', 0)
+                if stats.get('failed'):
+                    _logger.warning(
+                        'Memory repair: %s mail misslyckades för %s',
+                        stats['failed'], user.login)
+            except Exception as e:
+                _logger.error(
+                    'Memory repair failed for %s: %s', user.login, e)
+        return total
+
+    @api.model
+    def _prune_graph_nodes(self):
+        """Städning: ta bort :MailMessage-noder utan Odoo-rad (F5).
+
+        Frågar GRAFEN efter id:n (inte Odoo) så kostnaden är proportionell
+        mot antalet spöken. Destruktivt — körs sällan, separat från
+        reparationen.
+        """
+        try:
+            rows = self.env['graph.executor'].cypher(
+                "MATCH (n:MailMessage) RETURN n.id", read_only=True)
+        except Exception as e:
+            _logger.warning('Ghost prune: kunde inte läsa grafen: %s', e)
+            return 0
+        graph_ids = [r for r in rows if isinstance(r, int)]
+        if not graph_ids:
+            return 0
+        odoo_ids = set(self.sudo().search(
+            [('id', 'in', graph_ids)]).ids)
+        ghosts = [i for i in graph_ids if i not in odoo_ids]
+        removed = 0
+        for gid in ghosts:
+            try:
+                self.env['graph.executor'].cypher_write(
+                    "MATCH (n:MailMessage {id: %d}) DETACH DELETE n" % gid)
+                removed += 1
+            except Exception as e:
+                _logger.warning('Ghost prune failed for id %s: %s', gid, e)
+        if removed:
+            _logger.info('Ghost prune: tog bort %d spöknod(er)', removed)
+        return removed
+
+    # ══════════════════════════════════════════════════════════════
+    # Regler
+    # ══════════════════════════════════════════════════════════════
+
+    def _llm_matched_rules(self):
+        try:
+            return set(json.loads(self.matched_rules or '[]'))
+        except Exception:
+            return set()
+
+    def _matching_rules(self):
+        """Alla aktiva KLIENT-regler för användaren, sorterade på prioritet.
+
+        Regler med enforcement='server' är medvetet uteslutna: de körs av
+        Dovecot vid leverans, redan innan mailet når pollern. Att även
+        köra dem här skulle flytta mailet en andra gång — `_move_to_folder`
+        skulle leta efter ett mail som redan ligger i mål mappen, eller
+        flytta det vidare till nästa regel.
+
+        Filtreringen ligger här och inte i _apply_rules() därför att
+        _matching_rules() också används för att visa vilka regler som
+        matchade ett mail (matched_rules). En server-regel som listas där
+        skulle se ut som att Odoo hanterade den.
+        """
+        rules = self.env['user_mail_ai.rule'].search([
+            ('user_id', '=', self.user_id.id),
+            ('active', '=', True),
+            ('enforcement', '=', 'client'),
+        ], order='priority')
+        return [r for r in rules if self._rule_matches(r)]
+
+    def _rule_matches(self, rule):
+        if rule.condition_kind == 'llm':
+            return rule.name in self._llm_matched_rules()
+        return rule._matches(self)
+
+    def _apply_rules(self):
+        """Tillämpa regler — högst prioriterad matchande regel vinner.
+
+        Returns (handled, nudged): handled=True short-circuiter
+        default-pipelinen.
+        """
+        self.ensure_one()
+        handled = False
+        nudged = False
+        for rule in self._matching_rules():
+            cfg = rule._parse_config()
+            # `_matching_rules()` är sorterad på prioritet, och docstringen
+            # lovar att HÖGST prioriterad matchande regel vinner. Loopen bröt
+            # tidigare bara på `handled`, så en `nudge` (som bara sätter
+            # `nudged`) föll igenom till nästa regel — och en lägre
+            # prioriterad `ignore` kunde då sätta handled=True. Regeln som
+            # faktiskt vann blev alltså den lägst prioriterade.
+            applied = False
+            if rule.action == 'ignore':
+                self.write({'status': 'ignored',
+                            'notes': 'Regel: %s' % rule.name})
+                handled = applied = True
+            elif rule.action == 'block':
+                self.write({'status': 'ignored',
+                            'notes': 'Blockerad av regel: %s' % rule.name})
+                handled = applied = True
+            elif rule.action == 'move_to_folder':
+                folder = cfg.get('folder') or 'AI/Arkiv'
+                if self._move_to_folder(folder):
+                    handled = applied = True
+            elif rule.action == 'flag':
+                self._flag_action_mail()
+                applied = True
+            elif rule.action == 'nudge':
+                nudged = applied = True
+            elif rule.action == 'draft_reply':
+                if self._maybe_draft_reply():
+                    handled = applied = True
+            elif rule.action == 'send_to_specialist':
+                specialist = self.env['ai.coworker'].browse(
+                    cfg.get('coworker_id')) if cfg.get('coworker_id') \
+                    else False
+                if self._try_handoff_to(specialist):
+                    handled = applied = True
+            elif rule.action == 'create_object':
+                if self._create_object(rule):
+                    handled = applied = True
+            elif rule.action == 'create_activity':
+                if self._create_activity_on_object(rule):
+                    handled = applied = True
+            if applied:
+                break
+        return handled, nudged
+
+    def _after_classify(self):
+        """Hook från base-pipelinen: applicera användarens regler."""
+        return self._apply_rules()
+
+    def _move_to_folder(self, folder):
+        """Generisk mapp-flytt (AI/Newsletters, AI/Arkiv …)."""
+        self.ensure_one()
+        if not self.source_uid:
+            return False
+        imap = self.env['user.mail.imap'].with_user(self.user_id)
+        try:
+            imap.action_ensure_folder(folder)
+            imap.action_move(self.source_folder or 'INBOX',
+                             [self.source_uid], folder)
+        except Exception as e:
+            _logger.warning('Move to %s failed for %s: %s',
+                            folder, self.subject, e)
+            return False
+        self.write({'folder': folder, 'status': 'processed',
+                    'notes': 'Flyttad till %s (regel).' % folder})
+        return True
+
+    def _try_handoff_to(self, specialist):
+        """Handoff till angiven specialist (eller kategori-routing)."""
+        self.ensure_one()
+        if not specialist:
+            return False
+        if specialist.status != 'active':
+            return False
+        try:
+            prompt = (
+                'Behandla detta mail: kategori=%s, från=%s, ämne=%s.\n\n%s'
+                % (self.category or '?', self.from_email or '?',
+                   self.subject or '', self._get_body_text(4000)))
+            specialist.with_user(self.user_id).run(prompt=prompt)
+            self.write({'handoff_coworker_id': specialist.id,
+                        'handoff_state': 'handed_off'})
+            return True
+        except Exception as e:
+            _logger.error('Handoff failed for %s: %s', self.subject, e)
+            self.write({'handoff_state': 'failed',
+                        'notes': 'Handoff misslyckades: %s' % e})
+            return False
+
+    # ══════════════════════════════════════════════════════════════
+    # Klassificeringskontext: LLM-regler + intresseprofil
+    # ══════════════════════════════════════════════════════════════
+
+    def _build_classification_prompt(self):
+        prompt = super()._build_classification_prompt()
+        user = self.user_id
+        llm_rules = self.env['user_mail_ai.rule'].search([
+            ('user_id', '=', user.id),
+            ('active', '=', True),
+            ('condition_kind', '=', 'llm'),
+        ])
+        if llm_rules:
+            rules_txt = '\n'.join('- %s' % r.name for r in llm_rules)
+            prompt += (
+                '\n\nAnvändarens LLM-regler (utvärdera om mailet matchar):'
+                '\n%s\n'
+                'Inkludera matchade regelnamn i "matched_rules".'
+                % rules_txt)
+        if user.ai_profile_text:
+            prompt += (
+                '\n\nAnvändarens intresseprofil (vad hen bryr sig om):'
+                '\n%s' % user.ai_profile_text[:2000])
+        # Utöka JSON-schemat med matched_rules
+        prompt = prompt.replace(
+            '  "reply_suggested": true|false\n}',
+            '  "reply_suggested": true|false,\n'
+            '  "matched_rules": ["regelnamn", ...]\n}')
+        return prompt
+
+    def _classify(self):
+        res = super()._classify()
+        for rec in self:
+            if res and rec.status == 'classified':
+                rec._finalize_interest()
+        return res
+
+    # ══════════════════════════════════════════════════════════════
+    # Intresseprofil (hybrid: prompt + embedding-likhet)
+    # ══════════════════════════════════════════════════════════════
+
+    def _provider_and_model(self):
+        provider = model = None
+        if ProviderFactory is not None:
+            try:
+                provider, model = ProviderFactory.from_coworker(
+                    self._assistant())
+            except Exception:
+                provider = model = None
+        return provider, model
+
+    @api.model
+    def _recompute_profiles(self, force=False):
+        """Cron: generera om intresseprofilen per användare.
+
+        Kör varje dag; profilen räknas om för de användare vars
+        ai_profile_weekday matchar dagens veckodag (default fredag, samma
+        mönster som _run_weekly_digests). force=True (t.ex. vid manuellt
+        anrop) räknar om alla oavsett veckodag.
+        """
+        today = date.today().weekday()
+        users = self.env['res.users'].search([
+            ('imap_poll_enabled', '=', True)])
+        done = 0
+        for user in users:
+            try:
+                if not force and int(user.ai_profile_weekday or 4) != today:
+                    continue
+                if self._generate_profile(user):
+                    done += 1
+            except Exception as e:
+                _logger.error('Profile generation failed for %s: %s',
+                              user.login, e)
+        return done
+
+    def _gather_profile_context(self, user):
+        """OKF-personligt + company-memory + interaktionshistorik + graf-volym."""
+        parts = []
+        # 1. OKF personligt scope — senaste koncept
+        if 'ai.okf.concept' in self.env:
+            try:
+                concepts = self.env['ai.okf.concept'].search([
+                    ('scope', '=', 'personal'),
+                    ('owner_user_id', '=', user.id),
+                    ('archived', '=', False),
+                ], order='create_date desc', limit=15)
+                if concepts:
+                    parts.append('Senaste kunskap (OKF):\n' + '\n'.join(
+                        '- %s: %s' % (c.title or '?',
+                                      (c.summary or '')[:200])
+                        for c in concepts))
+            except Exception as e:
+                _logger.warning('OKF context failed: %s', e)
+        # 2. Interaktionshistorik (triage)
+        mails = self.search([
+            ('user_id', '=', user.id),
+            ('status', 'in', ('processed', 'classified')),
+        ], order='received_at desc', limit=30)
+        if mails:
+            parts.append('Mailhistorik:\n' + '\n'.join(
+                '- %s (%s, %s)' % (m.from_email or '?',
+                                   m.category or '?',
+                                   m.subject or '') for m in mails))
+        # 3. Graf-volym (mail per partner) — read-only Cypher
+        try:
+            executor = self.env['graph.executor']
+            if executor.is_age_available():
+                res = executor.cypher(
+                    "MATCH (m:MailMessage)-[:SENT_BY]->(p:OdooPartner) "
+                    "RETURN p.name AS partner, count(m) AS vol "
+                    "ORDER BY vol DESC LIMIT 8", read_only=True)
+                if res:
+                    parts.append('Mailvolymer per partner:\n' + '\n'.join(
+                        '- %s: %s' % (r.get('partner', '?'),
+                                      r.get('vol', 0)) for r in res))
+        except Exception as e:
+            _logger.warning('Graph profile context failed: %s', e)
+        return '\n\n'.join(parts)
+
+    @api.model
+    def _generate_profile(self, user):
+        """Generera profil-text + profil-embedding för användaren."""
+        provider, model = self._provider_and_model()
+        if not provider or not model:
+            return False
+        ctx = self._gather_profile_context(user)
+        if not ctx:
+            return False
+        prompt = (
+            'Sammanfatta vad denna användare troligen bryr sig om i sin '
+            'mail — som en kort intresseprofil (max 10 rader, på svenska). '
+            'Basera på kunskapen nedan. Skriv inte om källorna, bara '
+            'slutsatser.\n\n%s' % ctx[:8000])
+        try:
+            resp = asyncio.run(provider.chat(
+                model.api_name or model.name,
+                [Message(role=Role.USER, content=prompt)],
+                temperature=0.3, max_tokens=600))
+        except Exception as e:
+            _logger.warning('Profile LLM failed for %s: %s', user.login, e)
+            return False
+        profile_text = (resp.text or '').strip()
+        if not profile_text:
+            return False
+        # Embedding (best-effort) — via ai.provider._get_embedding
+        embedding = None
+        try:
+            provider_rec = self.env['ai.provider'].search(
+                [('active', '=', True)], limit=1)
+            if provider_rec and hasattr(provider_rec, '_get_embedding'):
+                embedding = provider_rec._get_embedding(profile_text)
+        except Exception as e:
+            _logger.warning('Profile embedding failed for %s: %s',
+                            user.login, e)
+        user.write({
+            'ai_profile_text': profile_text,
+            'ai_profile_embedding': json.dumps(embedding) if embedding
+            else False,
+            'ai_profile_updated': fields.Datetime.now(),
+        })
+        return True
+
+    def _embedding_similarity(self):
+        """Cosinus-likhet mellan mail och profil-embedding (None om saknas)."""
+        user = self.user_id
+        if not user.ai_profile_embedding:
+            return None
+        try:
+            profile_emb = json.loads(user.ai_profile_embedding)
+        except Exception:
+            return None
+        if not profile_emb:
+            return None
+        provider_rec = self.env['ai.provider'].search(
+            [('active', '=', True)], limit=1)
+        if not provider_rec or not hasattr(provider_rec, '_get_embedding'):
+            return None
+        try:
+            mail_emb = provider_rec._get_embedding(
+                '%s\n%s' % (self.subject or '', self._get_body_text(2000)))
+        except Exception:
+            return None
+        if not mail_emb:
+            return None
+        try:
+            a = list(profile_emb)
+            b = list(mail_emb)
+            if len(a) != len(b):
+                return None
+            dot = sum(x * y for x, y in zip(a, b))
+            na = math.sqrt(sum(x * x for x in a)) or 1.0
+            nb = math.sqrt(sum(y * y for y in b)) or 1.0
+            return dot / (na * nb)
+        except Exception:
+            return None
+
+    def _finalize_interest(self):
+        """Viktad kombination: LLM-intresse + embedding-likhet."""
+        self.ensure_one()
+        w_llm = self._profile_weight_llm()
+        sim = self._embedding_similarity()
+        llm_score = self.interest_score or 0.0
+        if sim is not None:
+            combined = w_llm * llm_score + (1 - w_llm) * sim * 10.0
+            self.write({
+                'interest_score': round(combined, 1),
+                'interest_components': json.dumps({
+                    'llm': llm_score,
+                    'similarity': round(sim, 3),
+                    'weight_llm': w_llm,
+                }),
+            })
+
+    @api.model
+    def _profile_weight_llm(self):
+        param = self.env['ir.config_parameter'].sudo().get_param(
+            'user_mail_ai.profile_weight_llm', str(_PROFILE_W_LLM_DEFAULT))
+        try:
+            return float(param)
+        except Exception:
+            return _PROFILE_W_LLM_DEFAULT
+
+    # ══════════════════════════════════════════════════════════════
+    # Digest (daglig brief + veckovis djup)
+    # ══════════════════════════════════════════════════════════════
+
+    @api.model
+    def _digest_users(self):
+        return self.env['res.users'].search([
+            ('ai_digest_enabled', '=', True),
+            ('imap_poll_enabled', '=', True),
+        ])
+
+    @api.model
+    def _run_daily_digests(self):
+        done = 0
+        for user in self._digest_users():
+            try:
+                if self._build_digest(user, daily=True):
+                    done += 1
+            except Exception as e:
+                _logger.error('Daily digest failed for %s: %s',
+                              user.login, e)
+        return done
+
+    @api.model
+    def _run_weekly_digests(self):
+        today = date.today().weekday()
+        done = 0
+        for user in self._digest_users():
+            try:
+                if int(user.ai_digest_weekday or 4) == today:
+                    if self._build_digest(user, daily=False):
+                        done += 1
+            except Exception as e:
+                _logger.error('Weekly digest failed for %s: %s',
+                              user.login, e)
+        return done
+
+    @api.model
+    def _build_digest(self, user, daily=True):
+        provider, model = self._provider_and_model()
+        if not provider or not model:
+            return False
+        since = date.today() - timedelta(days=1 if daily else 7)
+        mails = self.search([
+            ('user_id', '=', user.id),
+            ('received_at', '>=', since.strftime('%Y-%m-%d 00:00:00')),
+        ], order='received_at desc', limit=30)
+        if not mails:
+            return False
+        lines = []
+        for m in mails:
+            lines.append('- %s | %s | %s%s'
+                         % (m.from_email or '?', m.category or 'oklassad',
+                            m.subject or '',
+                            ' [utkast]' if m.draft_uid else ''))
+        period = 'igår' if daily else 'senaste veckan'
+        prompt = (
+            'Sammanfatta %s mail i en kort %s (max %s rader, på svenska): '
+            'viktigaste mailet, skapade händelser, öppna utkast och om '
+            'något kräver svar. Inga rubriker, bara text.\n\n%s'
+            % (period, 'morgonbrief' if daily else 'veckosammanfattning',
+               '10' if daily else '25', '\n'.join(lines)))
+        try:
+            resp = asyncio.run(provider.chat(
+                model.api_name or model.name,
+                [Message(role=Role.USER, content=prompt)],
+                temperature=0.4, max_tokens=800))
+        except Exception as e:
+            _logger.warning('Digest LLM failed for %s: %s', user.login, e)
+            return False
+        summary = (resp.text or '').strip()
+        if not summary:
+            return False
+        self._notify_user(user, summary)
+        self._save_digest_okf(user, summary, daily=daily)
+        return True
+
+    def _notify_user(self, user, body):
+        """Nudge användaren: Discuss-DM från boten + chatter-notis.
+
+        Digest levereras ALDRIG som mail (skulle trigga nya triage-cykler).
+        Primärväg = Discuss-DM från hjälpredans bot-användare (syns i
+        klockan/Discuss), sekundär = notis på coworkern. Chatter-posten
+        lämnas kvar som revisionsspår (digesten är arkiverad i OKF).
+        """
+        html = '<p>%s</p>' % body.replace('\n', '<br/>')
+        delivered = False
+        # 1. Discuss-DM (samma kanal som övriga nudges)
+        try:
+            self._discuss_dm(user, html)
+            delivered = True
+        except Exception as e:
+            _logger.warning('Digest discuss DM failed: %s', e)
+        # 2. Notis på coworkern (revisionsspår + bell för användaren)
+        coworker = self._assistant()
+        if coworker:
+            try:
+                coworker.message_post(
+                    body=html, message_type='notification',
+                    partner_ids=[user.partner_id.id])
+                delivered = True
+            except Exception as e:
+                _logger.warning('Digest notify failed: %s', e)
+        # 3. Fallback: posta på användarens första triage-post
+        if not delivered:
+            try:
+                self.search([('user_id', '=', user.id)], limit=1) \
+                    .sudo().message_post(
+                        body=html, message_type='notification',
+                        partner_ids=[user.partner_id.id])
+            except Exception as e:
+                _logger.warning('Digest notify fallback failed: %s', e)
+
+    @api.model
+    def _save_digest_okf(self, user, summary, daily=True):
+        """Spara digesten som OKF-koncept (frågbarhet)."""
+        if 'ai.okf.concept' not in self.env:
+            return False
+        ArtifactType = self.env['ai.artifact.type']
+        atype = ArtifactType.search([('name', '=', 'digest')], limit=1) or \
+            ArtifactType.search([('name', '=', 'knowledge')], limit=1)
+        if not atype:
+            atype = ArtifactType.create({'name': 'digest'})
+        kind = 'daily' if daily else 'weekly'
+        key = 'digest:%s:%s:%s' % (kind, date.today().isoformat(), user.id)
+        try:
+            self.env['ai.okf.concept']._okf_upsert(
+                atype, key, summary, title='Digest %s (%s)'
+                % (kind, date.today().isoformat()),
+                owner_user_id=user.id, generated_by='process',
+                status='stable')
+            return True
+        except Exception as e:
+            _logger.warning('Digest OKF save failed: %s', e)
+            return False
+
+    # ══════════════════════════════════════════════════════════════
+    # Heartbeat-uppföljning
+    # ══════════════════════════════════════════════════════════════
+
+    @api.model
+    def _heartbeat_review(self, user=None):
+        """Granska öppna mail-ärenden — nudge vid stale action/drafts/
+        förfallna follow-ups/Reply Zero. Anropas av coworkern via
+        odoo_call_method (skill: granska öppna mail-ärenden).
+        """
+        users = user or self.env['res.users'].search([
+            ('imap_poll_enabled', '=', True)])
+        total = 0
+        for u in users:
+            candidates = self._heartbeat_open_items(u)
+            if candidates:
+                self._nudge_user(u, candidates)
+                for c in candidates:
+                    c.write({'follow_up_at': fields.Datetime.now()
+                             + timedelta(days=3)})
+                total += len(candidates)
+        return total
+
+    def _heartbeat_open_items(self, user, stale_days=2, reply_days=5):
+        now = fields.Datetime.now()
+        items = self.env['user_mail_ai.mail']
+        # 1. action_needed som inte nudgats på N dagar
+        stale = self.search([
+            ('user_id', '=', user.id),
+            ('action_needed', '=', True),
+            ('status', 'in', ('new', 'classified')),
+            ('write_date', '<', (now - timedelta(days=stale_days))
+             .strftime('%Y-%m-%d %H:%M:%S')),
+        ])
+        items |= stale
+        # 2. Osedda utkast (äldre än 2 dagar)
+        drafts = self.search([
+            ('user_id', '=', user.id),
+            ('draft_uid', '!=', False),
+            ('status', '!=', 'processed'),
+            ('write_date', '<', (now - timedelta(days=stale_days))
+             .strftime('%Y-%m-%d %H:%M:%S')),
+        ])
+        items |= drafts
+        # 3. Förfallna follow-ups
+        due = self.search([
+            ('user_id', '=', user.id),
+            ('follow_up_at', '!=', False),
+            ('follow_up_at', '<', now),
+            ('status', '!=', 'processed'),
+        ])
+        items |= due
+        # 4. Reply Zero — kräver svar sedan länge
+        rzero = self.search([
+            ('user_id', '=', user.id),
+            ('reply_needed', '=', True),
+            ('status', 'in', ('new', 'classified')),
+            ('received_at', '<', (now - timedelta(days=reply_days))
+             .strftime('%Y-%m-%d %H:%M:%S')),
+        ])
+        items |= rzero
+        return items
+
+    # ── Seed-hjälp (körs av data-XML <function> vid install + update) ──
+
+    @api.model
+    def _ensure_intelligence_skills(self):
+        """Koppla heartbeat-skillen till Mail-hjälpredans agent (idempotent)."""
+        skill = self.env.ref(
+            'user_mail_ai.skill_mail_open_review', raise_if_not_found=False)
+        if not skill:
+            return False
+        coworker = self.env.ref(
+            'user_mail_ai.coworker_mail_assistant', raise_if_not_found=False)
+        if not coworker:
+            return False
+        agent = coworker.agent_ids[:1].agent_id if coworker.agent_ids \
+            else False
+        if agent and skill not in agent.skill_ids:
+            agent.write({'skill_ids': [(4, skill.id)]})
+        return True
+
+    # ── Default-regler per användare (körs av data-XML <function>) ──
+
+    @api.model
+    def _ensure_default_rules(self):
+        """Kopiera seed-mallarna till varje användare som aktiverat pollning.
+
+        Idempotent: en användare får varje seed-regel en gång.
+        """
+        root = self.env.ref('base.user_root')
+        # active_test=False: templates 4–7 are inactive in probe mode and
+        # would otherwise be filtered out by the ORM's active filter.
+        templates = self.env['user_mail_ai.rule'].with_context(
+            active_test=False).search([
+                ('source', '=', 'seed'),
+                ('user_id', '=', root.id),
+            ])
+        if not templates:
+            return 0
+        users = self.env['res.users'].search([
+            ('imap_poll_enabled', '=', True)])
+        created = 0
+        for user in users:
+            existing = set(self.env['user_mail_ai.rule'].with_context(
+                active_test=False).search([
+                    ('user_id', '=', user.id),
+                    ('source', '=', 'seed'),
+                ]).mapped('name'))
+            for t in templates:
+                if t.name in existing:
+                    continue
+                self.env['user_mail_ai.rule'].create({
+                    'user_id': user.id,
+                    'name': t.name,
+                    'priority': t.priority,
+                    'condition_kind': t.condition_kind,
+                    'condition_text': t.condition_text,
+                    'action': t.action,
+                    'action_config': t.action_config,
+                    'active': t.active,
+                    'source': 'seed',
+                })
+                created += 1
+        return created
