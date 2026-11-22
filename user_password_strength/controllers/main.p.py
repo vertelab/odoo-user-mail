@@ -36,7 +36,11 @@ class PasswordSecurity(Home):
         """getting the values from config settings"""
         values = {key: qcontext.get(key) for key in ('login', 'name',
                                                      'password')}
+        # #if VERSION >= "20.0"
+        get_param = request.env['ir.config_parameter'].sudo().get_str
+        # #else
         get_param = request.env['ir.config_parameter'].sudo().get_param
+        # #endif
         config_strength = get_param('user_password_strength.is_strength')
         config_digit = get_param('user_password_strength.is_digit')
         config_upper = get_param('user_password_strength.is_upper')
@@ -78,7 +82,11 @@ class PasswordSecurity(Home):
     @http.route('/web/config_params', type='json', auth="public")
     def website_get_config_value(self):
         """returning the values from config settings to js"""
+        # #if VERSION >= "20.0"
+        get_param = request.env['ir.config_parameter'].sudo().get_str
+        # #else
         get_param = request.env['ir.config_parameter'].sudo().get_param
+        # #endif
 
         return {
             'config_strength': get_param('user_password_strength.is_strength'),

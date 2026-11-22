@@ -56,8 +56,13 @@ class SieveClient(models.AbstractModel):
     # ── Anslutningsparametrar ────────────────────────────────────────────
 
     def _sieve_config(self, key, default=None):
+        # #if VERSION >= "20.0"
+        return self.env['ir.config_parameter'].sudo().get_str(
+            'user_mail_common.%s' % key, default)
+        # #else
         return self.env['ir.config_parameter'].sudo().get_param(
             'user_mail_common.%s' % key, default)
+        # #endif
 
     def _sieve_host(self):
         """ManageSieve-värd.
@@ -77,7 +82,11 @@ class SieveClient(models.AbstractModel):
         """
         icp = self.env['ir.config_parameter'].sudo()
         return (self._sieve_config('sieve_host')
+                # #if VERSION >= "20.0"
+                or icp.get_str('imap_host')
+                # #else
                 or icp.get_param('imap_host')
+                # #endif
                 or odoo.tools.config.get('imap_host')
                 or 'localhost')
 

@@ -1430,19 +1430,25 @@ class UserMailAiMail(models.Model):
             })
             return True
 
-        # helpdesk.ticket: configurable team, fallback to the first team
-        if model == 'helpdesk.ticket' and not vals.get('team_id'):
-            team = self.env['helpdesk.ticket.team'].search([], limit=1)
-            if team:
-                vals['team_id'] = team.id
-                _logger.warning(
-                    'user_mail_ai.rule %s: no team_id in action_config — '
-                    'using the first team (%s)', rule.id, team.id)
+        # helpdesk.ticket: configurable team, fallback to the first team.
+        # helpdesk_mgmt är inget beroende — modellen kan saknas, och då finns
+        # varken teamet eller fältet att sätta. Guarden är på modellen, inte
+        # på modellnamnet: `model == 'helpdesk.ticket'` räcker inte, för
+        # env['helpdesk.ticket.team'] kastar KeyError när modulen är borta.
+        if model == 'helpdesk.ticket' and 'helpdesk.ticket' in self.env:
+            if not vals.get('team_id'):
+                team = self.env['helpdesk.ticket.team'].search([], limit=1)
+                if team:
+                    vals['team_id'] = team.id
+                    _logger.warning(
+                        'user_mail_ai.rule %s: no team_id in action_config — '
+                        'using the first team (%s)', rule.id, team.id)
 
-        # Required fields without a default: fall back to the mail itself so
-        # the object is still created when LLM extraction yields nothing.
-        if model == 'helpdesk.ticket' and not vals.get('description'):
-            vals['description'] = self._mail_as_html()
+            # Required fields without a default: fall back to the mail itself
+            # so the object is still created when LLM extraction yields
+            # nothing.
+            if not vals.get('description'):
+                vals['description'] = self._mail_as_html()
 
         # Owner: models with a required user_id (joplin.note) must be owned
         # by the mail owner — never by env.user (OdooBot in cron).
