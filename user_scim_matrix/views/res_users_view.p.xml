@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_users_form_scim_matrix" model="ir.ui.view">
+        <field name="name">res.users.form.scim.matrix</field>
+        <field name="model">res.users</field>
+        <field name="inherit_id" ref="user_scim.view_users_form_scim" />
+        <field name="arch" type="xml">
+            <!-- Lägg till matrix_id i SCIM-flikens högerspalt -->
+            <xpath expr="//page[@name='scim']//group[@string='Mail Settings']" position="before">
+                <group string="Matrix">
+                    <field name="matrix_id"
+                           placeholder="@user:matrix.vertel.se" />
+                </group>
+            </xpath>
+        </field>
+    </record>
+</odoo>
