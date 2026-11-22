@@ -22,7 +22,8 @@
                         domain="[('source', '=', 'seed')]"/>
                 <filter name="own" string="Egna"
                         domain="[('source', '!=', 'seed')]"/>
-                <group expand="0" string="Gruppera">
+                <!-- Odoo 19 tog bort expand och string från <group> i sökvyer. -->
+                <group>
                     <filter name="g_active" string="Aktiv"
                             domain="[]" context="{'group_by': 'active'}"/>
                     <filter name="g_source" string="Källa"

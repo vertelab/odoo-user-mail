@@ -21,7 +21,12 @@
             <field name="name">E-postkonfiguration</field>
             <field name="model_id" ref="base.model_res_users"/>
             <field name="state">code</field>
+<!-- #if VERSION >= "19.0" -->
+            <!-- Odoo 19 döpte om groups_id till group_ids på ir.actions.* -->
+            <field name="group_ids" eval="[(4, ref('user_mail_common.group_own_email_settings'))]"/>
+<!-- #else -->
             <field name="groups_id" eval="[(4, ref('user_mail_common.group_own_email_settings'))]"/>
+<!-- #endif -->
             <field name="code">
 # Öppna den inloggade användarens egna e-postinställningar.
 # form_view_initial_mode=edit gör att formuläret är redigerbart direkt —

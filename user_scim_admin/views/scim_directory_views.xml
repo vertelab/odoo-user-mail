@@ -124,7 +124,8 @@
                 <filter name="has_no_forward" string="No Forward"
                         domain="[('forward_active', '=', False)]" />
 
-                <group expand="0" string="Group by">
+                <!-- Odoo 19 tog bort expand och string från <group> i sökvyer. -->
+                <group>
                     <filter name="group_customer" string="Customer"
                             context="{'group_by': 'customer'}" />
                     <filter name="group_active" string="Active Status"
