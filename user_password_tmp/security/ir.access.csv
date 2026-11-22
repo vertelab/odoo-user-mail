@@ -1,0 +1,2 @@
+id,name,model_id,group_id/id,operation,domain
+access_res_users_password,access_res_users_password,res.users.password,base.group_user,"read,write,create,unlink",

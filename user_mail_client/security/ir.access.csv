@@ -1,0 +1,2 @@
+id,name,model_id,group_id/id,operation,domain
+access_user_mail_sync_wizard,access_user_mail_sync_wizard,user.mail.sync.wizard,base.group_user,"read,write,create,unlink",

@@ -1,0 +1,5 @@
+id,name,model_id,group_id/id,operation,domain
+access_user_mail_ai_mail,access.user.mail.ai.mail,user.mail.ai.mail,base.group_user,"read,write,create",
+access_user_mail_ai_routing,access.user.mail.ai.routing,user.mail.ai.routing,base.group_user,read,
+access_user_mail_ai_routing_admin,access.user.mail.ai.routing.admin,user.mail.ai.routing,base.group_system,"read,write,create,unlink",
+access_user_mail_ai_rule,access.user.mail.ai.rule,user.mail.ai.rule,base.group_user,"read,write,create,unlink",
