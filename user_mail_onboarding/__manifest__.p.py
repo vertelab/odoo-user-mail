@@ -2,11 +2,7 @@
 # License AGPL-3.0 or later (http://www.gnu.org/licenses/agpl).
 {
     'name': 'User Mail: Onboarding (LMS)',
-    # #if VERSION >= "20.0"
     'version': '3.0.0',
-    # #else
-    'version': '18.0.3.0.0',
-    # #endif
     'summary': 'Onboardingskurs: e-postklienten (IMAP/SMTP) och webmail',
     'description': """
 E-post i Vertel

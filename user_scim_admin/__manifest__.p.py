@@ -1,11 +1,7 @@
 # -*- coding: utf-8 -*-
 {
     'name': 'User SCIM — Admin Directory',
-    # #if VERSION >= "20.0"
     'version': '1.0.0',
-    # #else
-    'version': '18.0.1.0.0',
-    # #endif
     'category': 'Tools',
     'summary': 'Central admin view of all LDAP users across customers.',
     'description': '''

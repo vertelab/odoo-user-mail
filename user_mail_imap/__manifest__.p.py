@@ -8,11 +8,7 @@
     # ``_okf_mail_row`` kraschade på okänd flaggstatus (flags=None).
     # 11.0 = sökningen läser headers först och brödtext bara när inget
     # matchar (13 s → 0,1 s i en mapp med 10 000 mail).
-    # #if VERSION >= "20.0"
     'version': '1.11.0',
-    # #else
-    'version': '18.0.1.11.0',
-    # #endif
     'summary': 'IMAP email client integrated in Odoo — with per-user poller.',
     'description': '''
 IMAP Client

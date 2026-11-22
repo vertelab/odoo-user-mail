@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 {
     'name': 'User SCIM Sync',
-    'version': '18.0.1.0.0',
+    'version': '1.0.0',
     'category': 'Tools',
     'summary': 'Sync users to central LDAP via SCIM 2.0 bridge.',
     'description': '''

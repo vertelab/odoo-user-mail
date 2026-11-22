@@ -23,11 +23,7 @@
 
 {
     'name': "User Password Strength",
-    # #if VERSION >= "20.0"
     'version': '1.0.0',
-    # #else
-    'version': '18.0.1.0.0',
-    # #endif
     'summary': """User password strength - restrict weak password.""",
     'description': '''
 User Password Strength
