@@ -27,7 +27,7 @@ Features:
         'user_scim',
     ],
     'data': [
-        'security/ir.access.csv',
+        'security/ir.model.access.csv',
         'data/cron.xml',
         'views/scim_directory_views.xml',
         'views/scim_directory_kanban.xml',

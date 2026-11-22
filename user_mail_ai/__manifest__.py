@@ -54,7 +54,7 @@ AI Assistant
         'python': ['icalendar'],
     },
     'data': [
-        'security/ir.access.csv',
+        'security/ir.model.access.csv',
         'security/rules.xml',
         'security/rules_ai.xml',
         'data/mail_coworker.xml',

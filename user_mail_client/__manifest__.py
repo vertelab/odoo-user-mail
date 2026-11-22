@@ -63,7 +63,7 @@ User Mail Client
     'repository': 'https://github.com/vertelab/odoo-user-mail',
     'depends': ['user_password_tmp', 'mail', 'user_mail_common'],
     'data': [
-        'security/ir.access.csv',
+        'security/ir.model.access.csv',
         'views/res_users_view.xml',
         'views/res_users_mail_settings_view.xml',
         'views/res_users_data.xml',

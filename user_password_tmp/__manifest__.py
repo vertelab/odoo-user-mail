@@ -50,7 +50,7 @@ User Password Tmp
 
     'depends': ['base'],
     'data': [
-        'security/ir.access.csv',
+        'security/ir.model.access.csv',
     ],
     'installable': True,
     'application': False,
