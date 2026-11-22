@@ -106,6 +106,39 @@
                                 t-att-value="data.body"
                                 t-on-input="(e) => this.data.body = e.target.value"/>
                         </div>
+
+                        <!--
+                            Bilagor. Filerna läses in i webbläsaren och
+                            skickas med som base64 — ingen fil lagras på
+                            servern, vilket är rätt för ett mail som bara
+                            ska ut.
+                        -->
+                        <div class="mb-2">
+                            <div class="d-flex align-items-center gap-2">
+                                <label class="btn btn-sm btn-outline-secondary mb-0">
+                                    <i class="fa fa-paperclip me-1"/>Bifoga fil
+                                    <input type="file" multiple="multiple" class="d-none"
+                                        t-on-change="(ev) =&gt; this.onAttach(ev)"/>
+                                </label>
+                                <span class="text-muted small" t-if="data.attachments.length">
+                                    <t t-out="data.attachments.length"/> bilaga(or)
+                                </span>
+                            </div>
+                            <ul class="list-unstyled mt-2 mb-0" t-if="data.attachments.length">
+                                <t t-foreach="data.attachments" t-as="att" t-key="att.id">
+                                    <li class="d-flex align-items-center gap-2 small py-1">
+                                        <i class="fa fa-file-o text-muted"/>
+                                        <span class="text-truncate" style="max-width: 320px;" t-out="att.name"/>
+                                        <span class="text-muted" t-out="att.sizeLabel"/>
+                                        <button type="button" class="btn btn-link btn-sm p-0 text-danger ms-auto"
+                                            t-on-click="() =&gt; this.removeAttachment(att.id)"
+                                            title="Ta bort bilagan">
+                                            <i class="fa fa-times"/>
+                                        </button>
+                                    </li>
+                                </t>
+                            </ul>
+                        </div>
                     </div>
                     <div class="modal-footer">
                         <button class="btn btn-secondary" t-on-click="props.onClose">Avbryt</button>

@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<templates xml:space="preserve">
+    <t t-name="user_mail_imap.MailSearch" owl="1">
+        <div class="p-2 border-bottom bg-light">
+            <div class="input-group input-group-sm">
+                <span class="input-group-text bg-white">
+                    <i class="fa fa-search text-muted"/>
+                </span>
+                <input type="text" class="form-control"
+                    placeholder="Search in folder..."
+                    t-ref="searchInput"
+                    t-att-value="state.value"
+                    t-on-input="onInput"
+                    t-on-keydown="onKeydown"/>
+                <button class="btn btn-outline-secondary" type="button"
+                    t-if="hasValue"
+                    title="Clear search"
+                    t-on-click="() => this.clear()">
+                    <i class="fa fa-times"/>
+                </button>
+            </div>
+            <div class="small text-muted mt-1" t-if="props.active">
+                <t t-out="props.total"/> matches
+            </div>
+        </div>
+    </t>
+</templates>
