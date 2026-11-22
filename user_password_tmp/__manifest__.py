@@ -49,7 +49,9 @@ User Password Tmp
     # Any module necessary for this one to work correctly
 
     'depends': ['base'],
-    'data': ['security/ir.model.access.csv'],
+    'data': [
+        'security/ir.model.access.csv',
+    ],
     'installable': True,
     'application': False,
     #'auto_install': False,

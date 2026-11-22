@@ -17,3 +17,15 @@ user_scim_matrix/static/description/index.html
 # fixed, and the old location of res_users_report.xml (now in views/).
 user_mail_client/i18n/sv.po.pre-fix
 user_mail_client/views/res_users_report.xml.pre-fix
+
+# ir.access.csv is generated from security/ir.model.access.p.csv by the
+# 20.0 migration (one row per model and group, operation as a crud list).
+# It is data for one edition, not code: a p-file would have to carry both
+# shapes, and the gate already checks the shape per edition.
+user_mail_ai/security/ir.access.csv
+user_mail_client/security/ir.access.csv
+user_mail_common/security/ir.access.csv
+user_mail_imap/security/ir.access.csv
+user_password_tmp/security/ir.access.csv
+user_scim/security/ir.access.csv
+user_scim_admin/security/ir.access.csv
