@@ -358,4 +358,5 @@ class UserMailAiMailOkf(models.Model):
             'due': 'follow_up_at',
             'customer': 'partner_id',
         })
+        # #endif
         return res
