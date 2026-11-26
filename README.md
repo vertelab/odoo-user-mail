@@ -327,3 +327,22 @@ postlåda (`env.user`). Rör aldrig någon annans mail.
 
 - Batchstorlek och intervall sätts på respektive `ir.cron`.
 
+## Porteringsstatus
+
+18.0 är baseline. 19.0/20.0 visar om p-filen har ett villkor för utgåvan
+— inte om grenen finns. Blockerare är `depends` som saknas i 20.0
+(kärna + alla 20.0-grenar).
+
+| Modul | Beskrivning | Manifest | p-fil | 19.0 | 20.0 | Blockerare |
+|---|---|---|---|---|---|---|
+| user_mail_ai | Personlig AI-mailhjälpreda — IMAP-triage, Odoo Mind (graf... | 1.4.0 | 3 | — | ✓ | — |
+| user_mail_client | Administration of mail for users on client side. | 1.0.1 | 2 | — | ✓ | — |
+| user_mail_common | Administration of mail for users on client side. | 1.0.0 | 1 | — | ✓ | — |
+| user_mail_imap | IMAP email client integrated in Odoo — with per-user poller. | 1.3.0 | 0 | — | — | — |
+| user_mail_onboarding | Onboardingskurs: e-postklienten (IMAP/SMTP) och webmail | 1.0.0 | 0 | — | — | — |
+| user_mail_server | Administration of mail for users, serverside component. | 1.0.0 | 0 | — | — | — |
+| user_password_strength | User password strength - restrict weak password. | 1.0.0 | 0 | — | — | — |
+| user_password_tmp | Saves users password in clear text for a short time. | 1.0.0 | 0 | — | — | — |
+| user_scim | Sync users to central LDAP via SCIM 2.0 bridge. | 1.0.0 | 1 | — | ✓ | — |
+| user_scim_admin | Central admin view of all LDAP users across customers. | 1.0.0 | 1 | — | ✓ | — |
+| user_scim_matrix | Sync Matrix ID to LDAP via SCIM bridge. | 1.0.0 | 0 | — | — | `user_matrix` |
