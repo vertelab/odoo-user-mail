@@ -995,10 +995,11 @@ class TestImap(TransactionCase):
         user.last_imap_uidvalidity = '42'
         # #if VERSION >= "20.0"
         self.env['ir.config_parameter'].sudo().set_str(
+            'user_mail_imap.poll_budget_seconds', '0')
         # #else
         self.env['ir.config_parameter'].sudo().set_param(
-        # #endif
             'user_mail_imap.poll_budget_seconds', '0')
+        # #endif
         headers = {1: self._header_bytes('<b1@example.com>')}
         fake = self._fake_conn([1], headers=headers,
                                bodies={1: self._body_bytes('<b1@example.com>')})
@@ -1333,10 +1334,11 @@ class TestImap(TransactionCase):
         user.last_imap_uidvalidity = '42'
         # #if VERSION >= "20.0"
         self.env['ir.config_parameter'].sudo().set_str(
+            'user_mail_imap.spam_headers', '[]')
         # #else
         self.env['ir.config_parameter'].sudo().set_param(
-        # #endif
             'user_mail_imap.spam_headers', '[]')
+        # #endif
         headers = {1: self._spam_header_bytes(
             '<spam4@example.com>', {'X-Spam-Flag': 'YES'})}
         fake = self._fake_conn([1], headers=headers,
@@ -1425,10 +1427,11 @@ class TestImap(TransactionCase):
         """Trasig JSON ger tom lista — ingen krasch."""
         # #if VERSION >= "20.0"
         self.env['ir.config_parameter'].sudo().set_str(
+            'user_mail_imap.spam_headers', '{inte json')
         # #else
         self.env['ir.config_parameter'].sudo().set_param(
-        # #endif
             'user_mail_imap.spam_headers', '{inte json')
+        # #endif
         rules = self.env['user.mail.imap']._spam_rules()
         self.assertEqual(rules, [])
 

@@ -109,7 +109,9 @@ class ScimDirectoryController(http.Controller):
         webhook_secret = odoo_config.get('scim_webhook_secret', '') or _iparam_get(IParam, 'scim.webhook_secret', '')
 
         if webhook_secret:
-            import hashlib, hmac, json
+            import hashlib
+            import hmac
+            import json
             sig_header = request.httprequest.headers.get('X-SCIM-Signature', '')
             if sig_header:
                 payload = json.dumps(request.jsonrequest, sort_keys=True)
