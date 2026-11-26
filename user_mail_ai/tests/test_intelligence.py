@@ -468,7 +468,6 @@ class TestUserMailAiIntelligence(TransactionCase):
         exists = rec._graph_node_exists()
         if not exists:
             self.skipTest('Ingen :MailMessage-nod kunde skapas')
-        rid = rec.id
         rec.unlink()
         self.Mail._prune_graph_nodes()
         # Noden ska vara borta; en kvarvarande rad ska behålla sin nod.

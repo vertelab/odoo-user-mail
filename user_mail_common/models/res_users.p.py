@@ -214,11 +214,11 @@ class res_users(models.Model):
             'user_mail_common.group_own_email_settings')
         if not _has:
             _has = bool(_grp and _grp in self.env.user.group_ids)
-        if not _has:
         # #else
-        if not self.env.user.has_group(
-                'user_mail_common.group_own_email_settings'):
+        _has = self.env.user.has_group(
+            'user_mail_common.group_own_email_settings')
         # #endif
+        if not _has:
             raise AccessError(_(
                 "Du saknar behörigheten 'Administrate own email settings' "
                 "och kan därför inte ändra dina e-postinställningar. "
