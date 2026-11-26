@@ -1327,9 +1327,9 @@ class ImapServer(models.AbstractModel):
         """
         # Escapa citattecken så att de inte bryter IMAP-strängen.
         escaped = term.replace('\\', '\\\\').replace('"', '\\"')
-        criteria = 'OR OR FROM "%s" SUBJECT "%s" TEXT "%s"' % (
-            escaped, escaped, escaped)
-        criteria += self._flag_criteria(flag, unread)
+        # Filtret (flagga + oläst) läggs som AND-led på BÅDA stegen —
+        # annars tappas det när steg 1 ger noll träffar och steg 2 körs.
+        filter_criteria = self._flag_criteria(flag, unread)
 
         conn = self._connect_imap()
         try:
@@ -1345,13 +1345,15 @@ class ImapServer(models.AbstractModel):
             # fullträff är bättre än inget.
             typ, data = conn.uid(
                 'SEARCH', None,
-                'OR FROM "%s" SUBJECT "%s"' % (escaped, escaped))
+                'OR FROM "%s" SUBJECT "%s"%s' % (
+                    escaped, escaped, filter_criteria))
             if typ != 'OK':
                 return {'messages': [], 'total': 0}
             uids = data[0].split() if data and data[0] else []
             if not uids:
                 typ, data = conn.uid(
-                    'SEARCH', None, 'TEXT "%s"' % escaped)
+                    'SEARCH', None,
+                    'TEXT "%s"%s' % (escaped, filter_criteria))
                 if typ == 'OK' and data and data[0]:
                     uids = data[0].split()
             # Nyaste först: IMAP returnerar UID i stigande ordning.
