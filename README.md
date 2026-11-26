@@ -329,20 +329,48 @@ postlåda (`env.user`). Rör aldrig någon annans mail.
 
 ## Porteringsstatus
 
-18.0 är baseline. 19.0/20.0 visar om p-filen har ett villkor för utgåvan
-— inte om grenen finns. Blockerare är `depends` som saknas i 20.0
-(kärna + alla 20.0-grenar).
+18.0 är baseline. Tabellen mäter **faktiskt läge**: p-filer per gren och
+`state` i `pfile_<utgåva>` — inte om grenen finns. ✓ = installerad och
+testkörd i utgåvans databas.
 
 | Modul | Beskrivning | Manifest | p-fil | 19.0 | 20.0 | Blockerare |
 |---|---|---|---|---|---|---|
-| user_mail_ai | Personlig AI-mailhjälpreda — IMAP-triage, Odoo Mind (graf... | 1.4.0 | 3 | — | ✓ | — |
-| user_mail_client | Administration of mail for users on client side. | 1.0.1 | 2 | — | ✓ | — |
-| user_mail_common | Administration of mail for users on client side. | 1.0.0 | 1 | — | ✓ | — |
-| user_mail_imap | IMAP email client integrated in Odoo — with per-user poller. | 1.3.0 | 0 | — | — | — |
-| user_mail_onboarding | Onboardingskurs: e-postklienten (IMAP/SMTP) och webmail | 1.0.0 | 0 | — | — | — |
-| user_mail_server | Administration of mail for users, serverside component. | 1.0.0 | 0 | — | — | — |
-| user_password_strength | User password strength - restrict weak password. | 1.0.0 | 0 | — | — | — |
-| user_password_tmp | Saves users password in clear text for a short time. | 1.0.0 | 0 | — | — | — |
-| user_scim | Sync users to central LDAP via SCIM 2.0 bridge. | 1.0.0 | 1 | — | ✓ | — |
-| user_scim_admin | Central admin view of all LDAP users across customers. | 1.0.0 | 1 | — | ✓ | — |
-| user_scim_matrix | Sync Matrix ID to LDAP via SCIM bridge. | 1.0.0 | 0 | — | — | `user_matrix` |
+| user_mail_ai | Personlig AI-mailhjälpreda — IMAP-triage, Odoo Mind (graf... | 1.11.1 | 34 | — | ✓ | 19.0: `knowledge_joplin` saknas i addons-path |
+| user_mail_client | Administration of mail for users on client side. | 1.1.1 | 13 | ✓ | ✓ | — |
+| user_mail_common | Administration of mail for users on client side. | 1.1.0 | 19 | ✓ | ✓ | — |
+| user_mail_imap | IMAP email client integrated in Odoo — with per-user poller. | 1.11.0 | 40 | ✓ | ✓ | — |
+| user_mail_onboarding | Onboardingskurs: e-postklienten (IMAP/SMTP) och webmail | 3.0.0 | 8 | ✓ | ✓ | — |
+| user_mail_server | Administration of mail for users, serverside component. | 1.0.0 | 5 | ✓ | ✓ | — |
+| user_password_strength | User password strength - restrict weak password. | 1.0.0 | 9 | ✓ | ✓ | — |
+| user_password_tmp | Saves users password in clear text for a short time. | 1.0.0 | 5 | ✓ | ✓ | — |
+| user_scim | Sync users to central LDAP via SCIM 2.0 bridge. | 1.0.0 | 10 | ✓ | ✓ | — |
+| user_scim_admin | Central admin view of all LDAP users across customers. | 1.0.0 | 12 | ✓ | ✓ | — |
+| user_scim_matrix | Sync Matrix ID to LDAP via SCIM bridge. | 1.0.0 | 5 | — | — | `user_matrix` (finns inte i någon utgåva) |
+
+### Porteringsanteckningar
+
+- **p-filerna är originalet** och finns på alla tre grenar (160 st). Utdata
+  är genererad per gren och committas men redigeras aldrig för hand.
+- **20.0 är härledd från 19.0**, inte en egen kodbas. Före 2026-11-26 var
+  20.0-grenen en äldre delmängd (25 p-filer, `user_mail_common` 1.0.0 utan
+  sievelib, inga sieve-/vacation-modeller, inga imap-wizards, inga
+  OWL-komponenter). Villkoren för 20.0 (`ir.access.csv`,
+  `models.Constraint`, `group_ids`, `get_str`/`set_str`, `raw` i stället
+  för `datas`) ligger i samma p-filer.
+- **Testkörning:** `checkmodule -t` använder systemets Odoo 20 och fel
+  config — kör testerna med pfile-miljöns egen binär:
+  `sudo -u odoo /opt/odoo/pfile/<utgåva>/venv/bin/python \
+  /opt/odoo/pfile/<utgåva>/src/odoo-bin -c /etc/odoo/pfile/<utgåva>/odoo.conf \
+  -d pfile_<utgåva> -u <modul> --test-enable --stop-after-init`
+  (resultatet skrivs till `/var/log/odoo/pfile/<utgåva>/odoo.log`).
+- **Kända 20.0-avvikelser hos tredjepart** (testas med `skipTest`):
+  `ai_agent_core` 20.0 saknar OKF-registren
+  (`_okf_register_priority_indexable`, `_okf_register_importance`,
+  `_okf_register_related`) och flaggar nya mail dirty;
+  `communication_center_jitsi` kraschar i `calendar.event.create`;
+  `project_task_id` och `project_sprint_module` är trasiga i `pfile_20.0`
+  och avinstallerade.
+- **19.0-blockerare:** `user_mail_ai` kräver `ai_agent_core` +
+  `knowledge_joplin`. `ai_agent_core` finns men är inte installerad i
+  `pfile_19.0`; `knowledge_joplin` finns porterad i `odoo-knowledge` 19.0
+  men är inte länkad in i `custom_addons`.
