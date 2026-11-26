@@ -1,3 +1,4 @@
+<!-- #if VERSION < "20.0" -->
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
     <!-- Integritet: personlig mail är privat — ägaren ser bara sina egna
@@ -13,3 +14,4 @@
         <field name="perm_unlink" eval="False"/>
     </record>
 </odoo>
+<!-- #endif -->

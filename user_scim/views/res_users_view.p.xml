@@ -32,10 +32,19 @@
         <field name="model">res.users</field>
         <field name="inherit_id" ref="base.view_users_tree" />
         <field name="arch" type="xml">
+            <!-- #if VERSION >= "20.0" -->
+            <!-- Odoo 20 gjorde login icke-läsbar i listvyn (base.view_users_tree
+                 har den som readonly + optional). Ankra på name i stället. -->
+            <field name="name" position="after">
+                <field name="scim_last_sync" optional="hide" />
+                <field name="scim_sync_error" optional="hide" />
+            </field>
+            <!-- #else -->
             <field name="login" position="after">
                 <field name="scim_last_sync" optional="hide" />
                 <field name="scim_sync_error" optional="hide" />
             </field>
+            <!-- #endif -->
         </field>
     </record>
 </odoo>

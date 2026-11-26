@@ -328,6 +328,7 @@ class UserMailAiMailOkf(models.Model):
         # sökfältet (`_search_mails_okf` joinar mot den). Utan garanterad
         # andel kan en djupare kö i en annan modell svälta den — och då
         # svarar sökfältet tomt trots att posterna finns.
+        # #if VERSION < "20.0"
         mixin._okf_register_priority_indexable('user_mail_ai.mail')
         # Tidsdefault (okf-temporal-recall D4): mail är intressant BAKÅT.
         # Sju dygn är användarens val — ett kortare fönster ger skarpare
@@ -339,6 +340,8 @@ class UserMailAiMailOkf(models.Model):
         mixin._okf_register_related(
             'mail', 'user_mail_ai.mail', date_field='received_at',
             label_field='subject', partner_field='partner_id')
+        # #endif
+        # #if VERSION < "20.0"
         # Vikt-signaler (tool-call-quality D5): `interest_score` mäter
         # INTRESSE — nyhetsbreven fick 5 och fakturan 1 i drift, så
         # "viktigaste mail" gav fel svar. Dessa tre signaler mäter VIKT.
@@ -347,4 +350,5 @@ class UserMailAiMailOkf(models.Model):
             'due': 'follow_up_at',
             'customer': 'partner_id',
         })
+        # #endif
         return res

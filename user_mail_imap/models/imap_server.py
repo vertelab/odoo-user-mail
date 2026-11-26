@@ -1327,9 +1327,9 @@ class ImapServer(models.AbstractModel):
         """
         # Escapa citattecken så att de inte bryter IMAP-strängen.
         escaped = term.replace('\\', '\\\\').replace('"', '\\"')
-        criteria = 'OR OR FROM "%s" SUBJECT "%s" TEXT "%s"' % (
-            escaped, escaped, escaped)
-        criteria += self._flag_criteria(flag, unread)
+        # Filtret (flagga + oläst) läggs som AND-led på BÅDA stegen —
+        # annars tappas det när steg 1 ger noll träffar och steg 2 körs.
+        filter_criteria = self._flag_criteria(flag, unread)
 
         conn = self._connect_imap()
         try:
@@ -1345,13 +1345,15 @@ class ImapServer(models.AbstractModel):
             # fullträff är bättre än inget.
             typ, data = conn.uid(
                 'SEARCH', None,
-                'OR FROM "%s" SUBJECT "%s"' % (escaped, escaped))
+                'OR FROM "%s" SUBJECT "%s"%s' % (
+                    escaped, escaped, filter_criteria))
             if typ != 'OK':
                 return {'messages': [], 'total': 0}
             uids = data[0].split() if data and data[0] else []
             if not uids:
                 typ, data = conn.uid(
-                    'SEARCH', None, 'TEXT "%s"' % escaped)
+                    'SEARCH', None,
+                    'TEXT "%s"%s' % (escaped, filter_criteria))
                 if typ == 'OK' and data and data[0]:
                     uids = data[0].split()
             # Nyaste först: IMAP returnerar UID i stigande ordning.
@@ -1584,7 +1586,7 @@ class ImapServer(models.AbstractModel):
 
     def _poll_param(self, key, default):
         """Läs en poll-inställning ur ir.config_parameter (sträng → typ)."""
-        raw = self.env['ir.config_parameter'].sudo().get_param(
+        raw = self.env['ir.config_parameter'].sudo().get_str(
             'user_mail_imap.%s' % key, default)
         try:
             return type(default)(raw)
@@ -1897,7 +1899,7 @@ class ImapServer(models.AbstractModel):
         Trasig JSON ger en tom lista och en varning — ett konfigurationsfel
         ska aldrig stoppa pollningen. Tom lista = filtret avstängt.
         """
-        raw = self.env['ir.config_parameter'].sudo().get_param(
+        raw = self.env['ir.config_parameter'].sudo().get_str(
             'user_mail_imap.spam_headers', '')
         if not raw:
             return []
@@ -2136,7 +2138,7 @@ class ImapServer(models.AbstractModel):
 
     def _drafts_folder(self):
         """Drafts-mapp: LIST-detektering (Drafts/Utkast) med konfig-fallback."""
-        param = self.env['ir.config_parameter'].sudo().get_param(
+        param = self.env['ir.config_parameter'].sudo().get_str(
             'user_mail_imap.drafts_folder', '')
         if param:
             return param

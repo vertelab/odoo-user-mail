@@ -34,8 +34,8 @@ class UserMailProcessed(models.Model):
              'Skiljer ett förväntat utfall från ett fel: bara `failed` '
              'räknas som parse-fel i pollerns hälsomätvärde.')
 
-    _sql_constraints = [
-        ('unique_user_message',
-         'unique(user_id, message_id)',
-         'Message already processed for this user!'),
-    ]
+    # Odoo 19 ersatte _sql_constraints med models.Constraint.
+    _unique_user_message = models.Constraint(
+        'unique(user_id, message_id)',
+        'Message already processed for this user!',
+    )

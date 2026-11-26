@@ -1,3 +1,4 @@
+<!-- #if VERSION < "20.0" -->
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
     <!-- Regler är personliga: användaren ser/redigerar sina egna -->
@@ -12,3 +13,4 @@
         <field name="perm_unlink" eval="True"/>
     </record>
 </odoo>
+<!-- #endif -->

@@ -55,8 +55,6 @@ AI Assistant
     },
     'data': [
         'security/ir.access.csv',
-        'security/rules.xml',
-        'security/rules_ai.xml',
         'data/mail_coworker.xml',
         'data/mail_artifact_types.xml',
         'data/mail_routing.xml',

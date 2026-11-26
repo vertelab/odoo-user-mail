@@ -1,3 +1,8 @@
 id,name,model_id,group_id/id,operation,domain
+# #if VERSION >= "20.0"
+access_scim_directory_user_admin,scim.directory.user,scim.directory.user,base.group_system,crud,
+access_scim_directory_user_user,scim.directory.user,scim.directory.user,base.group_user,r,
+# #else
 access_scim_directory_user_admin,scim.directory.user,scim_directory_user,base.group_system,crud,
 access_scim_directory_user_user,scim.directory.user,scim_directory_user,base.group_user,r,
+# #endif

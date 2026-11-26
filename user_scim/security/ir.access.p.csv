@@ -1,2 +1,6 @@
 id,name,model_id,group_id/id,operation,domain
+# #if VERSION >= "20.0"
+access_scim_config,scim.config,res.users,base.group_system,crud,
+# #else
 access_scim_config,scim.config,base.res_users,base.group_system,crud,
+# #endif

@@ -247,7 +247,13 @@ class UserMailAiMail(models.Model):
         if raw_bytes:
             self.env['ir.attachment'].create({
                 'name': (record.subject or 'email')[:120] + '.eml',
+                # #if VERSION >= "20.0"
+                # Odoo 20 tog bort ir.attachment.datas — binary-fältet
+                # heter raw och tar bytes.
+                'raw': raw_bytes,
+                # #else
                 'datas': base64.b64encode(raw_bytes).decode(),
+                # #endif
                 'mimetype': 'message/rfc822',
                 'res_model': 'user_mail_ai.mail',
                 'res_id': record.id,
@@ -504,7 +510,7 @@ class UserMailAiMail(models.Model):
 
     @api.model
     def _draft_threshold(self):
-        param = self.env['ir.config_parameter'].sudo().get_param(
+        param = self.env['ir.config_parameter'].sudo().get_str(
             'user_mail_ai.draft_threshold', '6.0')
         try:
             return float(param)
@@ -513,7 +519,7 @@ class UserMailAiMail(models.Model):
 
     @api.model
     def _max_drafts_per_cycle(self):
-        param = self.env['ir.config_parameter'].sudo().get_param(
+        param = self.env['ir.config_parameter'].sudo().get_str(
             'user_mail_ai.max_drafts_per_cycle', '5')
         try:
             return int(param)
@@ -522,7 +528,7 @@ class UserMailAiMail(models.Model):
 
     @api.model
     def _nudge_threshold(self):
-        param = self.env['ir.config_parameter'].sudo().get_param(
+        param = self.env['ir.config_parameter'].sudo().get_str(
             'user_mail_ai.nudge_threshold', '7.0')
         try:
             return float(param)
@@ -572,11 +578,15 @@ class UserMailAiMail(models.Model):
             ('res_model', '=', 'user_mail_ai.mail'),
             ('res_id', '=', self.id),
         ], limit=1)
-        if not att or not att.datas:
+        # #if VERSION >= "20.0"
+        content = att.raw.content if att and att.raw else b''
+        # #else
+        content = base64.b64decode(att.datas) if att and att.datas else b''
+        # #endif
+        if not content:
             return ''
         try:
-            msg = BytesParser(policy=policy.default).parsebytes(
-                base64.b64decode(att.datas))
+            msg = BytesParser(policy=policy.default).parsebytes(content)
         except Exception:
             return ''
         texts = []
@@ -787,11 +797,15 @@ class UserMailAiMail(models.Model):
             ('res_model', '=', 'user_mail_ai.mail'),
             ('res_id', '=', self.id),
         ], limit=1)
-        if not att or not att.datas:
+        # #if VERSION >= "20.0"
+        content = att.raw.content if att and att.raw else b''
+        # #else
+        content = base64.b64decode(att.datas) if att and att.datas else b''
+        # #endif
+        if not content:
             return None, ''
         try:
-            msg = BytesParser(policy=policy.default).parsebytes(
-                base64.b64decode(att.datas))
+            msg = BytesParser(policy=policy.default).parsebytes(content)
         except Exception:
             return None, ''
         body_text = ''
@@ -862,13 +876,25 @@ class UserMailAiMail(models.Model):
 
         msg, body_text = self._parse_raw_mail()
         start = stop = summary = desc = organizer_email = None
+        # #if VERSION >= "20.0"
+        _logger.info('Teams: parse start (msg=%s)', msg is not None)
+        # #endif
         if msg is not None:
             for part in msg.walk():
                 fn = part.get_filename() or ''
                 if fn.lower().endswith('.ics') or \
                         part.get_content_type() == 'text/calendar':
                     try:
+                        # #if VERSION >= "20.0"
+                        # get_content() ger str för text/* — from_ical vill
+                        # ha bytes (Python 3.14/email 6.x).
+                        _payload = part.get_content()
+                        if isinstance(_payload, str):
+                            _payload = _payload.encode('utf-8')
+                        cal = icalendar.Calendar.from_ical(_payload)
+                        # #else
                         cal = icalendar.Calendar.from_ical(part.get_content())
+                        # #endif
                     except Exception as e:
                         _logger.warning('ICS parse failed for %s: %s',
                                         self.subject, e)
@@ -889,6 +915,9 @@ class UserMailAiMail(models.Model):
                                 organizer_email = str(org).replace('mailto:', '')
                     break
 
+        # #if VERSION >= "20.0"
+        _logger.info('Teams: efter walk start=%s summary=%s', start, summary)
+        # #endif
         if start is None:
             start, stop, summary, desc, organizer_email = \
                 self._extract_invite_fallback(body_text)
@@ -1061,11 +1090,15 @@ class UserMailAiMail(models.Model):
         att = self.env['ir.attachment'].search([
             ('res_model', '=', 'user_mail_ai.mail'),
             ('res_id', '=', self.id)], limit=1)
-        if not att or not att.datas:
+        # #if VERSION >= "20.0"
+        content = att.raw.content if att and att.raw else b''
+        # #else
+        content = base64.b64decode(att.datas) if att and att.datas else b''
+        # #endif
+        if not content:
             return None
         try:
-            parsed = BytesParser(policy=policy.default).parsebytes(
-                base64.b64decode(att.datas))
+            parsed = BytesParser(policy=policy.default).parsebytes(content)
         except Exception:
             return None
         return self._find_object_by_thread(parsed)

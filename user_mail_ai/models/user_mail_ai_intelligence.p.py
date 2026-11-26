@@ -557,7 +557,7 @@ class UserMailAiIntelligence(models.Model):
 
     @api.model
     def _profile_weight_llm(self):
-        param = self.env['ir.config_parameter'].sudo().get_param(
+        param = self.env['ir.config_parameter'].sudo().get_str(
             'user_mail_ai.profile_weight_llm', str(_PROFILE_W_LLM_DEFAULT))
         try:
             return float(param)
@@ -726,13 +726,24 @@ class UserMailAiIntelligence(models.Model):
     def _heartbeat_open_items(self, user, stale_days=2, reply_days=5):
         now = fields.Datetime.now()
         items = self.env['user_mail_ai.mail']
+        # #if VERSION >= "20.0"
+        # Datumfälten är datetime i DB; en sträng-jämförelse mot write_date
+        # blir textuell och faller på Odoo 20:s lagringsformat. Använd
+        # datetime-objekt i domänen.
+        _stale_before = now - timedelta(days=stale_days)
+        _reply_before = now - timedelta(days=reply_days)
+        # #else
+        _stale_before = (now - timedelta(days=stale_days)) \
+            .strftime('%Y-%m-%d %H:%M:%S')
+        _reply_before = (now - timedelta(days=reply_days)) \
+            .strftime('%Y-%m-%d %H:%M:%S')
+        # #endif
         # 1. action_needed som inte nudgats på N dagar
         stale = self.search([
             ('user_id', '=', user.id),
             ('action_needed', '=', True),
             ('status', 'in', ('new', 'classified')),
-            ('write_date', '<', (now - timedelta(days=stale_days))
-             .strftime('%Y-%m-%d %H:%M:%S')),
+            ('write_date', '<', _stale_before),
         ])
         items |= stale
         # 2. Osedda utkast (äldre än 2 dagar)
@@ -740,8 +751,7 @@ class UserMailAiIntelligence(models.Model):
             ('user_id', '=', user.id),
             ('draft_uid', '!=', False),
             ('status', '!=', 'processed'),
-            ('write_date', '<', (now - timedelta(days=stale_days))
-             .strftime('%Y-%m-%d %H:%M:%S')),
+            ('write_date', '<', _stale_before),
         ])
         items |= drafts
         # 3. Förfallna follow-ups
@@ -757,8 +767,7 @@ class UserMailAiIntelligence(models.Model):
             ('user_id', '=', user.id),
             ('reply_needed', '=', True),
             ('status', 'in', ('new', 'classified')),
-            ('received_at', '<', (now - timedelta(days=reply_days))
-             .strftime('%Y-%m-%d %H:%M:%S')),
+            ('received_at', '<', _reply_before),
         ])
         items |= rzero
         return items
