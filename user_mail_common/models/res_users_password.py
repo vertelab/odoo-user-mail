@@ -83,13 +83,14 @@ class ResUsers(models.Model):
                 'Python-paketet cryptography saknas — kan inte kryptera '
                 'lösenordet.'))
         icp = self.env['ir.config_parameter'].sudo()
+        _get, _set = icp.get_param, icp.set_param
         for param in ('user_mail_imap.encryption_key',
                       'user_mail_common.encryption_key'):
-            key = icp.get_param(param)
+            key = _get(param)
             if key:
                 return key
         key = Fernet.generate_key().decode()
-        icp.set_param('user_mail_common.encryption_key', key)
+        _set('user_mail_common.encryption_key', key)
         return key
 
     # ── Kryptografi ──────────────────────────────────────────────────────

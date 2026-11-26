@@ -16,6 +16,13 @@ import requests
 from odoo import models, fields, api, _
 from odoo.tools import config as odoo_config
 
+def _iparam_get(iparam, key, default=''):
+    return iparam.get_param(key, default)
+
+
+def _iparam_set(iparam, key, value):
+    return iparam.set_param(key, value)
+
 _logger = logging.getLogger(__name__)
 
 
@@ -75,9 +82,9 @@ class ResUsers(models.Model):
         """
         IParam = self.env['ir.config_parameter'].sudo()
 
-        bridge_url = odoo_config.get('scim_bridge_url', '') or IParam.get_param('scim.bridge_url', '')
-        api_key = odoo_config.get('scim_api_key', '') or IParam.get_param('scim.api_key', '')
-        verify = odoo_config.get('scim_verify_ssl', '') or IParam.get_param('scim.verify_ssl', 'True')
+        bridge_url = odoo_config.get('scim_bridge_url', '') or _iparam_get(IParam, 'scim.bridge_url', '')
+        api_key = odoo_config.get('scim_api_key', '') or _iparam_get(IParam, 'scim.api_key', '')
+        verify = odoo_config.get('scim_verify_ssl', '') or _iparam_get(IParam, 'scim.verify_ssl', 'True')
 
         return {
             'bridge_url': bridge_url.rstrip('/'),

@@ -504,8 +504,13 @@ class UserMailAiMail(models.Model):
 
     @api.model
     def _draft_threshold(self):
+        # #if VERSION >= "20.0"
+        param = self.env['ir.config_parameter'].sudo().get_str(
+            'user_mail_ai.draft_threshold', '6.0')
+        # #else
         param = self.env['ir.config_parameter'].sudo().get_param(
             'user_mail_ai.draft_threshold', '6.0')
+        # #endif
         try:
             return float(param)
         except Exception:
@@ -513,8 +518,13 @@ class UserMailAiMail(models.Model):
 
     @api.model
     def _max_drafts_per_cycle(self):
+        # #if VERSION >= "20.0"
+        param = self.env['ir.config_parameter'].sudo().get_str(
+            'user_mail_ai.max_drafts_per_cycle', '5')
+        # #else
         param = self.env['ir.config_parameter'].sudo().get_param(
             'user_mail_ai.max_drafts_per_cycle', '5')
+        # #endif
         try:
             return int(param)
         except Exception:
@@ -522,8 +532,13 @@ class UserMailAiMail(models.Model):
 
     @api.model
     def _nudge_threshold(self):
+        # #if VERSION >= "20.0"
+        param = self.env['ir.config_parameter'].sudo().get_str(
+            'user_mail_ai.nudge_threshold', '7.0')
+        # #else
         param = self.env['ir.config_parameter'].sudo().get_param(
             'user_mail_ai.nudge_threshold', '7.0')
+        # #endif
         try:
             return float(param)
         except Exception:
