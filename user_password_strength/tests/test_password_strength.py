@@ -8,5 +8,6 @@ class TestPasswordStrength(TransactionCase):
 
     def test_settings_model_exists(self):
         """Inställningsmodellen laddar (ärver res.config.settings)."""
-        self.assertIn('res.config.settings', self.env)
-        self.assertTrue(self.env['res.config.settings'])
+        # Ett tomt recordset är falsy — pröva modellnamnet.
+        self.assertEqual(self.env['res.config.settings']._name,
+                         'res.config.settings')
