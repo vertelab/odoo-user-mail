@@ -1,0 +1,5 @@
+pfiles-ci: 1
+editions: 18.0 19.0 20.0
+# Modules depend on neighbours that are not in this repo. The gate needs them
+# on the addons path to tell "uninstallable" from "the neighbour is missing".
+deps: odoo-ai odoo-knowledge odoo-base
