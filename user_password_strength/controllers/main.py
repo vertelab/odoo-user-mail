@@ -79,7 +79,6 @@ class PasswordSecurity(Home):
     def website_get_config_value(self):
         """returning the values from config settings to js"""
         get_param = request.env['ir.config_parameter'].sudo().get_param
-
         return {
             'config_strength': get_param('user_password_strength.is_strength'),
             'config_digit': get_param('user_password_strength.is_digit'),

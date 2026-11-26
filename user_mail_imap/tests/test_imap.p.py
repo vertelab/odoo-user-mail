@@ -15,7 +15,11 @@ class TestImap(TransactionCase):
         self.assertEqual(decrypted, 'test123')
 
     def test_encryption_key_generated(self):
+        # #if VERSION >= "20.0"
+        key = self.env['ir.config_parameter'].get_str('user_mail_imap.encryption_key')
+        # #else
         key = self.env['ir.config_parameter'].get_param('user_mail_imap.encryption_key')
+        # #endif
         self.assertTrue(key, "Encryption key should exist in config")
 
     def test_write_updates_imap_password(self):
@@ -989,7 +993,11 @@ class TestImap(TransactionCase):
         user = self._poll_user()
         user.last_imap_uid = 0
         user.last_imap_uidvalidity = '42'
+        # #if VERSION >= "20.0"
+        self.env['ir.config_parameter'].sudo().set_str(
+        # #else
         self.env['ir.config_parameter'].sudo().set_param(
+        # #endif
             'user_mail_imap.poll_budget_seconds', '0')
         headers = {1: self._header_bytes('<b1@example.com>')}
         fake = self._fake_conn([1], headers=headers,
@@ -1323,7 +1331,11 @@ class TestImap(TransactionCase):
         user = self._poll_user()
         user.last_imap_uid = 0
         user.last_imap_uidvalidity = '42'
+        # #if VERSION >= "20.0"
+        self.env['ir.config_parameter'].sudo().set_str(
+        # #else
         self.env['ir.config_parameter'].sudo().set_param(
+        # #endif
             'user_mail_imap.spam_headers', '[]')
         headers = {1: self._spam_header_bytes(
             '<spam4@example.com>', {'X-Spam-Flag': 'YES'})}
@@ -1411,7 +1423,11 @@ class TestImap(TransactionCase):
 
     def test_broken_rule_json_is_safe(self):
         """Trasig JSON ger tom lista — ingen krasch."""
+        # #if VERSION >= "20.0"
+        self.env['ir.config_parameter'].sudo().set_str(
+        # #else
         self.env['ir.config_parameter'].sudo().set_param(
+        # #endif
             'user_mail_imap.spam_headers', '{inte json')
         rules = self.env['user.mail.imap']._spam_rules()
         self.assertEqual(rules, [])
