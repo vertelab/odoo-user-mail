@@ -324,6 +324,16 @@ class UserMailAiMailOkf(models.Model):
         res = super()._register_hook()
         mixin = self.env['ai.okf.mixin']
         mixin._okf_register_indexable('user_mail_ai.mail')
+        # ai_agent_core 20.0 is a REDUCED port: it carries _okf_register_indexable
+        # but not the four registration methods below (temporal default,
+        # related enrichment, importance signals, priority share). Its own
+        # dashboard is reduced the same way -- it no longer calls
+        # _okf_queue_stats, because 11571d64 (adaptive cron cap) never reached
+        # 20.0. Calling them here raises AttributeError inside _register_hook,
+        # which runs on every registry load, so the whole database fails to
+        # start. The four registrations are therefore 18/19-only until
+        # odoo-ai ports the machinery.
+        #
         # D4 (2026-10-21): den här modellen driver det interaktiva
         # sökfältet (`_search_mails_okf` joinar mot den). Utan garanterad
         # andel kan en djupare kö i en annan modell svälta den — och då
