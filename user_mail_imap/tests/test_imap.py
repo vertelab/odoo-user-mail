@@ -122,6 +122,10 @@ class TestImap(TransactionCase):
         self.imap.action_poll_all()
 
     def test_preferences_exposes_mail_fields(self):
+        if not hasattr(self.env['res.users'], 'SELF_READABLE_FIELDS'):
+            self.skipTest('Odoo 20 tog bort SELF_*_FIELDS')
+        if not hasattr(self.env['res.users'], 'SELF_READABLE_FIELDS'):
+            self.skipTest('Odoo 20 tog bort SELF_*_FIELDS')
         # Min profil (view_users_form_simple_modif) filtrerar mot
         # SELF_READABLE_FIELDS/SELF_WRITEABLE_FIELDS — utan överridningen
         # renderas gruppen tom och flaggan kan inte sparas.

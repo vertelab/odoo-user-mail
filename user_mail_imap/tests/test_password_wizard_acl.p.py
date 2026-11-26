@@ -42,13 +42,33 @@ class TestPasswordWizardAcl(TransactionCase):
             'groups_id': [(6, 0, [cls.env.ref('base.group_user').id])],
             # #endif
         })
+        # #if VERSION >= "20.0"
+        for _u, _groups in (
+                (cls.member, [cls.env.ref('base.group_user').id,
+                              cls.group.id]),
+                (cls.outsider, [cls.env.ref('base.group_user').id])):
+            cls.env.cr.execute(
+                'DELETE FROM res_groups_users_rel WHERE uid = %s', (_u.id,))
+            for _g in _groups:
+                cls.env.cr.execute(
+                    'INSERT INTO res_groups_users_rel (uid, gid) '
+                    'VALUES (%s, %s) ON CONFLICT DO NOTHING', (_u.id, _g))
+        cls.env.invalidate_all()
+        # #endif
 
     def test_acl_row_exists_for_the_group(self):
         """Utan ACL-rad nekar Odoo varje användning av wizarden, även för
         dem som har gruppen — det var buggen."""
+        # #if VERSION >= "20.0"
+        # Odoo 20: ir.model.access heter ir.access.
+        acl = self.env['ir.access'].search([
+            ('model_id.model', '=', WIZARD),
+        ])
+        # #else
         acl = self.env['ir.model.access'].search([
             ('model_id.model', '=', WIZARD),
         ])
+        # #endif
         self.assertTrue(acl, "wizarden saknar ir.model.access-rad")
         self.assertIn(self.group, acl.group_id,
                       "ACL:n måste gälla group_own_email_settings")
