@@ -67,8 +67,8 @@ User Mail Common
         'security/ir.access.csv',
         # #else
         'security/ir.model.access.csv',
-        # #endif
         'security/sieve_rules.xml',
+        # #endif
         'data/cron_sieve_vacation.xml',
         'views/res_users_view.xml',
         'views/sieve_script_views.xml',
