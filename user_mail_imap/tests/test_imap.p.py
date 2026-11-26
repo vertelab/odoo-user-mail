@@ -378,11 +378,12 @@ class TestImap(TransactionCase):
             c[0][2] for c in fake.uid.call_args_list
             if c[0][0] == 'SEARCH')
         # IMAP:s OR tar två argument — tre kriterier kräver nästling.
+        # Steg 1 (FROM+SUBJECT) körs alltid; TEXT bara när steg 1 gav noll
+        # träffar — TEXT kostar ~12 s i en stor mapp.
         self.assertIn('FROM "faktura"', criteria)
         self.assertIn('SUBJECT "faktura"', criteria)
-        self.assertIn('TEXT "faktura"', criteria)
-        self.assertTrue(criteria.startswith('OR OR'),
-                        'tre kriterier ska nästlas som OR OR a b c')
+        self.assertTrue(criteria.startswith('OR '),
+                        'FROM och SUBJECT ska nästlas som OR a b')
 
     def test_search_mails_escapes_quotes(self):
         """Citattecken i sökordet får inte bryta IMAP-strängen."""
@@ -733,22 +734,42 @@ class TestImap(TransactionCase):
         self.user.postfix_mail = 'search-test@vertel.se'
         fake = self._fake_filter_conn(['1'])
 
+        # #if VERSION >= "19.0"
+        # action_search_mails går via OKF när ai.okf.concept finns (den
+        # sökvägen har egna tester). Här mäts IMAP-kriterierna, så den
+        # underliggande implementationen anropas direkt.
+        search = self.env['user.mail.imap'].with_user(self.user)\
+            ._search_mails_imap
+        # #else
+        search = self.env['user.mail.imap'].with_user(self.user)\
+            .action_search_mails
+        # #endif
+
         with patch('imaplib.IMAP4_SSL', return_value=fake):
-            res = self.env['user.mail.imap'].with_user(self.user)\
-                .action_search_mails('INBOX', 'faktura', 0, 80,
-                                     flag='flagged', unread=True)
+            res = search('INBOX', 'faktura', 0, 80,
+                         flag='flagged', unread=True)
 
         self.assertIn('total', res)
-        searches = [c for c in fake.uid.call_args_list if c[0][0] == 'SEARCH']
-        self.assertTrue(searches, 'sökningen ska fråga servern')
-        criteria = searches[0][0][2]
-        self.assertIn('OR OR', criteria, 'OR-trädet ska vara intakt')
-        self.assertIn('FLAGGED', criteria)
-        self.assertIn('UNSEEN', criteria)
+        # Sökningen går i två steg: steg 1 är OR FROM/SUBJECT (headers),
+        # steg 2 är TEXT och körs bara när steg 1 gav noll träffar. Filtret
+        # (flagga + oläst) läggs som AND-led på båda stegen. imaplib får
+        # kriteriet som ett av flera positionsargument — plocka ut det som
+        # börjar med OR respektive TEXT.
+        searched = [a for c in fake.uid.call_args_list if c[0][0] == 'SEARCH'
+                    for a in c[0] if isinstance(a, str)
+                    and a.startswith(('OR ', 'TEXT '))]
+        self.assertTrue(searched, 'sökningen ska fråga servern')
+        or_criteria = next(a for a in searched if a.startswith('OR '))
+        self.assertIn('FLAGGED', or_criteria)
+        self.assertIn('UNSEEN', or_criteria)
         # AND-ordningen: UNSEEN får inte hamna inuti OR-trädet.
-        self.assertGreater(criteria.index('UNSEEN'),
-                           criteria.index('TEXT \"faktura\"'),
+        self.assertGreater(or_criteria.index('UNSEEN'),
+                           or_criteria.index('SUBJECT \"faktura\"'),
                            'UNSEEN ska ligga efter OR-trädet (AND-led)')
+        # Steg 2 (TEXT) körs bara när steg 1 gav noll träffar — här ger
+        # den mockade servern en träff, så TEXT ska inte ha anropats.
+        self.assertFalse([a for a in searched if a.startswith('TEXT ')],
+                         'TEXT ska bara köras när steg 1 gav noll träffar')
 
     def test_search_empty_query_with_filter_filters_the_folder(self):
         """Tomt sökord + filter ska filtrera mappen, inte ge tomt."""

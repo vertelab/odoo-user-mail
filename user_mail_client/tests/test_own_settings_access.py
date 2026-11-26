@@ -38,7 +38,7 @@ class TestOwnSettingsAccess(TransactionCase):
             'name': 'Mail Member',
             'login': 'mail.member@example.com',
             'email': 'mail.member@example.com',
-            'groups_id': [(6, 0, [
+            'group_ids': [(6, 0, [
                 cls.env.ref('base.group_user').id,
                 cls.group.id,
             ])],
@@ -47,7 +47,7 @@ class TestOwnSettingsAccess(TransactionCase):
             'name': 'Mail Outsider',
             'login': 'mail.outsider@example.com',
             'email': 'mail.outsider@example.com',
-            'groups_id': [(6, 0, [cls.env.ref('base.group_user').id])],
+            'group_ids': [(6, 0, [cls.env.ref('base.group_user').id])],
         })
 
     # ── 4.1 ────────────────────────────────────────────────────────────
@@ -124,7 +124,10 @@ class TestOwnSettingsAccess(TransactionCase):
         erp = self.env.ref('base.group_erp_manager')
         self.assertIn(self.group, erp.implied_ids)
         admin = self.env.ref('base.user_admin')
-        self.assertIn(self.group, admin.groups_id)
+        # Odoo 19: implied_ids ärvs inte längre in i res.users.group_ids
+        # (gruppen nås via implied-relen). Testa det som gäller — att
+        # admin har gruppen med räkning av implied_ids.
+        self.assertIn(self.group, admin.all_group_ids)
 
     def test_admin_can_set_mail_fields(self):
         """Admin sätter fälten i användarformuläret — grinden ska inte
@@ -135,8 +138,8 @@ class TestOwnSettingsAccess(TransactionCase):
     def test_outsider_does_not_get_the_group(self):
         """Gruppen är den enda grinden till menyn; den ska inte ärvas av
         base.group_user."""
-        self.assertNotIn(self.group, self.outsider.groups_id)
-        self.assertIn(self.group, self.member.groups_id)
+        self.assertNotIn(self.group, self.outsider.group_ids)
+        self.assertIn(self.group, self.member.group_ids)
 
     # ── 4.3 ────────────────────────────────────────────────────────────
 
@@ -174,8 +177,15 @@ class TestOwnSettingsAccess(TransactionCase):
         annars visas ett tomt fält efter spara i den fristående formen."""
         readable = self.env['res.users'].SELF_READABLE_FIELDS
         writeable = self.env['res.users'].SELF_WRITEABLE_FIELDS
+        # Odoo 19 lade website-fälten och adressfälten (city, country_id)
+        # i SELF_WRITEABLE_FIELDS utan att lägga dem i SELF_READABLE_FIELDS
+        # (core-beteende, inte vårt). Undanta dem — det här testet bevakar
+        # VÅRA mailfält.
+        _CORE_19_GAPS = {'website', 'website_description',
+                         'website_published', 'city', 'country_id'}
         missing = {f for f in writeable
-                   if not f.startswith('context_')} - set(readable)
+                   if not f.startswith('context_')
+                   and f not in _CORE_19_GAPS} - set(readable)
         self.assertFalse(
             missing,
             "Skrivbara men inte läsbara fält ger tomma fält i formen: %s"
@@ -201,11 +211,11 @@ class TestOwnSettingsAccess(TransactionCase):
     def test_action_opens_own_settings_view(self):
         action = self.env.ref('user_mail_client.action_user_mail_own_settings')
         self.assertEqual(action.state, 'code')
-        self.assertEqual(action.groups_id, self.group)
+        self.assertEqual(action.group_ids, self.group)
 
     def test_menu_requires_group(self):
         menu = self.env.ref('user_mail_client.menu_user_mail_own_settings')
-        self.assertIn(self.group, menu.groups_id)
+        self.assertIn(self.group, menu.group_ids)
 
 
 class TestOwnSettingsViewArch(TransactionCase):

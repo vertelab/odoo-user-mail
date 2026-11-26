@@ -24,14 +24,14 @@ class TestPasswordWizardAcl(TransactionCase):
             'name': 'Wizard Member',
             'login': 'wizard.member@example.com',
             'email': 'wizard.member@example.com',
-            'groups_id': [(6, 0, [cls.env.ref('base.group_user').id,
+            'group_ids': [(6, 0, [cls.env.ref('base.group_user').id,
                                   cls.group.id])],
         })
         cls.outsider = Users.create({
             'name': 'Wizard Outsider',
             'login': 'wizard.outsider@example.com',
             'email': 'wizard.outsider@example.com',
-            'groups_id': [(6, 0, [cls.env.ref('base.group_user').id])],
+            'group_ids': [(6, 0, [cls.env.ref('base.group_user').id])],
         })
 
     def test_acl_row_exists_for_the_group(self):
