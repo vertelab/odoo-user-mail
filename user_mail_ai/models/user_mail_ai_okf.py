@@ -324,27 +324,3 @@ class UserMailAiMailOkf(models.Model):
         res = super()._register_hook()
         mixin = self.env['ai.okf.mixin']
         mixin._okf_register_indexable('user_mail_ai.mail')
-        # D4 (2026-10-21): den här modellen driver det interaktiva
-        # sökfältet (`_search_mails_okf` joinar mot den). Utan garanterad
-        # andel kan en djupare kö i en annan modell svälta den — och då
-        # svarar sökfältet tomt trots att posterna finns.
-        mixin._okf_register_priority_indexable('user_mail_ai.mail')
-        # Tidsdefault (okf-temporal-recall D4): mail är intressant BAKÅT.
-        # Sju dygn är användarens val — ett kortare fönster ger skarpare
-        # närtid, och avsmalningen är mjuk så det är billigt att bredda.
-        mixin._okf_register_temporal_default(
-            'mail', days=7, direction='backward')
-        # Berikningen (D11): mail deltar som tidskandidat med
-        # `received_at` och binds till en kund via `partner_id`.
-        mixin._okf_register_related(
-            'mail', 'user_mail_ai.mail', date_field='received_at',
-            label_field='subject', partner_field='partner_id')
-        # Vikt-signaler (tool-call-quality D5): `interest_score` mäter
-        # INTRESSE — nyhetsbreven fick 5 och fakturan 1 i drift, så
-        # "viktigaste mail" gav fel svar. Dessa tre signaler mäter VIKT.
-        mixin._okf_register_importance('user_mail_ai.mail', {
-            'action_required': 'action_needed',
-            'due': 'follow_up_at',
-            'customer': 'partner_id',
-        })
-        return res
