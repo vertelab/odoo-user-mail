@@ -1,4 +1,3 @@
-<!-- #if VERSION < "20.0" -->
 <?xml version="1.0"?>
 <odoo>
     <data noupdate="1">
@@ -24,4 +23,3 @@
 
     </data>
 </odoo>
-<!-- #endif -->

@@ -17,6 +17,22 @@ from datetime import datetime
 from odoo import models, fields, api, _
 from odoo.exceptions import UserError
 
+# #if VERSION >= "20.0"
+def _iparam_get(iparam, key, default=''):
+    return iparam.get_str(key, default)
+
+
+def _iparam_set(iparam, key, value):
+    return iparam.set_str(key, value)
+# #else
+def _iparam_get(iparam, key, default=''):
+    return iparam.get_param(key, default)
+
+
+def _iparam_set(iparam, key, value):
+    return iparam.set_param(key, value)
+# #endif
+
 _logger = logging.getLogger(__name__)
 
 
@@ -94,9 +110,9 @@ class ScimDirectoryUser(models.Model):
     def sync_all(self):
         """Hämta alla användare från SCIM-bridgen och uppdatera lokala poster."""
         IParam = self.env['ir.config_parameter'].sudo()
-        bridge_url = IParam.get_str('scim.bridge_url', '').rstrip('/')
-        api_key = IParam.get_str('scim.admin_api_key', '') or IParam.get_str('scim.api_key', '')
-        verify = IParam.get_str('scim.verify_ssl', 'True') == 'True'
+        bridge_url = _iparam_get(IParam, 'scim.bridge_url', '').rstrip('/')
+        api_key = _iparam_get(IParam, 'scim.admin_api_key', '') or _iparam_get(IParam, 'scim.api_key', '')
+        verify = _iparam_get(IParam, 'scim.verify_ssl', 'True') == 'True'
 
         if not bridge_url or not api_key:
             _logger.warning("SCIM bridge not configured for directory sync")

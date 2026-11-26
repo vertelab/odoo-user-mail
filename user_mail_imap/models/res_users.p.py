@@ -34,7 +34,6 @@ class ResUsers(models.Model):
     # listor — utan överridningen renderas gruppen tom och flaggan kan
     # inte sparas. imap_password är Fernet-krypterad (aldrig klartext);
     # den är läsbar för ägaren men sätts alltid via wizarden.
-    # #if VERSION < "20.0"
     @property
     def SELF_READABLE_FIELDS(self):
         return super().SELF_READABLE_FIELDS + [
@@ -45,14 +44,21 @@ class ResUsers(models.Model):
     def SELF_WRITEABLE_FIELDS(self):
         return super().SELF_WRITEABLE_FIELDS + [
             'imap_poll_enabled']
-    # #endif
 
     def _get_encryption_key(self):
         param = self.env['ir.config_parameter'].sudo()
+        # #if VERSION >= "20.0"
         key = param.get_str('user_mail_imap.encryption_key')
+        # #else
+        key = param.get_param('user_mail_imap.encryption_key')
+        # #endif
         if not key:
             key = Fernet.generate_key().decode()
+            # #if VERSION >= "20.0"
             param.set_str('user_mail_imap.encryption_key', key)
+            # #else
+            param.set_param('user_mail_imap.encryption_key', key)
+            # #endif
         return key
 
     def _encrypt_imap_pw(self, password):

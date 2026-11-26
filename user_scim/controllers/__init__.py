@@ -16,6 +16,13 @@ import requests
 from odoo import http
 from odoo.http import request
 
+def _iparam_get(iparam, key, default=''):
+    return iparam.get_str(key, default)
+
+
+def _iparam_set(iparam, key, value):
+    return iparam.set_str(key, value)
+
 _logger = logging.getLogger(__name__)
 
 
@@ -32,9 +39,9 @@ class ScimAdminController(http.Controller):
             return {'error': 'Access denied — admin only'}
 
         IParam = request.env['ir.config_parameter'].sudo()
-        bridge_url = IParam.get_str('scim.bridge_url', '').rstrip('/')
-        api_key = IParam.get_str('scim.admin_api_key', '')
-        verify = IParam.get_str('scim.verify_ssl', 'True') == 'True'
+        bridge_url = _iparam_get(IParam, 'scim.bridge_url', '').rstrip('/')
+        api_key = _iparam_get(IParam, 'scim.admin_api_key', '')
+        verify = _iparam_get(IParam, 'scim.verify_ssl', 'True') == 'True'
 
         if not bridge_url or not api_key:
             return {'error': 'SCIM bridge not configured'}
@@ -57,9 +64,9 @@ class ScimAdminController(http.Controller):
             return {'error': 'Access denied — admin only'}
 
         IParam = request.env['ir.config_parameter'].sudo()
-        bridge_url = IParam.get_str('scim.bridge_url', '').rstrip('/')
-        api_key = IParam.get_str('scim.admin_api_key', '')
-        verify = IParam.get_str('scim.verify_ssl', 'True') == 'True'
+        bridge_url = _iparam_get(IParam, 'scim.bridge_url', '').rstrip('/')
+        api_key = _iparam_get(IParam, 'scim.admin_api_key', '')
+        verify = _iparam_get(IParam, 'scim.verify_ssl', 'True') == 'True'
 
         if not bridge_url or not api_key:
             return {'error': 'SCIM bridge not configured'}

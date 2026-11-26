@@ -149,36 +149,14 @@ class TestUserMailAiInteraction(TransactionCase):
 
     def test_ingest_skips_internal_author(self):
         # Avsändare = intern användare → ingen triage (loop-skydd)
-        import uuid
-        # #if VERSION >= "20.0"
-        # Odoo 20: project.task 1 har user_ids (onboarding-todo) → mailet
-        # får en ägare och ingesteras. Skapa en egen uppgift utan
-        # tilldelade, så loopen-skyddet är det enda som prövas.
-        task = self.env['project.task'].create({
-            'name': 'Intern test-%s' % uuid.uuid4().hex[:8]})
-        _res_id = task.id
-        # #else
-        _res_id = 1
-        # #endif
-        # Unikt message_id per körning — annars återanvänds en rad från en
-        # tidigare testkörning i samma databas.
-        _mid = '<internal-%s@example.com>' % uuid.uuid4().hex
         msg = self.env['mail.message'].create({
-            'model': 'project.task', 'res_id': _res_id,
-            'message_id': _mid,
+            'model': 'project.task', 'res_id': 1,
+            'message_id': '<internal-1@example.com>',
             'author_id': self.user.partner_id.id,
             'body': '<p>Vårt eget svar</p>',
             'message_type': 'email',
         })
         rec = self.Mail._ingest_mail_message(msg)
-        # #if VERSION >= "20.0"
-        # Odoo 20:s mail.message-hook (_ingest_mail_message) har inget
-        # avsändarfilter — loopen-skyddet ligger i pollern, inte här.
-        # Testet mäter hooken; hoppa när hooken saknar filtret.
-        if rec:
-            self.skipTest('mail.message-hooken har inget avsändarfilter '
-                          'i Odoo 20 (skyddet ligger i pollern)')
-        # #endif
         self.assertFalse(rec, "Internt mail ska inte ingesteras")
 
     def test_mail_message_create_hook(self):

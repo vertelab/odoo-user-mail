@@ -1586,8 +1586,13 @@ class ImapServer(models.AbstractModel):
 
     def _poll_param(self, key, default):
         """Läs en poll-inställning ur ir.config_parameter (sträng → typ)."""
+        # #if VERSION >= "20.0"
         raw = self.env['ir.config_parameter'].sudo().get_str(
             'user_mail_imap.%s' % key, default)
+        # #else
+        raw = self.env['ir.config_parameter'].sudo().get_param(
+            'user_mail_imap.%s' % key, default)
+        # #endif
         try:
             return type(default)(raw)
         except (TypeError, ValueError):
@@ -1899,8 +1904,13 @@ class ImapServer(models.AbstractModel):
         Trasig JSON ger en tom lista och en varning — ett konfigurationsfel
         ska aldrig stoppa pollningen. Tom lista = filtret avstängt.
         """
+        # #if VERSION >= "20.0"
         raw = self.env['ir.config_parameter'].sudo().get_str(
             'user_mail_imap.spam_headers', '')
+        # #else
+        raw = self.env['ir.config_parameter'].sudo().get_param(
+            'user_mail_imap.spam_headers', '')
+        # #endif
         if not raw:
             return []
         try:
@@ -2138,8 +2148,13 @@ class ImapServer(models.AbstractModel):
 
     def _drafts_folder(self):
         """Drafts-mapp: LIST-detektering (Drafts/Utkast) med konfig-fallback."""
+        # #if VERSION >= "20.0"
         param = self.env['ir.config_parameter'].sudo().get_str(
             'user_mail_imap.drafts_folder', '')
+        # #else
+        param = self.env['ir.config_parameter'].sudo().get_param(
+            'user_mail_imap.drafts_folder', '')
+        # #endif
         if param:
             return param
         try:

@@ -59,10 +59,8 @@ AI Assistant
         # #else
         'security/ir.model.access.csv',
         # #endif
-        # #if VERSION < "20.0"
         'security/rules.xml',
         'security/rules_ai.xml',
-        # #endif
         'data/mail_coworker.xml',
         'data/mail_artifact_types.xml',
         'data/mail_routing.xml',

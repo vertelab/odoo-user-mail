@@ -7,9 +7,7 @@
             <field name="model">res.users</field>
             <field name="report_type">qweb-pdf</field>
             <field name="report_name">user_mail_client.mail_config_report</field>
-            <!-- #if VERSION < "20.0" -->
             <field name="report_file">user_mail_client.mail_config_report</field>
-            <!-- #endif -->
             <field name="print_report_name">('Mail settings  - %s' % (object.name))</field>
             <field name="binding_model_id" ref="base.model_res_users"/>
             <field name="binding_type">report</field>

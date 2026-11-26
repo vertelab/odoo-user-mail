@@ -6,10 +6,11 @@
             <field name="model">res.users</field>
             <field name="inherit_id" ref="base.view_users_form"/>
             <field name="arch" type="xml">
-                <!-- Odoo 20: login och email ligger i <div name="login"> /
-                     <div name="email">, inte i h5_email. -->
+                <!-- Odoo 19 tog bort <label for="login"> — login och email
+                     ligger nu i <h5 name="h5_email">. Etiketten behöver
+                     därför ingen ersättning, och login ersätts inuti h5:an. -->
                 <field name="email" position="replace"/>
-                <xpath expr="//div[@name='login']/field[@name='login']" position="replace">
+                <xpath expr="//h5[@name='h5_email']/div/field[@name='login']" position="replace">
                     <div>
                         <h2 class="oe_inline">
                             <field class="oe_inline" name="login"/>

@@ -76,8 +76,9 @@ class SieveClient(models.AbstractModel):
         betyda samma sak i båda modulerna.
         """
         icp = self.env['ir.config_parameter'].sudo()
+        _icp_get = icp.get_str
         return (self._sieve_config('sieve_host')
-                or icp.get_str('imap_host')
+                or _icp_get('imap_host')
                 or odoo.tools.config.get('imap_host')
                 or 'localhost')
 

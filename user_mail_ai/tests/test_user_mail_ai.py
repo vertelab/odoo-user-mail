@@ -28,9 +28,7 @@ def make_raw_email(message_id='<ai-test-1@example.com>', subject='Test',
             'DESCRIPTION:https://teams.microsoft.com/l/meetup-join/abc\r\n'
             'END:VEVENT\r\nEND:VCALENDAR\r\n'
         )
-        # Python 3.14: en str går till text-managern, som inte tar
-        # maintype/subtype. Skicka bytes → raw_data_manager.
-        msg.add_attachment(ics.encode('utf-8'), filename='invite.ics',
+        msg.add_attachment(ics, filename='invite.ics',
                            maintype='text', subtype='calendar')
     return msg.as_bytes()
 
@@ -51,21 +49,13 @@ class TestUserMailAi(TransactionCase):
         går de direkt till `_ingest_message`, vilket är samma kontrakt.
         """
         norm = self.imap_model._normalize_message(raw, folder='INBOX')
-        rec = self.Mail._ingest_message(
+        return self.Mail._ingest_message(
             norm, user=user or self.user, raw_bytes=raw)
-        # _ingest_message returnerar posten oklassificerad (status='new');
-        # _detect_teams_invite/_handle_teams_invite förutsätter att
-        # klassificeringen körts. Kör den deterministiska delen här.
-        if rec and not rec.teams_invite:
-            rec.teams_invite = rec._detect_teams_invite()
-        return rec
 
     # ── Modell & livscykel ──────────────────────────────────────────
 
     def test_model_exists(self):
-        # Odoo 20: ett tomt recordset är falsy (bool() == False) — testa
-        # modellnamnet i stället för sanningsvärdet.
-        self.assertEqual(self.Mail._name, 'user_mail_ai.mail')
+        self.assertTrue(self.Mail)
         self.assertIn('reply_suggested', self.Mail._fields)
         self.assertIn('object_link_candidate', self.Mail._fields)
 
@@ -116,8 +106,8 @@ class TestUserMailAi(TransactionCase):
             ('res_id', '=', rec.id)], limit=1)
         self.assertTrue(att)
         self.assertEqual(att.mimetype, 'message/rfc822')
-        content = att.raw.content
-        self.assertIn(b'<ai-test-1@example.com>', content)
+        self.assertIn(b'<ai-test-1@example.com>',
+                      base64.b64decode(att.datas))
 
     def test_okf_archive_created(self):
         """Ingest flaggar posten — indexeraren sköter arkiveringen.
@@ -151,19 +141,9 @@ class TestUserMailAi(TransactionCase):
     # ── Teams-inbjudan → calendar.event ─────────────────────────────
 
     def test_teams_handler_creates_event(self):
-        # communication_center_jitsi (20.0) kraschar i calendar.event.create
-        # — tredjepartsmodul, inte vår. Hoppa tills den är fixad där.
-        if self.env['ir.module.module'].sudo().search_count([
-                ('name', '=', 'communication_center_jitsi'),
-                ('state', '=', 'installed')]):
-            self.skipTest('communication_center_jitsi kraschar create()')
         rec = self._ingest_raw(make_raw_email(with_ics=True))
         rec._handle_teams_invite()
-        # Diagnostik: visa varför händelsen uteblir (notes/status).
-        self.assertTrue(
-            rec.calendar_event_id,
-            'ingen händelse: status=%s notes=%s' % (
-                rec.status, rec.notes))
+        self.assertTrue(rec.calendar_event_id)
         event = rec.calendar_event_id
         self.assertEqual(event.name, 'Teams-möte med Anna')
         self.assertIn('teams.microsoft.com', event.description or '')
@@ -173,10 +153,6 @@ class TestUserMailAi(TransactionCase):
         self.assertEqual(rec.status, 'processed')
 
     def test_teams_handler_no_duplicate(self):
-        if self.env['ir.module.module'].sudo().search_count([
-                ('name', '=', 'communication_center_jitsi'),
-                ('state', '=', 'installed')]):
-            self.skipTest('communication_center_jitsi kraschar create()')
         rec = self._ingest_raw(make_raw_email(with_ics=True))
         event1 = rec._handle_teams_invite()
         event2 = rec._handle_teams_invite()
@@ -219,11 +195,10 @@ class TestUserMailAi(TransactionCase):
     # ── Integritet (ACL/record-rule) ────────────────────────────────
 
     def test_privacy_rule_exists(self):
-        # Odoo 20 ersatte ir.rule med ir.access (ACL + domän i samma
-        # tabell); regeln bor i security/ir.access.csv.
-        access = self.env['ir.access'].search([
+        rule = self.env['ir.rule'].search([
             ('model_id.model', '=', 'user_mail_ai.mail')], limit=1)
-        self.assertTrue(access)
+        self.assertTrue(rule)
+        self.assertIn('user_id', rule.domain_force or '')
 
     # ── INC-2026-10-19: råbytes bärs inte genom pipelinen ───────────
 

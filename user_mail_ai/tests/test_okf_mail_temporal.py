@@ -86,11 +86,6 @@ class TestMailTemporal(common.TransactionCase):
         mixinens relationsfält — `_okf_links_extra()` behöver inte göra
         det, och ska inte lägga en dubblett.
         """
-        # ai_agent_core 20.0:s _okf_links_source kraschar på modeller utan
-        # _inherit (ir.attachment, mail.message) — tredjepartsbugg.
-        if not hasattr(self.env['ai.okf.mixin'], '_okf_links_source') or \
-                not hasattr(self.env['ir.attachment'], '_inherit'):
-            self.skipTest('ai_agent_core 20.0: links_source kräver _inherit')
         partner = self.env['res.partner'].create({
             'name': 'Skanska Test AB',
             'email': 'kund@skanska-test.se',
@@ -154,8 +149,6 @@ class TestMailTemporal(common.TransactionCase):
 
     def test_temporal_default_is_registered(self):
         """Mail defaultar 7 dygn BAKÅT."""
-        if not hasattr(self.Mixin, '_okf_temporal_defaults'):
-            self.skipTest('ai_agent_core 20.0 saknar temporal-registret')
         defaults = self.Mixin._okf_temporal_defaults()
         self.assertIn('mail', defaults)
         self.assertEqual(defaults['mail']['days'], 7)
@@ -163,8 +156,6 @@ class TestMailTemporal(common.TransactionCase):
 
     def test_related_registration(self):
         """Mail deltar i berikningen med received_at och partner_id."""
-        if not hasattr(self.Mixin, '_okf_related_models'):
-            self.skipTest('ai_agent_core 20.0 saknar related-registret')
         registry = self.Mixin._okf_related_models()
         self.assertIn('user_mail_ai.mail', registry)
         cfg = registry['user_mail_ai.mail']

@@ -15,7 +15,11 @@ class TestImap(TransactionCase):
         self.assertEqual(decrypted, 'test123')
 
     def test_encryption_key_generated(self):
+        # #if VERSION >= "20.0"
         key = self.env['ir.config_parameter'].get_str('user_mail_imap.encryption_key')
+        # #else
+        key = self.env['ir.config_parameter'].get_param('user_mail_imap.encryption_key')
+        # #endif
         self.assertTrue(key, "Encryption key should exist in config")
 
     def test_write_updates_imap_password(self):
@@ -125,10 +129,6 @@ class TestImap(TransactionCase):
         # Min profil (view_users_form_simple_modif) filtrerar mot
         # SELF_READABLE_FIELDS/SELF_WRITEABLE_FIELDS — utan överridningen
         # renderas gruppen tom och flaggan kan inte sparas.
-        # #if VERSION >= "20.0"
-        if not hasattr(self.env['res.users'], 'SELF_READABLE_FIELDS'):
-            self.skipTest('Odoo 20 tog bort SELF_*_FIELDS')
-        # #endif
         readable = self.env['res.users'].SELF_READABLE_FIELDS
         writeable = self.env['res.users'].SELF_WRITEABLE_FIELDS
         for f in ('imap_password', 'imap_poll_enabled', 'last_imap_sync'):
@@ -193,20 +193,12 @@ class TestImap(TransactionCase):
         self.assertTrue(key.startswith('h:'), "Fallback key should be hashed")
 
     def test_processed_unique_constraint(self):
-        import uuid
-        # #if VERSION >= "20.0"
-        # Samma DB återanvänds mellan körningar — 'dup-1' finns redan och
-        # den första create() faller på unikheten. Unikt id per körning.
-        _mid = 'dup-%s' % uuid.uuid4().hex
-        # #else
-        _mid = 'dup-1'
-        # #endif
         user = self.env.user
         self.env['user.mail.processed'].create({
-            'user_id': user.id, 'message_id': _mid})
+            'user_id': user.id, 'message_id': 'dup-1'})
         with self.assertRaises(Exception):
             self.env['user.mail.processed'].create({
-                'user_id': user.id, 'message_id': _mid})
+                'user_id': user.id, 'message_id': 'dup-1'})
 
     def test_poll_model_and_fields(self):
         # user.mail.poll är konkret men tom → kontrollera namnet, inte
@@ -389,18 +381,13 @@ class TestImap(TransactionCase):
         criteria = next(
             c[0][2] for c in fake.uid.call_args_list
             if c[0][0] == 'SEARCH')
-        # IMAP:s OR tar två argument. Steg 1 (FROM+SUBJECT) körs alltid;
-        # TEXT bara när steg 1 gav noll träffar.
+        # IMAP:s OR tar två argument — tre kriterier kräver nästling.
+        # Steg 1 (FROM+SUBJECT) körs alltid; TEXT bara när steg 1 gav noll
+        # träffar — TEXT kostar ~12 s i en stor mapp.
         self.assertIn('FROM "faktura"', criteria)
         self.assertIn('SUBJECT "faktura"', criteria)
-        # #if VERSION >= "20.0"
         self.assertTrue(criteria.startswith('OR '),
                         'FROM och SUBJECT ska nästlas som OR a b')
-        # #else
-        self.assertIn('TEXT "faktura"', criteria)
-        self.assertTrue(criteria.startswith('OR OR'),
-                        'tre kriterier ska nästlas som OR OR a b c')
-        # #endif
 
     def test_search_mails_escapes_quotes(self):
         """Citattecken i sökordet får inte bryta IMAP-strängen."""
@@ -572,11 +559,6 @@ class TestImap(TransactionCase):
     def test_search_does_not_fall_back_when_okf_resolves(self):
         """Arkivet som kan svara ska svara — ingen IMAP-anslutning."""
         from unittest.mock import patch, MagicMock
-        # #if VERSION >= "20.0"
-        # ai_agent_core 20.0:s _okf_search-signatur skiljer — mocken träffar
-        # inte. Hoppa tills OKF-sökningen är porterad.
-        self.skipTest('ai_agent_core 20.0: OKF-sökningens signatur skiljer')
-        # #endif
         user = self._okf_search_user()
         hit = MagicMock()
         hit.source_ref = '<ingested-1@example.com>'
@@ -756,41 +738,42 @@ class TestImap(TransactionCase):
         self.user.postfix_mail = 'search-test@vertel.se'
         fake = self._fake_filter_conn(['1'])
 
-        # #if VERSION >= "20.0"
-        # action_search_mails går via OKF när ai.okf.concept finns. Här
-        # mäts IMAP-kriterierna — anropa implementationen direkt.
-        _search = self.env['user.mail.imap'].with_user(self.user)\
+        # #if VERSION >= "19.0"
+        # action_search_mails går via OKF när ai.okf.concept finns (den
+        # sökvägen har egna tester). Här mäts IMAP-kriterierna, så den
+        # underliggande implementationen anropas direkt.
+        search = self.env['user.mail.imap'].with_user(self.user)\
             ._search_mails_imap
         # #else
-        _search = self.env['user.mail.imap'].with_user(self.user)\
+        search = self.env['user.mail.imap'].with_user(self.user)\
             .action_search_mails
         # #endif
 
         with patch('imaplib.IMAP4_SSL', return_value=fake):
-            res = _search('INBOX', 'faktura', 0, 80,
-                          flag='flagged', unread=True)
+            res = search('INBOX', 'faktura', 0, 80,
+                         flag='flagged', unread=True)
 
         self.assertIn('total', res)
-        searches = [c for c in fake.uid.call_args_list if c[0][0] == 'SEARCH']
-        self.assertTrue(searches, 'sökningen ska fråga servern')
-        # #if VERSION >= "20.0"
-        or_criteria = next(c[0][2] for c in searches
-                           if c[0][2].startswith('OR '))
+        # Sökningen går i två steg: steg 1 är OR FROM/SUBJECT (headers),
+        # steg 2 är TEXT och körs bara när steg 1 gav noll träffar. Filtret
+        # (flagga + oläst) läggs som AND-led på båda stegen. imaplib får
+        # kriteriet som ett av flera positionsargument — plocka ut det som
+        # börjar med OR respektive TEXT.
+        searched = [a for c in fake.uid.call_args_list if c[0][0] == 'SEARCH'
+                    for a in c[0] if isinstance(a, str)
+                    and a.startswith(('OR ', 'TEXT '))]
+        self.assertTrue(searched, 'sökningen ska fråga servern')
+        or_criteria = next(a for a in searched if a.startswith('OR '))
         self.assertIn('FLAGGED', or_criteria)
         self.assertIn('UNSEEN', or_criteria)
+        # AND-ordningen: UNSEEN får inte hamna inuti OR-trädet.
         self.assertGreater(or_criteria.index('UNSEEN'),
                            or_criteria.index('SUBJECT \"faktura\"'),
                            'UNSEEN ska ligga efter OR-trädet (AND-led)')
-        # #else
-        criteria = searches[0][0][2]
-        self.assertIn('OR OR', criteria, 'OR-trädet ska vara intakt')
-        self.assertIn('FLAGGED', criteria)
-        self.assertIn('UNSEEN', criteria)
-        # AND-ordningen: UNSEEN får inte hamna inuti OR-trädet.
-        self.assertGreater(criteria.index('UNSEEN'),
-                           criteria.index('TEXT \"faktura\"'),
-                           'UNSEEN ska ligga efter OR-trädet (AND-led)')
-        # #endif
+        # Steg 2 (TEXT) körs bara när steg 1 gav noll träffar — här ger
+        # den mockade servern en träff, så TEXT ska inte ha anropats.
+        self.assertFalse([a for a in searched if a.startswith('TEXT ')],
+                         'TEXT ska bara köras när steg 1 gav noll träffar')
 
     def test_search_empty_query_with_filter_filters_the_folder(self):
         """Tomt sökord + filter ska filtrera mappen, inte ge tomt."""
@@ -1010,8 +993,13 @@ class TestImap(TransactionCase):
         user = self._poll_user()
         user.last_imap_uid = 0
         user.last_imap_uidvalidity = '42'
+        # #if VERSION >= "20.0"
         self.env['ir.config_parameter'].sudo().set_str(
             'user_mail_imap.poll_budget_seconds', '0')
+        # #else
+        self.env['ir.config_parameter'].sudo().set_param(
+            'user_mail_imap.poll_budget_seconds', '0')
+        # #endif
         headers = {1: self._header_bytes('<b1@example.com>')}
         fake = self._fake_conn([1], headers=headers,
                                bodies={1: self._body_bytes('<b1@example.com>')})
@@ -1344,8 +1332,13 @@ class TestImap(TransactionCase):
         user = self._poll_user()
         user.last_imap_uid = 0
         user.last_imap_uidvalidity = '42'
+        # #if VERSION >= "20.0"
         self.env['ir.config_parameter'].sudo().set_str(
             'user_mail_imap.spam_headers', '[]')
+        # #else
+        self.env['ir.config_parameter'].sudo().set_param(
+            'user_mail_imap.spam_headers', '[]')
+        # #endif
         headers = {1: self._spam_header_bytes(
             '<spam4@example.com>', {'X-Spam-Flag': 'YES'})}
         fake = self._fake_conn([1], headers=headers,
@@ -1432,8 +1425,13 @@ class TestImap(TransactionCase):
 
     def test_broken_rule_json_is_safe(self):
         """Trasig JSON ger tom lista — ingen krasch."""
+        # #if VERSION >= "20.0"
         self.env['ir.config_parameter'].sudo().set_str(
             'user_mail_imap.spam_headers', '{inte json')
+        # #else
+        self.env['ir.config_parameter'].sudo().set_param(
+            'user_mail_imap.spam_headers', '{inte json')
+        # #endif
         rules = self.env['user.mail.imap']._spam_rules()
         self.assertEqual(rules, [])
 

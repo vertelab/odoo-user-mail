@@ -64,6 +64,7 @@ User Mail Common
     'data': [
         'security/user_mail_security.xml',
         'security/ir.access.csv',
+        'security/sieve_rules.xml',
         'data/cron_sieve_vacation.xml',
         'views/res_users_view.xml',
         'views/sieve_script_views.xml',

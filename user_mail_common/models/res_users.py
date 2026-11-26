@@ -144,9 +144,28 @@ class res_users(models.Model):
     # generate_dovecot_sha512, aldrig direkt), quota (admin),
     # sieve_script_id (härledd), postfix_active (serverns sanning — vad
     # postfix faktiskt levererar till, se user_mail_server).
-    # Odoo 20 tog bort SELF_READABLE_FIELDS/SELF_WRITEABLE_FIELDS (Min
-    # profil filtrerar inte längre arch mot dem). Överridningarna finns
-    # kvar för 18/19 och villkoras bort här.
+    @property
+    def SELF_WRITEABLE_FIELDS(self):
+        return super().SELF_WRITEABLE_FIELDS + [
+            'forward_active', 'forward_address', 'forward_cp',
+            'postfix_alias_ids',
+            'spam_active', 'spam_killevel', 'spam_tag', 'spam_tag2',
+            'vacation_active', 'vacation_subject', 'vacation_text',
+            'vacation_from', 'vacation_to', 'vacation_forward',
+            'virus_active',
+        ]
+
+    @property
+    def SELF_READABLE_FIELDS(self):
+        return super().SELF_READABLE_FIELDS + [
+            'postfix_active', 'postfix_alias_ids', 'postfix_mail',
+            'maildir', 'quota', 'forward_active', 'forward_address',
+            'forward_cp', 'spam_active', 'spam_killevel', 'spam_tag',
+            'spam_tag2', 'vacation_active', 'vacation_subject',
+            'vacation_text', 'vacation_from', 'vacation_to',
+            'vacation_forward', 'virus_active',
+            'sieve_script_state', 'sieve_script_error',
+        ]
 
     # Fält som kräver group_own_email_settings när användaren skriver på
     # SIG SJÄLV. Samma urval som SELF_WRITEABLE_FIELDS, minus de som
@@ -179,16 +198,8 @@ class res_users(models.Model):
             return
         if self.env.user.has_group('base.group_erp_manager'):
             return
-        # Odoo 20: has_group() ser inte grupper som bara finns via
-        # implied_ids — pröva även direkt medlemskap (group_ids).
-        _grp = self.env.ref(
-            'user_mail_common.group_own_email_settings',
-            raise_if_not_found=False)
-        _has = self.env.user.has_group(
-            'user_mail_common.group_own_email_settings')
-        if not _has:
-            _has = bool(_grp and _grp in self.env.user.group_ids)
-        if not _has:
+        if not self.env.user.has_group(
+                'user_mail_common.group_own_email_settings'):
             raise AccessError(_(
                 "Du saknar behörigheten 'Administrate own email settings' "
                 "och kan därför inte ändra dina e-postinställningar. "

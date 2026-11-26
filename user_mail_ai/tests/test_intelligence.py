@@ -18,14 +18,9 @@ class TestUserMailAiIntelligence(TransactionCase):
         self.imap = self.env['user.mail.imap']
         self.user = self.env.user
 
-    def _ingest(self, message_id=None,
+    def _ingest(self, message_id='<intel-1@example.com>',
                 subject='Test', frm='Anna <anna@example.com>'):
         from email.message import EmailMessage
-        # Samma DB återanvänds mellan testkörningar — ett fast message_id
-        # ger en rad från förra körningen (annan write_date).
-        if message_id is None:
-            import uuid
-            message_id = '<intel-%s@example.com>' % uuid.uuid4().hex
         msg = EmailMessage()
         msg['Message-ID'] = message_id
         msg['Subject'] = subject
@@ -171,44 +166,22 @@ class TestUserMailAiIntelligence(TransactionCase):
         rec.write({
             'action_needed': True,
             'status': 'classified',
+            'write_date': (datetime.now() - timedelta(days=5))
+            .strftime('%Y-%m-%d %H:%M:%S'),
         })
-        # Se test_heartbeat_finds_unsent_draft: write_date skrivs över av
-        # Odoo 20:s compute. Verifiera databasen och hoppa över heartbeat.
-        self.env.cr.execute(
-            'UPDATE user_mail_ai_mail SET write_date = %s WHERE id = %s',
-            ((datetime.now() - timedelta(days=5)), rec.id))
-        self.env.cr.execute(
-            'SELECT write_date FROM user_mail_ai_mail WHERE id = %s',
-            (rec.id,))
-        wd = self.env.cr.fetchone()[0]
-        self.assertLess(wd, datetime.now() - timedelta(days=2))
-        self.skipTest('write_date skrivs över av Odoo 20:s compute — '
-                      'heartbeat kan inte mätas i denna DB')
-
+        items = self.Mail._heartbeat_open_items(self.user, stale_days=2)
+        self.assertIn(rec, items)
 
     def test_heartbeat_finds_unsent_draft(self):
         rec = self._ingest()
         rec.write({
             'draft_uid': 77,
             'status': 'classified',
+            'write_date': (datetime.now() - timedelta(days=3))
+            .strftime('%Y-%m-%d %H:%M:%S'),
         })
-        # Odoo 20: (1) draft_uid nollställs av write(), (2) write_date har
-        # en compute som skriver över varje SQL-värde vid nästa flush.
-        # Sätt båda sist i testet — efter all ORM-aktivitet — och mät
-        # databasen, inte ORM-cachen.
-        self.env.cr.execute(
-            'UPDATE user_mail_ai_mail SET draft_uid = 77, write_date = %s '
-            'WHERE id = %s',
-            ((datetime.now() - timedelta(days=3)), rec.id))
-        self.env.cr.execute(
-            'SELECT write_date, draft_uid FROM user_mail_ai_mail '
-            'WHERE id = %s', (rec.id,))
-        wd, draft = self.env.cr.fetchone()
-        self.assertLess(wd, datetime.now() - timedelta(days=2))
-        self.assertEqual(draft, 77)
-        self.skipTest('write_date skrivs över av Odoo 20:s compute vid '
-                      'nästa flush — databasen är verifierad, heartbeat '
-                      'kan inte mätas i denna DB')
+        items = self.Mail._heartbeat_open_items(self.user, stale_days=2)
+        self.assertIn(rec, items)
 
     def test_heartbeat_quiet_for_fresh_mail(self):
         rec = self._ingest()
@@ -221,19 +194,11 @@ class TestUserMailAiIntelligence(TransactionCase):
         rec.write({
             'action_needed': True,
             'status': 'classified',
+            'write_date': (datetime.now() - timedelta(days=5))
+            .strftime('%Y-%m-%d %H:%M:%S'),
         })
-        # Se test_heartbeat_finds_unsent_draft: write_date skrivs över av
-        # Odoo 20:s compute. Verifiera databasen och hoppa över heartbeat.
-        self.env.cr.execute(
-            'UPDATE user_mail_ai_mail SET write_date = %s WHERE id = %s',
-            ((datetime.now() - timedelta(days=5)), rec.id))
-        self.env.cr.execute(
-            'SELECT write_date FROM user_mail_ai_mail WHERE id = %s',
-            (rec.id,))
-        wd = self.env.cr.fetchone()[0]
-        self.assertLess(wd, datetime.now() - timedelta(days=2))
-        self.skipTest('write_date skrivs över av Odoo 20:s compute — '
-                      'follow_up kan inte mätas i denna DB')
+        self.Mail._heartbeat_review(user=self.user)
+        self.assertTrue(rec.follow_up_at, "Follow-up ska sättas efter nudge")
 
     # ── Regression: tråd-kandidat får inte skrivas över av LLM-nolla ──
 
@@ -468,6 +433,7 @@ class TestUserMailAiIntelligence(TransactionCase):
         exists = rec._graph_node_exists()
         if not exists:
             self.skipTest('Ingen :MailMessage-nod kunde skapas')
+        rid = rec.id
         rec.unlink()
         self.Mail._prune_graph_nodes()
         # Noden ska vara borta; en kvarvarande rad ska behålla sin nod.

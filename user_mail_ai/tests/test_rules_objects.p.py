@@ -161,10 +161,6 @@ class TestRulesObjects(TransactionCase):
     # ── 8.8 Dubblett-ärende länkas, inte skapas ─────────────────────
 
     def test_duplicate_ticket_linked_not_created(self):
-        # #if VERSION >= "20.0"
-        if 'helpdesk.ticket' not in self.env:
-            self.skipTest('helpdesk_mgmt är inte installerat')
-        # #endif
         ticket = self.env['helpdesk.ticket'].create({
             'name': 'Samma ärende', 'partner_email': 'anna@example.com',
             'description': 'Befintligt ärende'})
@@ -282,12 +278,6 @@ class TestRulesObjects(TransactionCase):
         # Samma guard som test_helpdesk_team_configured: utan ett team i
         # databasen finns ingen fallback att pröva. helpdesk är inte ett
         # beroende av user_mail_ai, så modulen kan saknas.
-        # #if VERSION >= "20.0"
-        # Odoo 20: helpdesk är inte installerat i pfile_20.0 — modellen
-        # finns inte i registret, så env[...] kastar KeyError. Hoppa.
-        if 'helpdesk.ticket.team' not in self.env:
-            self.skipTest('helpdesk_mgmt är inte installerat')
-        # #endif
         if not self.env['helpdesk.ticket.team'].search([], limit=1):
             self.skipTest('Inget helpdesk-team finns')
         rec = self._ingest()
@@ -301,10 +291,6 @@ class TestRulesObjects(TransactionCase):
     # ── Extra: konfigurerat team används ────────────────────────────
 
     def test_helpdesk_team_configured(self):
-        # #if VERSION >= "20.0"
-        if 'helpdesk.ticket.team' not in self.env:
-            self.skipTest('helpdesk_mgmt är inte installerat')
-        # #endif
         team = self.env['helpdesk.ticket.team'].search([], limit=1)
         if not team:
             self.skipTest('Inget helpdesk-team finns')

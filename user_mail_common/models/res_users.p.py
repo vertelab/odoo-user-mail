@@ -144,11 +144,6 @@ class res_users(models.Model):
     # generate_dovecot_sha512, aldrig direkt), quota (admin),
     # sieve_script_id (härledd), postfix_active (serverns sanning — vad
     # postfix faktiskt levererar till, se user_mail_server).
-    # #if VERSION >= "20.0"
-    # Odoo 20 tog bort SELF_READABLE_FIELDS/SELF_WRITEABLE_FIELDS (Min
-    # profil filtrerar inte längre arch mot dem). Överridningarna finns
-    # kvar för 18/19 och villkoras bort här.
-    # #else
     @property
     def SELF_WRITEABLE_FIELDS(self):
         return super().SELF_WRITEABLE_FIELDS + [
@@ -171,7 +166,6 @@ class res_users(models.Model):
             'vacation_forward', 'virus_active',
             'sieve_script_state', 'sieve_script_error',
         ]
-    # #endif
 
     # Fält som kräver group_own_email_settings när användaren skriver på
     # SIG SJÄLV. Samma urval som SELF_WRITEABLE_FIELDS, minus de som
@@ -204,21 +198,8 @@ class res_users(models.Model):
             return
         if self.env.user.has_group('base.group_erp_manager'):
             return
-        # #if VERSION >= "20.0"
-        # Odoo 20: has_group() ser inte grupper som bara finns via
-        # implied_ids — pröva även direkt medlemskap (group_ids).
-        _grp = self.env.ref(
-            'user_mail_common.group_own_email_settings',
-            raise_if_not_found=False)
-        _has = self.env.user.has_group(
-            'user_mail_common.group_own_email_settings')
-        if not _has:
-            _has = bool(_grp and _grp in self.env.user.group_ids)
-        # #else
-        _has = self.env.user.has_group(
-            'user_mail_common.group_own_email_settings')
-        # #endif
-        if not _has:
+        if not self.env.user.has_group(
+                'user_mail_common.group_own_email_settings'):
             raise AccessError(_(
                 "Du saknar behörigheten 'Administrate own email settings' "
                 "och kan därför inte ändra dina e-postinställningar. "
@@ -295,13 +276,21 @@ class res_company(models.Model):
     nbr_users = fields.Integer(compute="_nbr_users", string="Nbr of users")
     
     def _set_domain_depricated(self):
+        # #if VERSION >= "20.0"
         self.env['ir.config_parameter'].set_str('mail.catchall.domain', self.domain)
+        # #else
+        self.env['ir.config_parameter'].set_param('mail.catchall.domain', self.domain)
+        # #endif
     
     @api.depends('name')
     def _get_domain_depricated(self):
         for rec in self:
             if rec.name:
+                # #if VERSION >= "20.0"
                 rec.domain = rec.env['ir.config_parameter'].get_str('mail.catchall.domain')
+                # #else
+                rec.domain = rec.env['ir.config_parameter'].get_param('mail.catchall.domain')
+                # #endif
             else:
                 rec.domain = False
     

@@ -86,9 +86,11 @@ class ResUsers(models.Model):
     _inherit = 'res.users'
 
     def _get_param(self, param, value):
-        if not self.env['ir.config_parameter'].get_str(param):
-            self.env['ir.config_parameter'].set_str(param, value)
-        return self.env['ir.config_parameter'].get_str(param)
+        _get, _set = (self.env['ir.config_parameter'].get_str,
+                      self.env['ir.config_parameter'].set_str)
+        if not _get(param):
+            _set(param, value)
+        return _get(param)
 
     def generate_password(self):
         length = int(self._get_param('pw_length', 13))
@@ -253,9 +255,11 @@ class ResCompany(models.Model):
     _inherit = 'res.company'
 
     def _get_param(self, param, value):
-        if not self.env['ir.config_parameter'].get_str(param):
-            self.env['ir.config_parameter'].set_str(param, value)
-        return self.env['ir.config_parameter'].get_str(param)
+        _get, _set = (self.env['ir.config_parameter'].get_str,
+                      self.env['ir.config_parameter'].set_str)
+        if not _get(param):
+            _set(param, value)
+        return _get(param)
 
     def generateUUID(self):
         return str(uuid.uuid4())

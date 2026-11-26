@@ -6,18 +6,7 @@
             <field name="model">res.users</field>
             <field name="inherit_id" ref="base.view_users_form"/>
             <field name="arch" type="xml">
-<!-- #if VERSION >= "20.0" -->
-                <!-- Odoo 20: login och email ligger i <div name="login"> /
-                     <div name="email">, inte i h5_email. -->
-                <field name="email" position="replace"/>
-                <xpath expr="//div[@name='login']/field[@name='login']" position="replace">
-                    <div>
-                        <h2 class="oe_inline">
-                            <field class="oe_inline" name="login"/>
-                        </h2>
-                        <field class="oe_read_only" name="email" readonly="1"/>
-                    </div></xpath>
-<!-- #elif VERSION >= "19.0" -->
+<!-- #if VERSION >= "19.0" -->
                 <!-- Odoo 19 tog bort <label for="login"> — login och email
                      ligger nu i <h5 name="h5_email">. Etiketten behöver
                      därför ingen ersättning, och login ersätts inuti h5:an. -->
