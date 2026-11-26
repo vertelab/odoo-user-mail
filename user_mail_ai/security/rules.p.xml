@@ -1,8 +1,17 @@
-<!-- #if VERSION < "20.0" -->
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
     <!-- Integritet: personlig mail är privat — ägaren ser bara sina egna
          triage-poster. Admin (sudo) går förbi regeln. -->
+    <!-- #if VERSION >= "20.0" -->
+    <!-- Odoo 20: ir.rule ersatt av ir.access (model_id/group_id/operation/domain). -->
+    <record id="user_mail_ai_mail_owner_rule" model="ir.access">
+        <field name="name">user_mail_ai.mail: ägare ser egna</field>
+        <field name="model_id" ref="model_user_mail_ai_mail"/>
+        <field name="group_id" ref="base.group_user"/>
+        <field name="operation">cru</field>
+        <field name="domain">[('user_id', '=', user.id)]</field>
+    </record>
+    <!-- #else -->
     <record id="user_mail_ai_mail_owner_rule" model="ir.rule">
         <field name="name">user_mail_ai.mail: ägare ser egna</field>
         <field name="model_id" ref="model_user_mail_ai_mail"/>
@@ -13,5 +22,5 @@
         <field name="perm_create" eval="True"/>
         <field name="perm_unlink" eval="False"/>
     </record>
+    <!-- #endif -->
 </odoo>
-<!-- #endif -->
