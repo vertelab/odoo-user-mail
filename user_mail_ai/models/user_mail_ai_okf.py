@@ -324,8 +324,3 @@ class UserMailAiMailOkf(models.Model):
         res = super()._register_hook()
         mixin = self.env['ai.okf.mixin']
         mixin._okf_register_indexable('user_mail_ai.mail')
-        # D4 (2026-10-21): den här modellen driver det interaktiva
-        # sökfältet (`_search_mails_okf` joinar mot den). Utan garanterad
-        # andel kan en djupare kö i en annan modell svälta den — och då
-        # svarar sökfältet tomt trots att posterna finns.
-        return res
