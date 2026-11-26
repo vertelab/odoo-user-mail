@@ -1,6 +1,6 @@
 id,name,model_id,group_id/id,operation,domain
-access_postfix_alias_manager,res.groups,postfix.alias,base.group_erp_manager,crud,
-access_email_settings_user,res.groups,postfix.alias,user_mail_common.group_own_email_settings,crud,
-access_postfix_vacation_notification,access_postfix_vacation_notification,postfix.vacation_notification,base.group_user,crud,
-access_sieve_script_manager,sieve.script manager,sieve.script,base.group_erp_manager,crud,
-access_sieve_script_user,sieve.script own settings,sieve.script,user_mail_common.group_own_email_settings,cru,
+access_postfix_alias_manager,res.groups,postfix_alias,base.group_erp_manager,crud,
+access_email_settings_user,res.groups,postfix_alias,user_mail_common.group_own_email_settings,crud,
+access_postfix_vacation_notification,access_postfix_vacation_notification,postfix_vacation_notification,base.group_user,crud,
+access_sieve_script_manager,sieve.script manager,sieve_script,base.group_erp_manager,crud,
+access_sieve_script_user,sieve.script own settings,sieve_script,user_mail_common.group_own_email_settings,cru,
